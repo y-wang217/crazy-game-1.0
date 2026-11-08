@@ -55,6 +55,13 @@ export interface CatDef {
   /** Seconds between attacks at Lv.1. */
   interval: number;
   comboHits?: number;
+  /** Seconds between the individual punches of a combo (real hit timing). */
+  comboGap?: number;
+  /**
+   * Seconds of wind-up / aiming before the hit lands (Orange slam, Black Cat shot).
+   * Damage happens at the end, so the animation and the mechanic match.
+   */
+  windup?: number;
   splashRadius?: number;
   /** Fraction of damage dealt to secondary splash targets. */
   splashRatio?: number;

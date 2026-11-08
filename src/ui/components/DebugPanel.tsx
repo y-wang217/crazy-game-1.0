@@ -93,6 +93,8 @@ export function StatsTable({ stats, baseHp, maxHp, duration }: { stats: BattleSt
     ['Fish earned / spent', `${stats.fishEarned} / ${stats.fishSpent}`],
     ['Enemies defeated / escaped', `${stats.kills} / ${stats.escaped}`],
     ['Chests opened / missed', `${stats.chestsOpened} / ${stats.chestsMissed}`],
+    ['Damage dealt', Math.round(stats.damageDealt)],
+    ['Mice hit by Orange slams', stats.slamHits],
   ];
   return (
     <table className="stats-table">

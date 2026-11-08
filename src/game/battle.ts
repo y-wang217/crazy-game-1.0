@@ -39,6 +39,12 @@ export interface CatUnit {
   movedAt: number;
   /** Last time a skill upgrade affected this cat (visual). */
   buffAt: number;
+  /** Wind-up in progress (sim time): Orange slam or Black Cat aim. */
+  windup: { start: number; fireAt: number; targetUid: number; x: number; y: number } | null;
+  /** Pending combo punches (sim time). */
+  comboQueue: { at: number; targetUid: number }[];
+  /** Counts punches (alternates paws in the animation). */
+  comboIndex: number;
   aimX: number;
   aimY: number;
 }
@@ -60,6 +66,10 @@ export interface Foe extends TargetCandidate {
   dirX: number;
   bornAt: number;
   rewarded: boolean;
+  /** Walk-cycle phase; advances with actual movement so slowed mice visibly walk slower. */
+  walk: number;
+  /** Last time Noble White charmed this foe (visual). */
+  charmedAt: number;
 }
 
 export interface Projectile {
@@ -101,7 +111,9 @@ export type Effect =
     }
   | { kind: 'pow'; x: number; y: number; rot: number; born: number; dur: number }
   | { kind: 'hearts'; x: number; y: number; born: number; dur: number }
-  | { kind: 'beam'; x: number; y: number; born: number; dur: number; color: string };
+  | { kind: 'beam'; x: number; y: number; born: number; dur: number; color: string }
+  | { kind: 'shake'; x: number; y: number; born: number; dur: number; amp: number }
+  | { kind: 'sparkle'; x: number; y: number; born: number; dur: number };
 
 export type BattleStatus = 'playing' | 'paused' | 'reward' | 'victory' | 'defeat';
 
@@ -161,6 +173,10 @@ export interface BattleStats {
   escaped: number;
   chestsOpened: number;
   chestsMissed: number;
+  /** Total mice hit by Orange slams (shows area value in debug stats). */
+  slamHits: number;
+  /** Damage actually removed from enemies/chests (excludes overkill). */
+  damageDealt: number;
 }
 
 export interface BattleOptions {
@@ -229,6 +245,8 @@ export class Battle {
     escaped: 0,
     chestsOpened: 0,
     chestsMissed: 0,
+    slamHits: 0,
+    damageDealt: 0,
   };
 
   /** -1 while waiting for the first wave. */
@@ -385,6 +403,9 @@ export class Battle {
       modeAt: -99,
       movedAt: -99,
       buffAt: -99,
+      windup: null,
+      comboQueue: [],
+      comboIndex: 0,
       aimX: tile.x + 1,
       aimY: tile.y,
     };
@@ -577,6 +598,8 @@ export class Battle {
       dirX: 1,
       bornAt: this.vtime,
       rewarded: false,
+      walk: 0,
+      charmedAt: -99,
     };
     let foe: Foe;
     if ('chest' in g) {
@@ -631,7 +654,9 @@ export class Battle {
         f.slowT -= dt;
         if (f.slowT <= 0) f.slowStrength = 0;
       }
-      f.dist += f.speed * (1 - f.slowStrength) * dt;
+      const mult = 1 - f.slowStrength;
+      f.dist += f.speed * mult * dt;
+      f.walk += dt * mult;
       const p = this.path.pointAt(f.dist);
       f.x = p.x;
       f.y = p.y;
@@ -652,24 +677,47 @@ export class Battle {
 
   private updateCats(dt: number): void {
     for (const cat of this.cats) {
-      cat.cooldown -= dt;
-      if (cat.cooldown > 0) continue;
       const def = CATS[cat.type];
       const st = getCatStats(def, cat.level, this.mods);
       const dmg = st.damage * this.tuning.catDamageMult;
+
+      // 1) Combo punches land one after another (real timing).
+      if (cat.comboQueue.length) this.runCombo(cat, st, dmg);
+
+      // 2) A wind-up (Orange slam / Black Cat aim) resolves when it ends.
+      if (cat.windup) {
+        if (this.time < cat.windup.fireAt) {
+          cat.cooldown -= dt;
+          continue;
+        }
+        const w = cat.windup;
+        cat.windup = null;
+        cat.attackAt = this.vtime;
+        if (def.attack === 'slam') this.slam(cat, w.x, w.y, w.targetUid, st, dmg);
+        else this.fireShot(cat, w.targetUid, st, dmg);
+      }
+
+      cat.cooldown -= dt;
+      if (cat.cooldown > 0) continue;
       const target = selectTarget(cat.x, cat.y, st.range, cat.mode, this.foes);
       if (!target) {
         cat.cooldown = 0;
         continue;
       }
       cat.cooldown = st.interval;
-      cat.attackAt = this.vtime;
       cat.aimX = target.x;
       cat.aimY = target.y;
 
+      if (def.windup) {
+        // Commit now, hit later. The slam lands where the target WAS when the wind-up began.
+        const len = Math.min(def.windup, st.interval * 0.8);
+        cat.windup = { start: this.time, fireAt: this.time + len, targetUid: target.uid, x: target.x, y: target.y };
+        continue;
+      }
+
+      cat.attackAt = this.vtime;
       switch (def.attack) {
         case 'projectile':
-        case 'snipe':
           this.projectiles.push({
             uid: this.nextUid++,
             x: cat.x,
@@ -679,48 +727,105 @@ export class Battle {
             ty: target.y,
             damage: dmg,
             speed: def.projectileSpeed ?? 400,
-            style: def.attack === 'snipe' ? 'bullet' : 'yarn',
+            style: 'yarn',
             done: false,
           });
           break;
         case 'combo': {
-          for (let i = 0; i < st.comboHits && target.alive; i++) this.hit(target, dmg, false);
-          for (let i = 0; i < Math.min(st.comboHits, 6); i++) {
-            this.addEffect({
-              kind: 'pow',
-              x: target.x + (this.vrand() - 0.5) * 14,
-              y: target.y + (this.vrand() - 0.5) * 12,
-              rot: this.vrand() * Math.PI,
-              born: this.vtime + i * 0.07,
-              dur: 0.22,
-            });
-          }
+          const gap = (def.comboGap ?? 0.08) / Math.max(1, st.comboHits / 3);
+          for (let i = 0; i < st.comboHits; i++) cat.comboQueue.push({ at: this.time + i * gap, targetUid: target.uid });
+          this.runCombo(cat, st, dmg);
           break;
         }
-        case 'slam': {
-          const tx = target.x;
-          const ty = target.y;
-          const r2 = st.splashRadius * st.splashRadius;
-          const others = this.foes.filter((f) => f.alive && f !== target && (f.x - tx) ** 2 + (f.y - ty) ** 2 <= r2);
-          this.hit(target, dmg, true);
-          for (const f of others) this.hit(f, dmg * st.splashRatio, true);
-          this.addEffect({ kind: 'ring', x: tx, y: ty, r0: 6, r1: st.splashRadius, color: '#c87a3a', born: this.vtime + 0.18, dur: 0.55 });
+        case 'aura':
+          this.charm(cat, target, st);
           break;
-        }
-        case 'aura': {
-          const r2 = st.range * st.range;
-          for (const f of this.foes) {
-            if (!f.alive || (f.x - cat.x) ** 2 + (f.y - cat.y) ** 2 > r2) continue;
-            const s = Math.min(BALANCE.slowCap, st.slowStrength + (f === target ? st.focusBonus : 0));
-            f.slowStrength = f.slowT > 0 ? Math.max(f.slowStrength, s) : s;
-            f.slowT = Math.max(f.slowT, st.slowDuration);
-            this.addEffect({ kind: 'hearts', x: f.x, y: f.y - f.radius, born: this.vtime, dur: 0.9 });
-          }
-          this.addEffect({ kind: 'ring', x: cat.x, y: cat.y, r0: 10, r1: st.range, color: '#ff8fc0', born: this.vtime, dur: 0.7 });
+        default:
           break;
-        }
       }
     }
+  }
+
+  /** Deliver due combo punches; if the target drops, the rest go to the next mouse in reach. */
+  private runCombo(cat: CatUnit, st: ReturnType<typeof getCatStats>, dmg: number): void {
+    while (cat.comboQueue.length && cat.comboQueue[0].at <= this.time + 1e-9) {
+      const h = cat.comboQueue.shift()!;
+      let f = this.foes.find((x) => x.uid === h.targetUid && x.alive);
+      const reach2 = (st.range * 1.2) ** 2;
+      if (!f || (f.x - cat.x) ** 2 + (f.y - cat.y) ** 2 > reach2) {
+        f = selectTarget(cat.x, cat.y, st.range, cat.mode, this.foes) ?? undefined;
+        if (!f) {
+          cat.comboQueue = [];
+          return;
+        }
+        for (const q of cat.comboQueue) q.targetUid = f.uid;
+      }
+      cat.comboIndex++;
+      cat.attackAt = this.vtime;
+      cat.aimX = f.x;
+      cat.aimY = f.y;
+      this.hit(f, dmg, false);
+      this.addEffect({
+        kind: 'pow',
+        x: f.x + (this.vrand() - 0.5) * 12,
+        y: f.y - 4 + (this.vrand() - 0.5) * 10,
+        rot: this.vrand() * Math.PI,
+        born: this.vtime,
+        dur: 0.2,
+      });
+    }
+  }
+
+  /** Orange belly slam: everything near the impact point is hit at the same moment. */
+  private slam(cat: CatUnit, x: number, y: number, targetUid: number, st: ReturnType<typeof getCatStats>, dmg: number): void {
+    const r2 = st.splashRadius * st.splashRadius;
+    const hitList = this.foes.filter((f) => f.alive && (f.x - x) ** 2 + (f.y - y) ** 2 <= r2);
+    for (const f of hitList) this.hit(f, f.uid === targetUid ? dmg : dmg * st.splashRatio, true);
+    this.stats.slamHits += hitList.length;
+    this.addEffect({ kind: 'ring', x, y, r0: 8, r1: st.splashRadius, color: '#e0883a', born: this.vtime, dur: 0.5, width: 7 });
+    this.addEffect({ kind: 'ring', x, y, r0: 4, r1: st.splashRadius * 0.6, color: '#fff2c0', born: this.vtime, dur: 0.35, width: 5 });
+    this.burst(x, y, ['#c8a070', '#e8d0a8', '#a07850'], 18, 120);
+    this.addEffect({ kind: 'shake', x, y, born: this.vtime, dur: 0.22, amp: 2.5 });
+    if (!hitList.length) this.addText(x, y - 14, '…', '#ffffff', 14, 0.6);
+    cat.aimX = x;
+    cat.aimY = y;
+  }
+
+  /** Black Cat: after aiming, one heavy shot (re-acquires if the aimed target is gone). */
+  private fireShot(cat: CatUnit, targetUid: number, st: ReturnType<typeof getCatStats>, dmg: number): void {
+    const reach2 = (st.range * 1.15) ** 2;
+    let f = this.foes.find((x) => x.uid === targetUid && x.alive && (x.x - cat.x) ** 2 + (x.y - cat.y) ** 2 <= reach2);
+    if (!f) f = selectTarget(cat.x, cat.y, st.range, cat.mode, this.foes) ?? undefined;
+    if (!f) return;
+    cat.aimX = f.x;
+    cat.aimY = f.y;
+    this.projectiles.push({
+      uid: this.nextUid++,
+      x: cat.x + Math.cos(Math.atan2(f.y - cat.y, f.x - cat.x)) * 26,
+      y: cat.y + 4 + Math.sin(Math.atan2(f.y - cat.y, f.x - cat.x)) * 26,
+      targetUid: f.uid,
+      tx: f.x,
+      ty: f.y,
+      damage: dmg,
+      speed: CATS[cat.type].projectileSpeed ?? 900,
+      style: 'bullet',
+      done: false,
+    });
+  }
+
+  /** Noble White: every mouse in range is distracted; her focus target even more. */
+  private charm(cat: CatUnit, target: Foe, st: ReturnType<typeof getCatStats>): void {
+    const r2 = st.range * st.range;
+    for (const f of this.foes) {
+      if (!f.alive || (f.x - cat.x) ** 2 + (f.y - cat.y) ** 2 > r2) continue;
+      const s = Math.min(BALANCE.slowCap, st.slowStrength + (f === target ? st.focusBonus : 0));
+      f.slowStrength = f.slowT > 0 ? Math.max(f.slowStrength, s) : s;
+      f.slowT = Math.max(f.slowT, st.slowDuration);
+      f.charmedAt = this.vtime;
+      this.addEffect({ kind: 'hearts', x: f.x, y: f.y - f.radius, born: this.vtime, dur: 0.9 });
+    }
+    this.addEffect({ kind: 'ring', x: cat.x, y: cat.y, r0: 10, r1: st.range, color: '#ff8fc0', born: this.vtime, dur: 0.8, width: 5 });
+    this.addEffect({ kind: 'sparkle', x: cat.x, y: cat.y - 12, born: this.vtime, dur: 0.8 });
   }
 
   private updateProjectiles(dt: number): void {
@@ -750,6 +855,7 @@ export class Battle {
     if (!f.alive) return;
     const dmg = computeDamage(raw, f.armor, this.mods.armorReduce);
     const r = applyDamageToPools(f.hp, f.shield, dmg);
+    this.stats.damageDealt += Math.min(dmg, f.hp + f.shield);
     f.hp = r.hp;
     f.shield = r.shield;
     f.hitAt = this.vtime;
@@ -845,6 +951,9 @@ export class Battle {
     cat.x = tile.x;
     cat.y = tile.y;
     cat.movedAt = this.vtime;
+    // Moving interrupts a wind-up / combo (it restarts from the new tile).
+    cat.windup = null;
+    cat.comboQueue = [];
   }
 
   private checkEnd(): void {

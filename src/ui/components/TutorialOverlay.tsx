@@ -128,7 +128,7 @@ export function TutorialOverlay({
             ))}
           </mask>
         </defs>
-        <rect x="0" y="0" width={box.w} height={box.h} fill="rgba(40,25,20,0.55)" mask={`url(#tut-mask-${step.key})`} />
+        <rect x="0" y="0" width={box.w} height={box.h} style={{ fill: 'var(--dim)' }} mask={`url(#tut-mask-${step.key})`} />
         {rects.map((r, i) => (
           <rect key={i} className="tut-ring" x={r.x} y={r.y} width={r.w} height={r.h} rx={r.round} />
         ))}

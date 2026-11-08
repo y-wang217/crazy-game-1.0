@@ -7,6 +7,8 @@ import { cellCenter, worldSize } from '../game/path';
 import { Rng } from '../game/rng';
 import type { CatId, CatPalette, ChestTier, CosmeticLoadout, EnemyId, MapDef } from '../game/types';
 import { FONT_STACK, t as tr } from '../i18n';
+import { boardPalette, getTheme } from '../theme';
+import type { BoardPalette } from '../theme/palettes';
 import { drawCat, drawChest, drawHeart, drawMouse, drawStar } from './sprites';
 
 export interface DragView {
@@ -88,14 +90,14 @@ export class Renderer {
   // ------------------------------------------------------------------------
 
   private ensureBackground(battle: Battle): void {
-    const key = `${battle.stage.id}|${this.canvas.width}x${this.canvas.height}`;
+    const key = `${battle.stage.id}|${this.canvas.width}x${this.canvas.height}|${getTheme()}`;
     if (this.bg && this.bgKey === key) return;
     const bg = this.bg ?? document.createElement('canvas');
     bg.width = this.canvas.width;
     bg.height = this.canvas.height;
     const ctx = bg.getContext('2d')!;
     ctx.setTransform(this.dpr * this.scale, 0, 0, this.dpr * this.scale, 0, 0);
-    paintBackground(ctx, this.map, battle);
+    paintBackground(ctx, this.map, battle, boardPalette());
     this.bg = bg;
     this.bgKey = key;
   }
@@ -104,14 +106,29 @@ export class Renderer {
   // Frame
   // ------------------------------------------------------------------------
 
+  /** Simulation clock of the battle being drawn (wind-up poses follow game time, not wall time). */
+  private simTime = 0;
+
   draw(battle: Battle, drag: DragView | null, loadout: CosmeticLoadout, opts: DrawOptions = {}): void {
+    this.simTime = battle.time;
     this.ensureBackground(battle);
     const ctx = this.ctx;
     const k = this.dpr * this.scale;
+    // Orange slams shake the board a little.
+    let sx = 0;
+    let sy = 0;
+    for (const e of battle.effects) {
+      if (e.kind !== 'shake') continue;
+      const age = battle.vtime - e.born;
+      if (age < 0 || age > e.dur) continue;
+      const amp = e.amp * (1 - age / e.dur);
+      sx += Math.sin(age * 90) * amp;
+      sy += Math.cos(age * 70) * amp * 0.6;
+    }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    if (this.bg) ctx.drawImage(this.bg, 0, 0);
-    ctx.setTransform(k, 0, 0, k, 0, 0);
+    if (this.bg) ctx.drawImage(this.bg, sx * k, sy * k);
+    ctx.setTransform(k, 0, 0, k, sx * k, sy * k);
     const t = battle.vtime;
     const dragCat = drag ? battle.catByUid(drag.uid) ?? null : null;
 
@@ -170,6 +187,52 @@ export class Renderer {
       ctx.stroke();
     }
 
+    // Wind-up telegraphs: where the Orange slam will land, and the Black Cat's aim line.
+    for (const cat of battle.cats) {
+      const w = cat.windup;
+      if (!w) continue;
+      const p = Math.min(1, Math.max(0, (battle.time - w.start) / Math.max(0.01, w.fireAt - w.start)));
+      if (cat.type === 'orange') {
+        const st = getCatStats(CATS.orange, cat.level, battle.mods);
+        ctx.beginPath();
+        ctx.arc(w.x, w.y, st.splashRadius, 0, TAU);
+        ctx.fillStyle = `rgba(230,140,60,${0.08 + p * 0.14})`;
+        ctx.fill();
+        ctx.setLineDash([6, 5]);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = `rgba(200,110,40,${0.4 + p * 0.5})`;
+        ctx.stroke();
+        ctx.setLineDash([]);
+      } else if (cat.type === 'black') {
+        const f = battle.foes.find((x) => x.uid === w.targetUid);
+        const tx = f ? f.x : w.x;
+        const ty = f ? f.y : w.y;
+        ctx.beginPath();
+        ctx.moveTo(cat.x, cat.y + 2);
+        ctx.lineTo(tx, ty);
+        ctx.setLineDash([3, 4]);
+        ctx.lineWidth = 1 + p * 1.5;
+        ctx.strokeStyle = `rgba(255,70,90,${0.25 + p * 0.6})`;
+        ctx.stroke();
+        ctx.setLineDash([]);
+        // crosshair closing in
+        const r = 14 - p * 7;
+        ctx.strokeStyle = `rgba(255,70,90,${0.5 + p * 0.5})`;
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.arc(tx, ty, r, 0, TAU);
+        ctx.moveTo(tx - r - 4, ty);
+        ctx.lineTo(tx - r + 3, ty);
+        ctx.moveTo(tx + r - 3, ty);
+        ctx.lineTo(tx + r + 4, ty);
+        ctx.moveTo(tx, ty - r - 4);
+        ctx.lineTo(tx, ty - r + 3);
+        ctx.moveTo(tx, ty + r - 3);
+        ctx.lineTo(tx, ty + r + 4);
+        ctx.stroke();
+      }
+    }
+
     // Foes (sorted by y for overlap)
     const foes = [...battle.foes].sort((a, b) => a.y - b.y);
     for (const f of foes) this.drawFoe(f, t, battle.time);
@@ -214,6 +277,7 @@ export class Renderer {
     }
 
     this.drawEffects(battle);
+    if (boardPalette().fireflies) this.drawFireflies(t);
 
     // Dragged cat follows pointer (on top of everything)
     if (dragCat) {
@@ -230,11 +294,28 @@ export class Renderer {
     }
   }
 
+  /** A few slow, twinkling fireflies (moonlit theme). Purely decorative, kept sparse. */
+  private drawFireflies(t: number) {
+    const ctx = this.ctx;
+    for (let i = 0; i < 9; i++) {
+      const bx = ((i * 97) % this.worldW) + Math.sin(t * 0.4 + i) * 14;
+      const by = ((i * 151 + 40) % this.worldH) + Math.cos(t * 0.33 + i * 1.7) * 12;
+      const a = 0.25 + 0.35 * (0.5 + 0.5 * Math.sin(t * 1.7 + i * 2.3));
+      const g = ctx.createRadialGradient(bx, by, 0, bx, by, 6);
+      g.addColorStop(0, `rgba(255,236,170,${a})`);
+      g.addColorStop(1, 'rgba(255,236,170,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(bx, by, 6, 0, TAU);
+      ctx.fill();
+    }
+  }
+
   private rangeRing(x: number, y: number, r: number, color: string) {
     const ctx = this.ctx;
     ctx.beginPath();
     ctx.arc(x, y, r, 0, TAU);
-    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.fillStyle = boardPalette().rangeFill;
     ctx.fill();
     ctx.setLineDash([5, 4]);
     ctx.lineWidth = 1.6;
@@ -251,9 +332,10 @@ export class Renderer {
     const w = ctx.measureText(text).width + 28;
     ctx.beginPath();
     ctx.roundRect(this.worldW / 2 - w / 2, y - 17, w, 34, 17);
-    ctx.fillStyle = 'rgba(60,50,40,0.6)';
+    const P = boardPalette();
+    ctx.fillStyle = P.bannerBg;
     ctx.fill();
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = P.bannerText;
     ctx.fillText(text, this.worldW / 2, y + 1);
   }
 
@@ -301,6 +383,8 @@ export class Renderer {
       attackAge: t - cat.attackAt,
       aim: Math.atan2(cat.aimY - cat.y, cat.aimX - cat.x),
       seed: cat.uid,
+      windup: cat.windup ? Math.min(1, Math.max(0, (this.simTime - cat.windup.start) / Math.max(0.01, cat.windup.fireAt - cat.windup.start))) : undefined,
+      comboIndex: cat.comboIndex,
     });
     ctx.restore();
 
@@ -357,8 +441,20 @@ export class Renderer {
     }
     const spawnAge = t - f.bornAt;
     if (spawnAge < 0.25) ctx.globalAlpha = Math.max(0, spawnAge / 0.25);
-    if (f.kind === 'chest') drawChest(ctx, f.defId as ChestTier, walkT + f.uid, hit);
-    else drawMouse(ctx, { id: f.defId as EnemyId, dirX: f.dirX, t: walkT + f.uid * 0.37, hasShield: f.shield > 0, hit });
+    // Charmed by Noble White: soft pink glow underfoot (and the legs slow down via f.walk).
+    if (f.slowT > 0) {
+      ctx.save();
+      ctx.globalAlpha = 0.45 + 0.15 * Math.sin(t * 6 + f.uid);
+      ctx.beginPath();
+      ctx.ellipse(0, f.radius * 0.6, f.radius * 1.25, f.radius * 0.5, 0, 0, TAU);
+      ctx.fillStyle = '#ff9cc8';
+      ctx.fill();
+      ctx.restore();
+    }
+    const walk = f.walk + f.uid * 0.37;
+    if (f.kind === 'chest') drawChest(ctx, f.defId as ChestTier, walk, hit);
+    else drawMouse(ctx, { id: f.defId as EnemyId, dirX: f.dirX, t: walk, hasShield: f.shield > 0, hit });
+    void walkT;
 
     // Distracted by the white cat
     if (f.slowT > 0) {
@@ -458,6 +554,17 @@ export class Renderer {
           ctx.restore();
           break;
         }
+        case 'shake':
+          break;
+        case 'sparkle': {
+          ctx.globalAlpha = 1 - k;
+          for (let i = 0; i < 5; i++) {
+            const a = (i / 5) * TAU + k * 2;
+            const r = 10 + k * 22;
+            drawStar(ctx, e.x + Math.cos(a) * r, e.y + Math.sin(a) * r * 0.7, 2.6 * (1 - k * 0.5), i % 2 ? '#ffd1e6' : '#fff6c8');
+          }
+          break;
+        }
         case 'beam': {
           // summon / merge light column
           ctx.globalAlpha = (1 - k) * 0.85;
@@ -496,27 +603,35 @@ function easeOutBack(k: number) {
 // Background painting
 // ---------------------------------------------------------------------------
 
-function paintBackground(ctx: CanvasRenderingContext2D, map: MapDef, battle: Battle) {
+function paintBackground(ctx: CanvasRenderingContext2D, map: MapDef, battle: Battle, P: BoardPalette) {
   const { w, h } = worldSize(map);
   const cell = map.cell;
   const rng = new Rng(1234);
 
-  // Grass with soft checker patches
-  ctx.fillStyle = map.theme.grass;
+  // Ground with soft checker patches
+  ctx.fillStyle = P.grass;
   ctx.fillRect(0, 0, w, h);
   for (let r = 0; r < map.rows; r++) {
     for (let c = 0; c < map.cols; c++) {
       if ((r + c) % 2 === 0) {
-        ctx.fillStyle = 'rgba(255,255,255,0.07)';
+        ctx.fillStyle = P.grassChecker;
         ctx.fillRect(c * cell, r * cell, cell, cell);
       }
     }
   }
+  // Moonlight wash from the top-right corner
+  if (P.moon) {
+    const g = ctx.createRadialGradient(w * 0.95, -20, 10, w * 0.95, -20, h * 0.9);
+    g.addColorStop(0, 'rgba(230,225,255,0.22)');
+    g.addColorStop(1, 'rgba(230,225,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+  }
   // grass tufts
-  ctx.strokeStyle = map.theme.grassDark;
+  ctx.strokeStyle = P.tuft;
   ctx.lineWidth = 1.4;
   ctx.lineCap = 'round';
-  for (let i = 0; i < 90; i++) {
+  for (let i = 0; i < Math.round((w * h) / 2100); i++) {
     const x = rng.next() * w;
     const y = rng.next() * h;
     ctx.beginPath();
@@ -543,21 +658,20 @@ function paintBackground(ctx: CanvasRenderingContext2D, map: MapDef, battle: Bat
     ctx.stroke();
     ctx.setLineDash([]);
   };
-  stroke(40, map.theme.roadEdge);
-  stroke(34, map.theme.road);
-  stroke(3, 'rgba(200,160,100,0.35)', [6, 10]);
-  // pebbles on road
+  stroke(40, P.roadEdge);
+  stroke(34, P.road);
+  stroke(3, P.roadDash, [6, 10]);
   for (let i = 0; i < 40; i++) {
     const p = battle.path.pointAt(rng.next() * battle.path.length);
     const ox = (rng.next() - 0.5) * 24;
     const oy = (rng.next() - 0.5) * 24;
-    ctx.fillStyle = 'rgba(180,140,90,0.35)';
+    ctx.fillStyle = P.pebble;
     ctx.beginPath();
     ctx.arc(p.x + ox, p.y + oy, 1.2 + rng.next() * 1.4, 0, TAU);
     ctx.fill();
   }
   // direction chevrons
-  ctx.strokeStyle = 'rgba(170,120,60,0.4)';
+  ctx.strokeStyle = P.chevron;
   ctx.lineWidth = 2.2;
   for (let d = 40; d < battle.path.length - 30; d += 75) {
     const p = battle.path.pointAt(d);
@@ -590,26 +704,29 @@ function paintBackground(ctx: CanvasRenderingContext2D, map: MapDef, battle: Bat
       if (used.has(`${c}-${r}`) || onPath(c, r) || (c === bc && r === br)) continue;
       const p = cellCenter(map, c, r);
       const roll = rng.next();
-      if (roll < 0.55) drawTree(ctx, p.x + (rng.next() - 0.5) * 10, p.y + (rng.next() - 0.5) * 8, 0.8 + rng.next() * 0.35, rng);
-      else if (roll < 0.75) drawMushrooms(ctx, p.x, p.y, rng);
-      else drawFlowers(ctx, p.x, p.y, rng);
+      if (roll < 0.55) drawTree(ctx, p.x + (rng.next() - 0.5) * 10, p.y + (rng.next() - 0.5) * 8, 0.8 + rng.next() * 0.35, rng, P);
+      else if (roll < 0.75) drawMushrooms(ctx, p.x, p.y, rng, P);
+      else drawFlowers(ctx, p.x, p.y, rng, P);
     }
   }
 
-  // Tiles
+  // Tiles: buildable ones are bright "pools" with a rim, locked ones are dim and dashed.
   for (const tile of battle.tiles) {
     const x = tile.x - 21;
     const y = tile.y - 21;
     ctx.beginPath();
     ctx.roundRect(x, y, 42, 42, 9);
     if (tile.unlocked) {
-      ctx.fillStyle = '#f5edd3';
+      const g = ctx.createRadialGradient(tile.x, tile.y, 4, tile.x, tile.y, 28);
+      g.addColorStop(0, P.tileGlow);
+      g.addColorStop(1, P.tileFill);
+      ctx.fillStyle = g;
       ctx.fill();
       ctx.lineWidth = 2;
-      ctx.strokeStyle = '#d5bf8c';
+      ctx.strokeStyle = P.tileBorder;
       ctx.stroke();
       // paw print
-      ctx.fillStyle = 'rgba(210,185,130,0.45)';
+      ctx.fillStyle = P.tilePaw;
       ctx.beginPath();
       ctx.ellipse(tile.x, tile.y + 3, 5, 4, 0, 0, TAU);
       ctx.fill();
@@ -619,19 +736,19 @@ function paintBackground(ctx: CanvasRenderingContext2D, map: MapDef, battle: Bat
         ctx.fill();
       }
     } else {
-      ctx.fillStyle = 'rgba(90,110,70,0.16)';
+      ctx.fillStyle = P.lockedFill;
       ctx.fill();
       ctx.setLineDash([4, 4]);
       ctx.lineWidth = 1.5;
-      ctx.strokeStyle = 'rgba(90,110,70,0.45)';
+      ctx.strokeStyle = P.lockedBorder;
       ctx.stroke();
       ctx.setLineDash([]);
       // lock
-      ctx.fillStyle = 'rgba(90,100,80,0.55)';
+      ctx.fillStyle = P.lockIcon;
       ctx.beginPath();
       ctx.roundRect(tile.x - 5, tile.y - 1, 10, 8, 2);
       ctx.fill();
-      ctx.strokeStyle = 'rgba(90,100,80,0.55)';
+      ctx.strokeStyle = P.lockIcon;
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(tile.x, tile.y - 1, 3.5, Math.PI, TAU);
@@ -639,69 +756,103 @@ function paintBackground(ctx: CanvasRenderingContext2D, map: MapDef, battle: Bat
     }
   }
 
+  // Lanterns along the road (moonlit theme): warm glows that also light the path.
+  if (P.lanterns) {
+    for (const frac of [0.18, 0.45, 0.72, 0.93]) {
+      const p = battle.path.pointAt(battle.path.length * frac);
+      const lx = p.x + p.dy * 20;
+      const ly = p.y - p.dx * 20;
+      const g = ctx.createRadialGradient(lx, ly, 1, lx, ly, 34);
+      g.addColorStop(0, 'rgba(255,214,140,0.35)');
+      g.addColorStop(1, 'rgba(255,214,140,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(lx, ly, 34, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = '#4a3d4e';
+      ctx.fillRect(lx - 0.8, ly - 2, 1.6, 10);
+      ctx.fillStyle = '#ffd88a';
+      ctx.beginPath();
+      ctx.roundRect(lx - 3, ly - 8, 6, 7, 2);
+      ctx.fill();
+      ctx.strokeStyle = '#7d6a4c';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  }
+
   // Entrance burrow
   const start = pts[0];
   const ex = Math.max(8, start.x + 10);
-  ctx.fillStyle = '#8a6a48';
+  ctx.fillStyle = P.burrowOuter;
   ctx.beginPath();
   ctx.ellipse(ex - 6, start.y, 16, 22, 0, -Math.PI / 2, Math.PI / 2);
   ctx.fill();
-  ctx.fillStyle = '#3a2a1e';
+  ctx.fillStyle = P.burrowInner;
   ctx.beginPath();
   ctx.ellipse(ex - 6, start.y, 10, 15, 0, -Math.PI / 2, Math.PI / 2);
   ctx.fill();
   // little sign (only where there is room above the road)
   if (start.y > 45) {
-  ctx.fillStyle = '#b08050';
-  ctx.fillRect(14, start.y - 34, 3, 14);
-  ctx.beginPath();
-  ctx.roundRect(4, start.y - 42, 26, 12, 3);
-  ctx.fill();
-  ctx.fillStyle = '#fff';
-  ctx.font = `800 8px ${FONT_STACK}`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('MICE', 17, start.y - 35.5);
+    ctx.fillStyle = '#b08050';
+    ctx.fillRect(14, start.y - 34, 3, 14);
+    ctx.beginPath();
+    ctx.roundRect(4, start.y - 42, 26, 12, 3);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = `800 8px ${FONT_STACK}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('MICE', 17, start.y - 35.5);
   }
 
   // Cat house (base)
   const b = cellCenter(map, bc, br);
-  drawHouse(ctx, b.x, b.y + 2);
+  drawHouse(ctx, b.x, b.y + 2, P);
 }
 
-function drawTree(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, rng: Rng) {
+function drawTree(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, rng: Rng, P: BoardPalette) {
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(s, s);
-  ctx.fillStyle = 'rgba(60,90,40,0.25)';
+  ctx.fillStyle = 'rgba(20,30,20,0.25)';
   ctx.beginPath();
   ctx.ellipse(0, 14, 15, 5, 0, 0, TAU);
   ctx.fill();
-  ctx.fillStyle = '#9a6a42';
+  ctx.fillStyle = P.trunk;
   ctx.beginPath();
   ctx.roundRect(-3.5, 2, 7, 13, 2);
   ctx.fill();
-  const greens = ['#6ab04a', '#7cc05a', '#5a9a40'];
   for (const [dx, dy, r] of [[-7, -2, 10], [7, -2, 10], [0, -10, 12], [0, 0, 11]] as const) {
-    ctx.fillStyle = greens[Math.floor(rng.next() * greens.length)];
+    ctx.fillStyle = P.treeGreens[Math.floor(rng.next() * P.treeGreens.length)];
     ctx.beginPath();
     ctx.arc(dx, dy, r, 0, TAU);
     ctx.fill();
   }
-  ctx.fillStyle = 'rgba(255,255,255,0.18)';
+  ctx.fillStyle = P.treeHighlight;
   ctx.beginPath();
   ctx.arc(-4, -12, 5, 0, TAU);
   ctx.fill();
   ctx.restore();
 }
 
-function drawMushrooms(ctx: CanvasRenderingContext2D, x: number, y: number, rng: Rng) {
+function drawMushrooms(ctx: CanvasRenderingContext2D, x: number, y: number, rng: Rng, P: BoardPalette) {
   for (let i = 0; i < 2; i++) {
     const mx = x + (rng.next() - 0.5) * 22;
     const my = y + (rng.next() - 0.5) * 16;
-    ctx.fillStyle = '#f6eedc';
+    if (P.moon) {
+      // soft bioluminescent glow
+      const g = ctx.createRadialGradient(mx, my - 2, 1, mx, my - 2, 14);
+      g.addColorStop(0, i ? 'rgba(181,138,214,0.35)' : 'rgba(127,200,192,0.35)');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(mx, my - 2, 14, 0, TAU);
+      ctx.fill();
+    }
+    ctx.fillStyle = P.mushroomStem;
     ctx.fillRect(mx - 2, my - 2, 4, 7);
-    ctx.fillStyle = i ? '#e85a4a' : '#f0a040';
+    ctx.fillStyle = P.mushroomCaps[i % P.mushroomCaps.length];
     ctx.beginPath();
     ctx.arc(mx, my - 2, 6, Math.PI, TAU);
     ctx.fill();
@@ -713,12 +864,11 @@ function drawMushrooms(ctx: CanvasRenderingContext2D, x: number, y: number, rng:
   }
 }
 
-function drawFlowers(ctx: CanvasRenderingContext2D, x: number, y: number, rng: Rng) {
-  const cols = ['#ffffff', '#ffd0e0', '#fff0a0', '#c8d8ff'];
+function drawFlowers(ctx: CanvasRenderingContext2D, x: number, y: number, rng: Rng, P: BoardPalette) {
   for (let i = 0; i < 4; i++) {
     const fx = x + (rng.next() - 0.5) * 34;
     const fy = y + (rng.next() - 0.5) * 30;
-    ctx.fillStyle = cols[Math.floor(rng.next() * cols.length)];
+    ctx.fillStyle = P.flowers[Math.floor(rng.next() * P.flowers.length)];
     for (let k = 0; k < 5; k++) {
       const a = (k / 5) * TAU;
       ctx.beginPath();
@@ -732,23 +882,32 @@ function drawFlowers(ctx: CanvasRenderingContext2D, x: number, y: number, rng: R
   }
 }
 
-function drawHouse(ctx: CanvasRenderingContext2D, x: number, y: number) {
+function drawHouse(ctx: CanvasRenderingContext2D, x: number, y: number, P: BoardPalette) {
   ctx.save();
   ctx.translate(x, y);
-  ctx.fillStyle = 'rgba(60,90,40,0.25)';
+  if (P.moon) {
+    const g = ctx.createRadialGradient(0, 6, 2, 0, 6, 36);
+    g.addColorStop(0, 'rgba(255,214,140,0.3)');
+    g.addColorStop(1, 'rgba(255,214,140,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 6, 36, 0, TAU);
+    ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(20,30,20,0.25)';
   ctx.beginPath();
   ctx.ellipse(0, 16, 24, 6, 0, 0, TAU);
   ctx.fill();
-  ctx.fillStyle = '#fff4dc';
-  ctx.strokeStyle = '#a07a50';
+  ctx.fillStyle = P.houseWall;
+  ctx.strokeStyle = P.houseWallEdge;
   ctx.lineWidth = 1.6;
   ctx.beginPath();
   ctx.roundRect(-18, -4, 36, 21, 3);
   ctx.fill();
   ctx.stroke();
   // roof with ears
-  ctx.fillStyle = '#e8706a';
-  ctx.strokeStyle = '#9a3a3a';
+  ctx.fillStyle = P.houseRoof;
+  ctx.strokeStyle = P.houseRoofEdge;
   ctx.beginPath();
   ctx.moveTo(-23, -2);
   ctx.lineTo(-18, -16);
@@ -761,12 +920,12 @@ function drawHouse(ctx: CanvasRenderingContext2D, x: number, y: number) {
   ctx.fill();
   ctx.stroke();
   // door
-  ctx.fillStyle = '#8a5a3a';
+  ctx.fillStyle = P.houseDoor;
   ctx.beginPath();
   ctx.roundRect(-6, 3, 12, 14, [6, 6, 0, 0]);
   ctx.fill();
   // window w/ fish
-  ctx.fillStyle = '#a8d8f0';
+  ctx.fillStyle = P.houseWindow;
   ctx.beginPath();
   ctx.arc(11, 4, 3.5, 0, TAU);
   ctx.fill();

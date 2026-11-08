@@ -74,7 +74,7 @@ const STAGES: StageDef[] = [
     tiles: [...CORE, '4-1', '4-2'],
     startFish: 12,
     baseHp: 10,
-    hpScale: 1.4,
+    hpScale: 2.0,
     waveHpGrowth: 0.23,
     waves: buildWaves({ waves: 9, count: 7, growth: 1.3, interval: [1.4, 0.95], mix: () => ({ normal: 1 }) }),
     rewards: { firstClear: 35, replay: 12 },
@@ -86,7 +86,7 @@ const STAGES: StageDef[] = [
     tiles: [...CORE, '4-1', '4-2', '0-4', '0-5'],
     startFish: 12,
     baseHp: 10,
-    hpScale: 1.6,
+    hpScale: 2.35,
     waveHpGrowth: 0.25,
     waves: buildWaves({
       waves: 10,
@@ -105,7 +105,7 @@ const STAGES: StageDef[] = [
     tiles: [...CORE, '4-2', '0-4', '1-7', '2-7'],
     startFish: 12,
     baseHp: 10,
-    hpScale: 1.75,
+    hpScale: 2.85,
     waveHpGrowth: 0.185,
     waves: buildWaves({
       waves: 14,
@@ -124,7 +124,7 @@ const STAGES: StageDef[] = [
     tiles: [...CORE, '4-1', '4-2', '0-4', '1-7', '2-7'],
     startFish: 12,
     baseHp: 10,
-    hpScale: 1.85,
+    hpScale: 2.6,
     waveHpGrowth: 0.18,
     waves: buildWaves({
       waves: 14,
@@ -143,7 +143,7 @@ const STAGES: StageDef[] = [
     tiles: [...CORE, '4-1', '4-2', '0-4', '0-5', '1-7', '2-7'],
     startFish: 12,
     baseHp: 10,
-    hpScale: 1.95,
+    hpScale: 2.9,
     waveHpGrowth: 0.1,
     waves: buildWaves({
       waves: 15,
@@ -162,7 +162,7 @@ const STAGES: StageDef[] = [
     tiles: [...CORE, '4-1', '4-2', '0-4', '0-5', '1-7', '2-7', '4-6'],
     startFish: 12,
     baseHp: 10,
-    hpScale: 1.7,
+    hpScale: 1.85,
     waveHpGrowth: 0.04,
     waves: buildWaves({
       waves: 17,
@@ -181,7 +181,7 @@ const STAGES: StageDef[] = [
     tiles: [...CORE, '4-1', '4-2', '0-4', '0-5', '1-7', '2-7', '4-6', '0-2'],
     startFish: 12,
     baseHp: 10,
-    hpScale: 1.7,
+    hpScale: 1.85,
     waveHpGrowth: 0.04,
     waves: buildWaves({
       waves: 17,
@@ -200,7 +200,7 @@ const STAGES: StageDef[] = [
     tiles: [...CORE, '4-1', '4-2', '0-4', '0-5', '1-7', '2-7', '4-6', '0-2', '4-4'],
     startFish: 12,
     baseHp: 10,
-    hpScale: 1.55,
+    hpScale: 1.7,
     waveHpGrowth: 0.04,
     waves: buildWaves({
       waves: 18,
@@ -219,7 +219,7 @@ const STAGES: StageDef[] = [
     tiles: [...CORE, '4-1', '4-2', '0-4', '0-5', '1-7', '2-7', '4-6', '0-2', '4-4', '0-1', '4-7'],
     startFish: 12,
     baseHp: 10,
-    hpScale: 1.6,
+    hpScale: 1.75,
     waveHpGrowth: 0.035,
     isBoss: true,
     waves: buildWaves({

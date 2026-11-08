@@ -1,9 +1,20 @@
 import type { CatDef, CatId, TargetMode } from '../game/types';
 
 // Base stats are Lv.1 values. Level scaling lives in balance.ts (×2 damage per merge).
-// Lv.1 cats are deliberately modest because summons are cheap; merging is where power comes from.
-// Rough Lv.1 single-target DPS: kitten 12, tabby 13 (weak vs armor),
-// orange 11 (+splash), black 15 (long range, overkill-prone), white 0 (slow).
+// The Kitten is the baseline; every other cat is deliberately specialised:
+//
+//            hit dmg  attacks/s  range(tiles)  targets            notes
+//   Kitten     10       1.43        1.76       1                  steady, no big weakness (baseline)
+//   Tabby   3.5×3       2.0         1.12       1 (3 timed hits)   6 hits/s, short reach, poor vs armor
+//   Orange     28       0.45        1.40       area (1.16 tiles)  0.7s wind-up; slam lands where the
+//                                                                target WAS → fast mice can slip away
+//   Black      46       0.33        3.2        1                  0.6s aim, overkill on small mice
+//   White       0       0.45        1.64       area               45% slow for 2s (+15% on her focus)
+//
+// Rough Lv.1 single-target DPS: kitten 14, tabby 21, orange 13 (×mice hit), black 15, white 0.
+// Range matters a lot (longer range = more time hitting each mouse), so long-range cats get
+// lower single-target DPS. `npm test` prints a Lv.1 comparison table (catIdentity.test.ts).
+
 export const CATS: Record<CatId, CatDef> = {
   kitten: {
     id: 'kitten',
@@ -12,9 +23,9 @@ export const CATS: Record<CatId, CatDef> = {
     personality: 'Curious, brave and always eager to help.',
     role: 'Balanced all-rounder',
     attack: 'projectile',
-    damage: 9,
+    damage: 10,
     range: 88,
-    interval: 0.75,
+    interval: 0.7,
     projectileSpeed: 380,
     scale: 0.88,
     palette: {
@@ -33,10 +44,11 @@ export const CATS: Record<CatId, CatDef> = {
     personality: 'Competitive, confident, always ready to scrap.',
     role: 'Rapid combo striker',
     attack: 'combo',
-    damage: 4,
+    damage: 3.5,
     comboHits: 3,
-    range: 66,
-    interval: 0.9,
+    range: 56,
+    interval: 0.5,
+    comboGap: 0.08,
     scale: 0.95,
     palette: {
       body: '#c9a27a',
@@ -54,11 +66,12 @@ export const CATS: Record<CatId, CatDef> = {
     personality: 'Loves food and naps. Hits like a falling sofa.',
     role: 'Slow area slam',
     attack: 'slam',
-    damage: 22,
-    splashRadius: 46,
-    splashRatio: 0.7,
-    range: 72,
-    interval: 2.0,
+    damage: 28,
+    splashRadius: 58,
+    splashRatio: 0.85,
+    range: 70,
+    interval: 2.2,
+    windup: 0.7,
     scale: 1.08,
     palette: {
       body: '#f29b4b',
@@ -76,10 +89,11 @@ export const CATS: Record<CatId, CatDef> = {
     personality: 'Quiet, patient, and terrifyingly focused.',
     role: 'Long-range sniper',
     attack: 'snipe',
-    damage: 34,
-    range: 150,
-    interval: 2.3,
-    projectileSpeed: 700,
+    damage: 46,
+    range: 160,
+    interval: 3.0,
+    projectileSpeed: 950,
+    windup: 0.6,
     scale: 0.95,
     palette: {
       body: '#3c3b4a',
@@ -98,10 +112,10 @@ export const CATS: Record<CatId, CatDef> = {
     role: 'Distracting slow aura',
     attack: 'aura',
     damage: 0,
-    range: 84,
-    interval: 2.4,
-    slowStrength: 0.35,
-    slowDuration: 1.6,
+    range: 82,
+    interval: 2.2,
+    slowStrength: 0.45,
+    slowDuration: 2.0,
     focusBonus: 0.15,
     scale: 1.0,
     palette: {

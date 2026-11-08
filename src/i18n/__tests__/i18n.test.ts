@@ -21,8 +21,12 @@ describe('i18n', () => {
 
   it('every content id has a translation', () => {
     const keys: string[] = [];
-    for (const c of CAT_ORDER)
-      for (const f of ['name', 'title', 'personality', 'role', 'attack', 'strengths', 'weaknesses']) keys.push(`cat.${c}.${f}`);
+    for (const c of CAT_ORDER) {
+      for (const f of ['name', 'title', 'personality', 'role', 'attack', 'strengths', 'weaknesses', 'story', 'signature']) keys.push(`cat.${c}.${f}`);
+      for (let lv = 1; lv <= 5; lv++) keys.push(`gear.${c}.${lv}`);
+    }
+    for (const a of ['projectile', 'combo', 'slam', 'snipe', 'aura']) keys.push(`attack.${a}`);
+    keys.push('theme.light', 'theme.moonlit');
     for (const e of Object.keys(ENEMIES)) for (const f of ['name', 'strength', 'behavior', 'tip']) keys.push(`enemy.${e}.${f}`);
     for (const c of Object.keys(CHESTS)) keys.push(`chest.${c}.name`, `chest.${c}.desc`);
     for (const s of SKILL_ORDER) keys.push(`skill.${s}.name`, `skill.${s}.desc`);

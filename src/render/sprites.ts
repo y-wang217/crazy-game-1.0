@@ -90,6 +90,10 @@ export interface CatDrawOpts {
   /** Angle to last target (radians). */
   aim: number;
   seed?: number;
+  /** 0..1 progress of a wind-up (Orange raising its belly, Black Cat aiming); undefined if none. */
+  windup?: number;
+  /** Punch counter for alternating paws (Tabby). */
+  comboIndex?: number;
 }
 
 export function drawCat(ctx: Ctx, o: CatDrawOpts) {
@@ -104,13 +108,16 @@ export function drawCat(ctx: Ctx, o: CatDrawOpts) {
   if (o.type === 'kitten' && a < 0.15) {
     dx = Math.cos(o.aim) * 3 * (1 - a / 0.15);
     dy = Math.sin(o.aim) * 3 * (1 - a / 0.15);
-  } else if (o.type === 'orange' && a < 0.45) {
-    if (a < 0.18) dy = -10 * Math.sin((a / 0.18) * (Math.PI / 2));
-    else {
-      const k = (a - 0.18) / 0.27;
-      dy = -10 * (1 - Math.min(1, k * 2.2));
-      if (k > 0.45) squash = 1 - 0.18 * Math.sin(((k - 0.45) / 0.55) * Math.PI);
-    }
+  } else if (o.type === 'orange' && o.windup !== undefined) {
+    // Lazy wind-up: rises and leans back, trembling a little at the top.
+    const k = o.windup;
+    dy = -14 * (1 - (1 - k) * (1 - k));
+    squash = 1 + 0.08 * k;
+    dx = k > 0.75 ? Math.sin(o.t * 60) * 0.8 : 0;
+  } else if (o.type === 'orange' && a < 0.35) {
+    // SLAM: hard squash on impact, then wobble back.
+    const k = a / 0.35;
+    squash = 1 - 0.32 * Math.sin(Math.min(1, k * 1.6) * Math.PI) * (1 - k * 0.5);
   } else if (o.type === 'black' && a < 0.15) {
     dx = -Math.cos(o.aim) * 2.5 * (1 - a / 0.15);
     dy = -Math.sin(o.aim) * 2.5 * (1 - a / 0.15);
@@ -158,12 +165,12 @@ export function drawCat(ctx: Ctx, o: CatDrawOpts) {
   drawBodyGear(ctx, o, fat);
 
   // Paws
-  const jab = o.type === 'tabby' && a < 0.3;
-  const jabSide = jab ? (Math.floor(a / 0.075) % 2 === 0 ? -1 : 1) : 0;
+  const jab = o.type === 'tabby' && a < 0.07;
+  const jabSide = jab ? ((o.comboIndex ?? 0) % 2 === 0 ? -1 : 1) : 0;
   const pawL = { x: -6 * fat, y: 15 };
   const pawR = { x: 6 * fat, y: 15 };
   if (jab) {
-    const reach = 7;
+    const reach = 9 * (1 - a / 0.07) + 3;
     const t = jabSide < 0 ? pawL : pawR;
     t.x += Math.cos(o.aim) * reach;
     t.y += Math.sin(o.aim) * reach - 4;
@@ -452,6 +459,12 @@ function drawRifle(ctx: Ctx, o: CatDrawOpts) {
   // scope
   roundRect(ctx, 3, -6.5, 11, 4, 2, gold ? '#f2c230' : '#3a3a48', '#1a1a22', 1);
   circle(ctx, 14, -4.5, 1.6, o.level >= 2 ? '#ff5a5a' : '#8ad8ff');
+  if (o.windup !== undefined) {
+    // scope glint pulses faster as the shot approaches
+    ctx.globalAlpha = 0.5 + 0.5 * Math.abs(Math.sin(o.t * (8 + o.windup * 20)));
+    drawStar(ctx, 14, -4.5, 3 + o.windup * 2, '#ffffff', 4, 0.35);
+    ctx.globalAlpha = 1;
+  }
   // muzzle flash
   if (a < 0.08) {
     drawStar(ctx, 29, 0, 6, '#fff2a0', 6, 0.4);

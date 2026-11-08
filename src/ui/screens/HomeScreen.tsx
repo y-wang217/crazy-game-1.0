@@ -1,16 +1,18 @@
 import { useRef, useState } from 'react';
 import { CAT_ORDER } from '../../config/cats';
 import { LANGS, setLang, t, useLang } from '../../i18n';
+import { THEMES, setTheme, useTheme } from '../../theme';
 import { saveStore, useSave } from '../../save/store';
 import type { Screen } from '../App';
 import { CatPreview } from '../components/CatPreview';
 import { CoinIcon } from '../components/Icons';
 import { debugStore, useDebug } from '../debugStore';
 
-export const APP_VERSION = '1.1';
+export const APP_VERSION = '1.2';
 
 export function HomeScreen({ go }: { go: (s: Screen) => void }) {
   const lang = useLang();
+  const theme = useTheme();
   const save = useSave();
   const debug = useDebug();
   const cleared = Object.keys(save.cleared).length;
@@ -36,12 +38,22 @@ export function HomeScreen({ go }: { go: (s: Screen) => void }) {
   return (
     <div className="screen home">
       <div className="topbar">
-        <div className="lang-switch" role="group" aria-label={t('home.language')}>
-          {LANGS.map((l) => (
-            <button key={l.id} className={lang === l.id ? 'on' : ''} onClick={() => setLang(l.id)}>
-              {l.label}
-            </button>
-          ))}
+        <div className="home-settings">
+          <div className="lang-switch" role="group" aria-label={t('home.language')}>
+            {LANGS.map((l) => (
+              <button key={l.id} className={lang === l.id ? 'on' : ''} onClick={() => setLang(l.id)}>
+                {l.label}
+              </button>
+            ))}
+          </div>
+          {/* Visual theme only: never touches progress, stats or combat. */}
+          <div className="theme-switch" role="group" aria-label={t('theme.label')}>
+            {THEMES.map((th) => (
+              <button key={th.id} className={theme === th.id ? 'on' : ''} onClick={() => setTheme(th.id)}>
+                {th.icon} {t(`theme.${th.id}`)}
+              </button>
+            ))}
+          </div>
         </div>
         <span className="coin-pill" title={t('currency.coins')}>
           <CoinIcon /> {save.fishCoins}
