@@ -6,10 +6,10 @@ import type { Battle } from '../game/battle';
 import type { CatId, ChestTier, EnemyId } from '../game/types';
 import { STAGE_STEPS, type StepDef } from './steps';
 
-export type TutAction = 'summon' | 'skill' | 'tap' | 'moved' | 'swapped' | 'merged';
+export type TutAction = 'summon' | 'skill' | 'tap' | 'moved' | 'swapped' | 'merged' | 'speed';
 
 export type Focus =
-  | { kind: 'button'; id: 'summon' | 'skill' }
+  | { kind: 'button'; id: 'summon' | 'skill' | 'speed' | 'start' }
   | { kind: 'cat'; uid: number }
   | { kind: 'tile'; id: string }
   | { kind: 'foe'; uid: number }

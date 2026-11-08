@@ -5,12 +5,14 @@ export const BALANCE = {
   // ---- Economy (dried fish, in-battle) ----
   summon: {
     /**
-     * Summon cost = base + perSummon × (summons so far this stage), capped at maxCost.
-     * Default: 1, 2, 3, 4, 5 … (+1 per summon). Resets every stage.
+     * Tiered summon cost: the price stays the same for `tierSize` summons, then rises by `perTier`.
+     *   cost = base + perTier × floor(summonsSoFar / tierSize), capped at maxCost.
+     * Default: 1,1,1 → 2,2,2 → 3,3,3 → 4,4,4 → 5,5,5 → 6… Resets every battle.
      */
     base: 1,
-    perSummon: 1,
-    maxCost: 40,
+    tierSize: 3,
+    perTier: 1,
+    maxCost: 30,
   },
   skillRoll: {
     baseCost: 20,
@@ -27,10 +29,27 @@ export const BALANCE = {
   waveClearBonus: 3,
   /** Dried fish given instead of a chest reward when every skill is maxed. */
   maxedChestFish: 15,
+  chest: {
+    /** Chest HP × (1 + hpPerStage × (stage number − 1)). */
+    hpPerStage: 0.2,
+  },
+
+  // ---- Preparation & speed ----
+  /**
+   * Every stage opens with a preparation phase (no enemies) of this many REAL seconds.
+   * It is not affected by game speed, pauses while tutorials / modals are open, and the
+   * player can skip it with "Start Battle".
+   */
+  prepSeconds: 20,
+  speed: {
+    /** Simulation speed of the "1×" setting relative to the original (V1.2) pace. */
+    baseline: 1.2,
+    /** Selectable multipliers, relative to the baseline above. */
+    options: [0.75, 1, 1.5, 2] as readonly number[],
+    default: 1,
+  },
 
   // ---- Waves ----
-  /** Seconds before wave 1 starts (time to summon). */
-  firstWaveDelay: 4,
   /** Max seconds between end of a wave's spawns and the next wave (skipped early if field is clear). */
   waveGap: 4.5,
   /** Short breather when the field is cleared before the next wave. */
@@ -86,7 +105,7 @@ export const BALANCE = {
 /** Cost of the next summon given how many cats were summoned this stage. */
 export function summonCost(summonsSoFar: number, mult = 1): number {
   const s = BALANCE.summon;
-  const raw = Math.min(s.maxCost, s.base + s.perSummon * summonsSoFar);
+  const raw = Math.min(s.maxCost, s.base + s.perTier * Math.floor(summonsSoFar / s.tierSize));
   return Math.max(1, Math.round(raw * mult));
 }
 

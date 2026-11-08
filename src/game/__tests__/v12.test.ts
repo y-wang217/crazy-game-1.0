@@ -48,6 +48,7 @@ describe('compact beginner map', () => {
   });
   it('the core tiles each cover two stretches of road for a Lv.1 kitten', () => {
     const b = new Battle(stage(1), map, 1);
+    b.startBattle();
     const path = b.path;
     const range = CATS.kitten.range;
     for (const id of stage(1).tiles) {
@@ -95,6 +96,7 @@ describe('character-specific skills', () => {
   it('skills really change combat: a deadeye black cat kills faster', () => {
     const killsWith = (skills: Partial<Record<SkillId, number>>) => {
       const b = new Battle(stage(5), map, 77);
+      b.startBattle();
       b.placeCat('black', 1, '2-2');
       for (const [id, lv] of Object.entries(skills)) b.skills[id as SkillId] = lv;
       b.mods = computeSkillMods(b.skills);
@@ -106,6 +108,7 @@ describe('character-specific skills', () => {
 
   it('duplicate skills level up (shop purchases)', () => {
     const b = new Battle(stage(5), map, 3);
+    b.startBattle();
     b.fish = 99999;
     b.placeCat('kitten', 1, '2-2');
     for (let i = 0; i < 25; i++) b.buySkill();
@@ -120,6 +123,7 @@ describe('character-specific skills', () => {
     let total = 0;
     for (let seed = 1; seed <= 40; seed++) {
       const b = new Battle(stage(7), map, seed); // all five cats in the roster
+      b.startBattle();
       b.placeCat('kitten', 1, '1-1');
       b.placeCat('kitten', 1, '2-1');
       for (const c of b.rollChestChoices('bronze')) {
@@ -134,6 +138,7 @@ describe('character-specific skills', () => {
 
   it('skills for cats outside the stage roster are never offered', () => {
     const b = new Battle(stage(1), map, 1);
+    b.startBattle();
     for (const id of b.availableSkills()) {
       const cat = SKILLS[id].cat;
       if (cat) expect(stage(1).roster).toContain(cat);
@@ -144,6 +149,7 @@ describe('character-specific skills', () => {
 describe('cat details panel data', () => {
   it('shows effective stats after skills, and only the skills that affect this cat', () => {
     const b = new Battle(stage(7), map, 1);
+    b.startBattle();
     const k = b.placeCat('kitten', 2, '1-1')!;
     const tb = b.placeCat('tabby', 1, '2-1')!;
     b.skills = { bravePaws: 2, sharpClaws: 1, championPunch: 1, fishyFortune: 1 };
@@ -156,6 +162,7 @@ describe('cat details panel data', () => {
   });
   it('white cat details are about slowing, not damage', () => {
     const b = new Battle(stage(7), map, 1);
+    b.startBattle();
     const w = b.placeCat('white', 1, '1-1')!;
     b.skills = { dazzlingGrace: 1 };
     b.mods = computeSkillMods(b.skills);
@@ -168,6 +175,7 @@ describe('cat details panel data', () => {
 describe('summoning flow', () => {
   it('a stage-1 player can summon, merge, free a tile and summon again repeatedly', () => {
     const b = new Battle(stage(1), map, 12);
+    b.startBattle();
     let merges = 0;
     let summons = 0;
     for (let i = 0; i < 2400 && b.status === 'playing'; i++) {

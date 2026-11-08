@@ -12,9 +12,11 @@ import { Renderer, type DragView } from '../../render/renderer';
 import { saveStore, useSave } from '../../save/store';
 import { TutorialDirector, type ActiveStep, type TutAction } from '../../tutorial/director';
 import { CatInfoPanel } from '../components/CatInfoPanel';
-import { CatPreview } from '../components/CatPreview';
+import { GameIcon } from '../components/GameIcon';
+import { ResultPanel } from '../components/ResultPanel';
+import { SkillOwner } from '../components/SkillOwner';
 import { DebugPanel, StatsTable } from '../components/DebugPanel';
-import { CoinIcon, FishIcon, HeartIcon } from '../components/Icons';
+import { FishIcon, HeartIcon } from '../components/Icons';
 import { RewardModal } from '../components/RewardModal';
 import { TutorialOverlay } from '../components/TutorialOverlay';
 import { debugStore, useDebug } from '../debugStore';
@@ -40,6 +42,8 @@ interface Hud {
   skillsMaxed: boolean;
   skills: [SkillId, number][];
   rewardId: number;
+  preparing: boolean;
+  prepLeft: number;
 }
 
 interface Result {
@@ -71,6 +75,8 @@ function hudOf(b: Battle): Hud {
     skillsMaxed: b.availableSkills().length === 0,
     skills: SKILL_ORDER.filter((id) => (b.skills[id] ?? 0) > 0).map((id) => [id, b.skills[id]!]),
     rewardId: b.currentReward?.id ?? 0,
+    preparing: b.preparing,
+    prepLeft: Math.ceil(b.prepRemaining),
   };
 }
 
@@ -81,10 +87,12 @@ export function BattleScreen({
   stageId,
   onExit,
   onPlay,
+  onHome,
 }: {
   stageId: string;
   onExit: () => void;
   onPlay: (id: string) => void;
+  onHome: () => void;
 }) {
   useLang();
   const found = findStage(stageId)!;
@@ -106,7 +114,10 @@ export function BattleScreen({
   if (!battleRef.current) battleRef.current = newBattle();
   const directorRef = useRef<TutorialDirector>(null as unknown as TutorialDirector);
   if (!directorRef.current) directorRef.current = new TutorialDirector(stage.id, seenStore);
-  const speedRef = useRef(1);
+  /** Speed multiplier relative to the baseline (BALANCE.speed.baseline). */
+  const speedRef = useRef<number>(BALANCE.speed.default);
+  const speedBtnRef = useRef<HTMLButtonElement>(null);
+  const startBtnRef = useRef<HTMLButtonElement>(null);
   const dragRef = useRef<DragView | null>(null);
   const pressRef = useRef<{
     uid: number;
@@ -131,7 +142,7 @@ export function BattleScreen({
   const [skillPop, setSkillPop] = useState<{ id: SkillId; level: number; isNew: boolean; key: number } | null>(null);
   const [costBump, setCostBump] = useState<{ n: number; key: number } | null>(null);
   const [result, setResult] = useState<Result | null>(null);
-  const [speed, setSpeed] = useState(1);
+  const [speed, setSpeed] = useState<number>(BALANCE.speed.default);
   const [shake, setShake] = useState<'summon' | 'skill' | null>(null);
   const [showDebug, setShowDebug] = useState(false);
 
@@ -233,8 +244,14 @@ export function BattleScreen({
       last = now;
       const b = battleRef.current;
       const active = directorRef.current.update(b); // freezes the battle while a lesson is shown
-      if (b.running && inspectRef.current === null) b.update(dt * speedRef.current);
-      else b.tickVisual(dt);
+      if (b.running && inspectRef.current === null) {
+        // Game speed scales the whole simulation (movement, cooldowns, projectiles, spawns, waves, slows).
+        b.update(dt * BALANCE.speed.baseline * speedRef.current);
+      } else {
+        b.tickVisual(dt);
+        // Preparation countdown runs in REAL seconds and pauses for lessons, details and pause.
+        if (b.preparing && !active && inspectRef.current === null && !document.hidden) b.tickPrep(dt);
+      }
       if (import.meta.env.DEV) (window as unknown as { __cd: unknown }).__cd = { battle: b, renderer, director: directorRef.current };
       const ev = b.drainEvents();
       if (ev.length) handleEventsRef.current(ev);
@@ -331,7 +348,18 @@ export function BattleScreen({
     speedRef.current = s;
     setSpeed(s);
   };
-  const toggleSpeed = () => setGameSpeed(speedRef.current === 1 ? 2 : 1);
+  /** Cycle 0.75× → 1× → 1.5× → 2× (relative to the faster V1.3 baseline). */
+  const toggleSpeed = () => {
+    if (!directorRef.current.allows('speed')) return;
+    const opts = BALANCE.speed.options;
+    const i = opts.indexOf(speedRef.current);
+    setGameSpeed(opts[(i + 1) % opts.length] ?? BALANCE.speed.default);
+    directorRef.current.onAction('speed', battleRef.current);
+  };
+  const onStartBattle = () => {
+    if (directorRef.current.active) return;
+    battleRef.current.startBattle(); // idempotent: only the first call starts combat
+  };
 
   // ---- Pointer input: tap = cycle target, drag = move / swap / merge ----
   const tileAtWorld = (x: number, y: number): string | null => {
@@ -464,7 +492,7 @@ export function BattleScreen({
           <div className="hud-stage">
             {t('battle.stage', { id: stage.id })} · {t(`stage.${stage.id}`)}
           </div>
-          <div className="hud-wave">{hud.wave === 0 ? t('battle.getReady') : t('battle.wave', { n: hud.wave, total: hud.totalWaves })}</div>
+          <div className="hud-wave">{hud.preparing ? t('battle.prepShort') : t('battle.wave', { n: hud.wave, total: hud.totalWaves })}</div>
           <div className="wave-progress">
             <div style={{ width: `${(hud.wave / hud.totalWaves) * 100}%` }} />
           </div>
@@ -472,11 +500,11 @@ export function BattleScreen({
         <div className="hud-pill fish" title={t('currency.fish')}>
           <FishIcon size={20} /> <span key={hud.fish} className="fish-num">{hud.fish}</span>
         </div>
-        <button className="hud-btn" onClick={toggleSpeed} aria-label="speed">
+        <button ref={speedBtnRef} className={`hud-btn speed-btn ${speed !== 1 ? 'on' : ''}`} onClick={toggleSpeed} aria-label={t('battle.speed')}>
           {speed}×
         </button>
-        <button className="hud-btn" onClick={togglePause} aria-label="pause">
-          {hud.status === 'paused' ? '▶' : 'Ⅱ'}
+        <button className="hud-btn" onClick={togglePause} aria-label={t('pause.title')}>
+          <GameIcon name={hud.status === 'paused' ? 'play' : 'pause'} size={16} />
         </button>
         {debug.enabled && (
           <button className="hud-btn" onClick={() => setShowDebug((v) => !v)} aria-label="debug">
@@ -496,6 +524,17 @@ export function BattleScreen({
           onPointerCancel={(e) => endPress(e, true)}
           onContextMenu={onContextMenu}
         />
+        {hud.preparing && hud.status === 'playing' && !result && (
+          <div className="prep-bar">
+            <div className="prep-timer">
+              <span className="prep-label">{t('battle.prep')}</span>
+              <span key={hud.prepLeft} className="prep-secs">{hud.prepLeft}</span>
+            </div>
+            <button ref={startBtnRef} className="btn btn-primary prep-start" onClick={onStartBattle}>
+              <GameIcon name="flag" size={18} /> {t('battle.start')}
+            </button>
+          </div>
+        )}
         {banner && !step && (
           <div key={banner.key} className={`wave-banner ${banner.tone}`}>
             <span>{banner.text}</span>
@@ -503,21 +542,16 @@ export function BattleScreen({
         )}
         {skillPop && (
           <div key={skillPop.key} className="skill-pop">
-            <span className="skill-pop-icon">{SKILLS[skillPop.id].icon}</span>
+            <span className="skill-pop-icon">
+              <GameIcon name={skillPop.id} size={52} />
+            </span>
             <span className="skill-pop-name">
               {skillPop.isNew
                 ? t('battle.newSkill', { name: t(`skill.${skillPop.id}.name`) })
                 : t('battle.skillUp', { name: t(`skill.${skillPop.id}.name`), n: skillPop.level })}
             </span>
             <span className="skill-pop-for">
-              {SKILLS[skillPop.id].cat ? (
-                <>
-                  <CatPreview type={SKILLS[skillPop.id].cat!} loadout={save.equipped} size={30} animate={false} />
-                  {t('battle.skillFor', { cat: t(`cat.${SKILLS[skillPop.id].cat}.name`) })}
-                </>
-              ) : (
-                t('battle.allCats')
-              )}
+              <SkillOwner id={skillPop.id} loadout={save.equipped} size={26} label />
             </span>
           </div>
         )}
@@ -541,9 +575,10 @@ export function BattleScreen({
                 key={id}
                 className={`skill-chip ${skillPop?.id === id ? 'flash' : ''} ${SKILLS[id].cat ? 'cat' : ''}`}
                 style={SKILLS[id].cat ? { borderColor: CATS[SKILLS[id].cat!].palette.outline } : undefined}
-                onClick={() => toast(`${SKILLS[id].icon} ${t(`skill.${id}.name`)} Lv.${lv}: ${t(`skill.${id}.desc`, skillParams(id, lv))}`)}
+                onClick={() => toast(`${t(`skill.${id}.name`)} Lv.${lv}: ${t(`skill.${id}.desc`, skillParams(id, lv))}`)}
               >
-                <span>{SKILLS[id].icon}</span>
+                <GameIcon name={id} size={18} />
+                <SkillOwner id={id} loadout={save.equipped} size={16} />
                 <b key={lv}>{lv}</b>
               </button>
             ))
@@ -571,7 +606,7 @@ export function BattleScreen({
             onClick={onSkill}
           >
             <span className="action-label">
-              {!hud.skillUnlocked ? '🔒 ' : ''}
+              {!hud.skillUnlocked ? <GameIcon name="lock" size={14} /> : null}
               {hud.skillsMaxed ? t('battle.skillsMaxed') : t('battle.skill')}
             </span>
             <span className="action-cost">
@@ -595,7 +630,7 @@ export function BattleScreen({
           battle={b}
           renderer={rendererRef.current}
           appRef={rootRef}
-          buttons={{ summon: summonRef, skill: skillRef }}
+          buttons={{ summon: summonRef, skill: skillRef, speed: speedBtnRef, start: startBtnRef }}
           loadout={save.equipped}
           onContinue={() => directorRef.current.complete(battleRef.current)}
         />
@@ -635,100 +670,29 @@ export function BattleScreen({
               ▶ {t('pause.resume')}
             </button>
             <button className="btn btn-secondary" onClick={restart}>
-              ↻ {t('pause.restart')}
+              <GameIcon name="replay" size={18} /> {t('pause.restart')}
             </button>
             <button className="btn btn-secondary" onClick={onExit}>
-              ☰ {t('pause.stages')}
+              <GameIcon name="list" size={18} /> {t('pause.stages')}
             </button>
           </div>
         </div>
       )}
 
       {result && (
-        <div className={`overlay result ${result.victory ? 'win' : 'lose'}`}>
-          {result.victory && <Confetti />}
-          <div className="panel">
-            {result.chapterComplete ? (
-              <>
-                <div className="result-emoji">🏆</div>
-                <h2>{t('result.chapter')}</h2>
-                <p className="small">{t('result.chapterText')}</p>
-              </>
-            ) : result.victory ? (
-              <>
-                <div className="victory-cats">
-                  {stage.roster.map((c, i) => (
-                    <div key={c} className="dance" style={{ animationDelay: `${i * 0.12}s` }}>
-                      <CatPreview type={c} level={Math.min(5, 1 + i)} loadout={save.equipped} size={52} />
-                    </div>
-                  ))}
-                </div>
-                <h2>{result.baseHp <= 3 ? t('result.close') : t('result.victory')}</h2>
-              </>
-            ) : (
-              <>
-                <div className="result-emoji">🙀</div>
-                <h2>{t('result.defeat')}</h2>
-                <p className="small">{t('result.defeatTip')}</p>
-              </>
-            )}
-            {result.victory && (
-              <div className="big-stars">
-                {[1, 2, 3].map((k) => (
-                  <span key={k} className={k <= result.stars ? 'on' : ''} style={{ animationDelay: `${0.2 + k * 0.25}s` }}>
-                    ★
-                  </span>
-                ))}
-              </div>
-            )}
-            <div className="result-rewards">
-              {result.victory && (
-                <div className="reward-line">
-                  <CoinIcon size={20} /> {result.firstClear ? t('result.firstClear', { n: result.coins }) : t('result.stageReward', { n: result.coins })}
-                </div>
-              )}
-              {result.chestCoins > 0 && (
-                <div className="reward-line">
-                  <CoinIcon size={20} /> {t('result.fromChests', { n: result.chestCoins })}
-                </div>
-              )}
-              <div className="muted small">{t('result.total', { n: save.fishCoins })}</div>
-            </div>
-            {debug.enabled && <StatsTable stats={result.stats} baseHp={result.baseHp} maxHp={result.maxHp} duration={result.duration} />}
-            {result.victory && next && (
-              <button className="btn btn-primary" onClick={() => onPlay(next)}>
-                {t('result.next')} ▶
-              </button>
-            )}
-            <button className={`btn ${result.victory ? 'btn-secondary' : 'btn-primary'}`} onClick={restart}>
-              ↻ {result.victory ? t('result.replay') : t('result.retry')}
-            </button>
-            <button className="btn btn-secondary" onClick={onExit}>
-              ☰ {t('result.stages')}
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Confetti() {
-  const pieces = Array.from({ length: 40 }, (_, i) => i);
-  const colors = ['#ff9f43', '#ffd84a', '#ff8fb8', '#6ac0f0', '#7cd07a'];
-  return (
-    <div className="confetti" aria-hidden>
-      {pieces.map((i) => (
-        <span
-          key={i}
-          style={{
-            left: `${(i * 37) % 100}%`,
-            background: colors[i % colors.length],
-            animationDelay: `${(i % 12) * 0.08}s`,
-            animationDuration: `${1.6 + (i % 5) * 0.25}s`,
-          }}
+        <ResultPanel
+          result={result}
+          roster={stage.roster}
+          loadout={save.equipped}
+          totalCoins={save.fishCoins}
+          hasNext={!!next}
+          onNext={() => next && onPlay(next)}
+          onReplay={restart}
+          onHome={onHome}
+          onStages={onExit}
+          extra={debug.enabled ? <StatsTable stats={result.stats} baseHp={result.baseHp} maxHp={result.maxHp} duration={result.duration} /> : undefined}
         />
-      ))}
+      )}
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { useSave } from '../../save/store';
 import type { Screen } from '../App';
 import { AttackDemo } from '../components/AttackDemo';
 import { CatPreview } from '../components/CatPreview';
+import { GameIcon } from '../components/GameIcon';
 
 const fmt = (n: number, d = 1) => (Math.round(n * 10 ** d) / 10 ** d).toString();
 
@@ -198,7 +199,7 @@ export function CatProfileScreen({ cat, go }: { cat: CatId; go: (s: Screen) => v
         <h3>{t('profile.skills')}</h3>
         {skills.map((id) => (
           <div key={id} className="info-bonus">
-            <span>{SKILLS[id].icon}</span>
+            <GameIcon name={id} size={20} />
             <b>
               {t(`skill.${id}.name`)} <span className="muted tiny">{t('profile.maxLv', { n: SKILLS[id].maxLevel })}</span>
             </b>

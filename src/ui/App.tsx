@@ -34,6 +34,7 @@ export function App() {
           stageId={screen.stageId}
           onExit={() => go({ name: 'stages' })}
           onPlay={play}
+          onHome={() => go({ name: 'home' })}
         />
       )}
     </div>

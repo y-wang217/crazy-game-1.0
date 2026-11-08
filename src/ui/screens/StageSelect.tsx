@@ -5,6 +5,7 @@ import { useSave } from '../../save/store';
 import type { EnemyId, StageDef } from '../../game/types';
 import type { Screen } from '../App';
 import { CoinIcon } from '../components/Icons';
+import { GameIcon } from '../components/GameIcon';
 
 function enemiesOf(stage?: StageDef): Set<EnemyId> {
   return new Set((stage?.waves ?? []).flatMap((w) => w.groups.flatMap((g) => ('enemy' in g ? [g.enemy] : []))));
@@ -52,7 +53,7 @@ export function StageSelect({ go, play }: { go: (s: Screen) => void; play: (id: 
                   disabled={!unlocked}
                   onClick={() => play(s.id)}
                 >
-                  <span className="stage-num">{unlocked ? s.number : '🔒'}</span>
+                  <span className="stage-num">{unlocked ? s.number : <GameIcon name="lock" size={18} />}</span>
                   <span className="stage-name">{t(`stage.${s.id}`)}</span>
                   <span className="stars">
                     {[1, 2, 3].map((k) => (

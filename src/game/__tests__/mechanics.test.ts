@@ -12,7 +12,12 @@ import { parseSave } from '../../save/store';
 
 const map = MAPS[CHAPTERS[0].mapId];
 const stage = (n: number): StageDef => CHAPTERS[0].stages[n - 1];
-const newBattle = (n = 1, seed = 42) => new Battle(stage(n), map, seed);
+/** A battle past its preparation phase (combat tests). Prep behaviour is covered in v13.test.ts. */
+const newBattle = (n = 1, seed = 42) => {
+  const b = new Battle(stage(n), map, seed);
+  b.startBattle();
+  return b;
+};
 
 /** Run until the first wave spawns something. */
 function untilFoes(b: Battle) {
@@ -400,9 +405,9 @@ describe('save parsing', () => {
 });
 
 describe('economy', () => {
-  it('summons cost 1, 2, 3, 4, 5 … (+1 each), never jumping', () => {
-    expect([0, 1, 2, 3, 4, 9].map((n) => summonCost(n))).toEqual([1, 2, 3, 4, 5, 10]);
-    for (let i = 1; i < 80; i++) {
+  it('summons cost 1,1,1 then 2,2,2 then 3,3,3 … (tiered, never jumping)', () => {
+    expect([0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => summonCost(n))).toEqual([1, 1, 1, 2, 2, 2, 3, 3, 3, 4]);
+    for (let i = 1; i < 120; i++) {
       expect(summonCost(i)).toBeGreaterThanOrEqual(summonCost(i - 1));
       expect(summonCost(i) - summonCost(i - 1)).toBeLessThanOrEqual(1);
     }
@@ -467,10 +472,11 @@ describe('tutorial freeze', () => {
     expect(b.time).toBeGreaterThan(0);
   });
   it('prep countdown is frozen too', () => {
-    const b = newBattle(1);
+    const b = new Battle(stage(1), map, 42);
     b.frozen = true;
     b.update(30);
     expect(b.waveIndex).toBe(-1);
+    expect(b.prepRemaining).toBe(BALANCE.prepSeconds);
   });
 });
 

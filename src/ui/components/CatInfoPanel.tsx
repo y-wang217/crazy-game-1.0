@@ -6,6 +6,7 @@ import { getCatStats, NO_MODS, type CatStats } from '../../game/combat';
 import type { CosmeticLoadout, SkillId } from '../../game/types';
 import { t, useLang } from '../../i18n';
 import { CatPreview } from './CatPreview';
+import { GameIcon } from './GameIcon';
 
 const fmt = (n: number, d = 1) => (Math.round(n * 10 ** d) / 10 ** d).toString();
 
@@ -146,7 +147,7 @@ export function CatInfoPanel({
           ) : (
             bonuses.map(([id, lv]) => (
               <div key={id} className="info-bonus">
-                <span>{SKILLS[id].icon}</span>
+                <GameIcon name={id} size={20} />
                 <b>
                   {t(`skill.${id}.name`)} Lv.{lv}
                 </b>

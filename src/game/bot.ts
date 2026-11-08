@@ -12,6 +12,8 @@ export interface BotResult {
   cats: number;
   topLevel: number;
   waveReached: number;
+  chestsOpened: number;
+  chestsMissed: number;
 }
 
 /**
@@ -28,6 +30,9 @@ export function runBot(
   const b = new Battle(stage, map, { seed, tuning: opts.tuning as Tuning | undefined });
   const tick = 0.25;
   const coverage = opts.smart ? tileCoverage(b) : null;
+  // Preparation: summon what we can afford, then start right away.
+  while (b.emptyTiles().length && b.fish >= b.summonCost) b.summon();
+  b.startBattle();
   let guard = 0;
   while ((b.status === 'playing' || b.status === 'reward') && guard++ < 40000) {
     if (b.status === 'reward') {
@@ -51,6 +56,8 @@ export function runBot(
     cats: b.cats.length,
     topLevel: Math.max(0, ...b.cats.map((c) => c.level)),
     waveReached: b.waveIndex + 1,
+    chestsOpened: b.stats.chestsOpened,
+    chestsMissed: b.stats.chestsMissed,
   };
 }
 

@@ -5,10 +5,12 @@ import { THEMES, setTheme, useTheme } from '../../theme';
 import { saveStore, useSave } from '../../save/store';
 import type { Screen } from '../App';
 import { CatPreview } from '../components/CatPreview';
+import { BrandEmblem, HomeScenery } from '../components/Brand';
+import { GameIcon } from '../components/GameIcon';
 import { CoinIcon } from '../components/Icons';
 import { debugStore, useDebug } from '../debugStore';
 
-export const APP_VERSION = '1.2';
+export const APP_VERSION = '1.3';
 
 export function HomeScreen({ go }: { go: (s: Screen) => void }) {
   const lang = useLang();
@@ -37,6 +39,7 @@ export function HomeScreen({ go }: { go: (s: Screen) => void }) {
 
   return (
     <div className="screen home">
+      <HomeScenery />
       <div className="topbar">
         <div className="home-settings">
           <div className="lang-switch" role="group" aria-label={t('home.language')}>
@@ -50,7 +53,7 @@ export function HomeScreen({ go }: { go: (s: Screen) => void }) {
           <div className="theme-switch" role="group" aria-label={t('theme.label')}>
             {THEMES.map((th) => (
               <button key={th.id} className={theme === th.id ? 'on' : ''} onClick={() => setTheme(th.id)}>
-                {th.icon} {t(`theme.${th.id}`)}
+                <GameIcon name={th.id === 'moonlit' ? 'moon' : 'sun'} size={14} /> {t(`theme.${th.id}`)}
               </button>
             ))}
           </div>
@@ -60,6 +63,7 @@ export function HomeScreen({ go }: { go: (s: Screen) => void }) {
         </span>
       </div>
       <div className="home-hero">
+        <BrandEmblem />
         <h1 className={`logo ${lang === 'zh-TW' ? 'zh' : ''}`}>
           <span>{t('logo.1')}</span>
           <span>{t('logo.2')}</span>
@@ -73,14 +77,14 @@ export function HomeScreen({ go }: { go: (s: Screen) => void }) {
       </div>
       <div className="home-menu">
         <button className="btn btn-big btn-primary" onClick={() => go({ name: 'stages' })}>
-          ▶ {t('home.play')}
+          <GameIcon name="play" size={22} /> {t('home.play')}
         </button>
         <div className="row">
           <button className="btn btn-secondary" onClick={() => go({ name: 'shop' })}>
-            🛍️ {t('home.shop')}
+            <GameIcon name="shop" size={22} /> {t('home.shop')}
           </button>
           <button className="btn btn-secondary" onClick={() => go({ name: 'cats' })}>
-            🐾 {t('home.cats')}
+            <GameIcon name="book" size={22} /> {t('home.cats')}
           </button>
         </div>
         <p className="muted small">{t('home.progress', { n: cleared })}</p>

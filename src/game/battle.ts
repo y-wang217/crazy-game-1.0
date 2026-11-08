@@ -251,7 +251,13 @@ export class Battle {
 
   /** -1 while waiting for the first wave. */
   waveIndex = -1;
-  prepTimer: number = BALANCE.firstWaveDelay;
+  /**
+   * Preparation phase: true until the battle starts (button or countdown). Nothing in the
+   * simulation runs while preparing, but every player action works.
+   */
+  preparing = true;
+  /** Real seconds left in the preparation countdown (driven by the UI via tickPrep). */
+  prepLeft: number = BALANCE.prepSeconds;
   private waveTimer = 0;
   private gapTimer = 0;
   private spawnQueue: { time: number; group: SpawnGroup }[] = [];
@@ -296,11 +302,30 @@ export class Battle {
   }
   /** True while the simulation is actually advancing. */
   get running(): boolean {
-    return this.status === 'playing' && !this.frozen;
+    return this.status === 'playing' && !this.frozen && !this.preparing;
   }
-  /** Seconds until wave 1 (only meaningful while waveIndex === -1). */
+  /** Seconds left in the preparation phase. */
   get prepRemaining(): number {
-    return Math.max(0, this.prepTimer);
+    return this.preparing ? Math.max(0, this.prepLeft) : 0;
+  }
+
+  /** Start combat now (Start Battle button / countdown reached zero). Safe to call twice. */
+  startBattle(): boolean {
+    if (!this.preparing) return false;
+    this.preparing = false;
+    this.prepLeft = 0;
+    this.startWave(0);
+    return true;
+  }
+
+  /**
+   * Advance the preparation countdown by REAL seconds (not scaled by game speed).
+   * The UI only calls this while no tutorial / modal / pause is open.
+   */
+  tickPrep(realDt: number): void {
+    if (!this.preparing || this.status !== 'playing' || this.frozen) return;
+    this.prepLeft -= Math.min(realDt, 0.25);
+    if (this.prepLeft <= 0) this.startBattle();
   }
   catAt(tileId: string): CatUnit | undefined {
     return this.cats.find((c) => c.tileId === tileId);
@@ -519,11 +544,7 @@ export class Battle {
 
   private updateWaves(dt: number): void {
     const waves = this.stage.waves;
-    if (this.waveIndex === -1) {
-      this.prepTimer -= dt;
-      if (this.prepTimer <= 0) this.startWave(0);
-      return;
-    }
+    if (this.waveIndex === -1) return; // still preparing
     this.waveTimer += dt;
     while (this.spawnPtr < this.spawnQueue.length && this.spawnQueue[this.spawnPtr].time <= this.waveTimer) {
       this.spawn(this.spawnQueue[this.spawnPtr].group);
@@ -604,7 +625,8 @@ export class Battle {
     let foe: Foe;
     if ('chest' in g) {
       const def = CHESTS[g.chest];
-      const hp = Math.round(def.hp * hpMult);
+      const chestScale = 1 + BALANCE.chest.hpPerStage * (this.stage.number - 1);
+      const hp = Math.round(def.hp * chestScale * this.tuning.enemyHpMult);
       foe = {
         ...base,
         kind: 'chest',
@@ -785,7 +807,8 @@ export class Battle {
     this.addEffect({ kind: 'ring', x, y, r0: 8, r1: st.splashRadius, color: '#e0883a', born: this.vtime, dur: 0.5, width: 7 });
     this.addEffect({ kind: 'ring', x, y, r0: 4, r1: st.splashRadius * 0.6, color: '#fff2c0', born: this.vtime, dur: 0.35, width: 5 });
     this.burst(x, y, ['#c8a070', '#e8d0a8', '#a07850'], 18, 120);
-    this.addEffect({ kind: 'shake', x, y, born: this.vtime, dur: 0.22, amp: 2.5 });
+    // (No board/screen shake: the impact stays local — shockwave, dust and hit reactions.)
+    this.addEffect({ kind: 'ring', x, y, r0: st.splashRadius * 0.85, r1: st.splashRadius * 1.05, color: '#c8a070', born: this.vtime + 0.05, dur: 0.3, width: 3 });
     if (!hitList.length) this.addText(x, y - 14, '…', '#ffffff', 14, 0.6);
     cat.aimX = x;
     cat.aimY = y;

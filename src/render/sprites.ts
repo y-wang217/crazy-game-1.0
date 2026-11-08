@@ -104,6 +104,12 @@ export function drawCat(ctx: Ctx, o: CatDrawOpts) {
   let squash = 1;
   const a = o.attackAge;
 
+  // V1.3 idle personality: a short fidget every ~6 s while not attacking (visual only).
+  const idle = a > 1.2 && o.windup === undefined;
+  const phase = (o.t + (o.seed ?? 0) * 1.7) % 6;
+  const fidget = idle && o.t > 0 && phase < 0.8 ? Math.sin((phase / 0.8) * Math.PI) : 0;
+  if (o.type === 'tabby' && fidget > 0) dy = -4 * Math.abs(Math.sin((phase / 0.8) * Math.PI * 2)); // eager double hop
+
   // Attack poses
   if (o.type === 'kitten' && a < 0.15) {
     dx = Math.cos(o.aim) * 3 * (1 - a / 0.15);
@@ -191,9 +197,11 @@ export function drawCat(ctx: Ctx, o: CatDrawOpts) {
 
   // Head
   const hy = -7;
-  const headTilt = o.type === 'white' && a < 0.6 ? Math.sin((a / 0.6) * Math.PI) * 0.18 : 0;
+  let headTilt = o.type === 'white' && a < 0.6 ? Math.sin((a / 0.6) * Math.PI) * 0.18 : 0;
+  if (o.type === 'kitten') headTilt += fidget * 0.22; // curious head tilt
+  const glance = o.type === 'black' ? fidget * 1.8 : 0; // watchful side glance
   ctx.save();
-  ctx.translate(0, hy);
+  ctx.translate(glance, hy);
   ctx.rotate(headTilt);
   drawHead(ctx, o);
   ctx.restore();
@@ -202,6 +210,26 @@ export function drawCat(ctx: Ctx, o: CatDrawOpts) {
   if (o.type === 'black') drawRifle(ctx, o);
 
   ctx.restore();
+
+  // Idle extras drawn outside the body transform
+  if (idle && o.t > 0) {
+    if (o.type === 'orange') {
+      // sleepy "z z" drifting up
+      ctx.save();
+      ctx.fillStyle = p.outline;
+      ctx.font = `900 7px ${'system-ui, sans-serif'}`;
+      ctx.textAlign = 'center';
+      for (let i = 0; i < 2; i++) {
+        const k = (o.t * 0.5 + i * 0.5 + (o.seed ?? 0) * 0.3) % 1;
+        ctx.globalAlpha = Math.sin(k * Math.PI) * 0.8;
+        ctx.fillText('z', 12 + k * 6, -22 - k * 12);
+      }
+      ctx.restore();
+    } else if (o.type === 'white' && fidget > 0) {
+      drawStar(ctx, -13, -24, 2.2 + fidget * 1.5, '#ffe9f4');
+      drawStar(ctx, 14, -19, 1.6 + fidget, '#fff6c8');
+    }
+  }
 }
 
 function drawHead(ctx: Ctx, o: CatDrawOpts) {

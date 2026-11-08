@@ -84,3 +84,29 @@ export function FoePreview({ enemy, chest, size = 96 }: { enemy?: EnemyId; chest
   );
   return <canvas ref={ref} style={{ width: size, height: size }} className="cat-preview" />;
 }
+
+/**
+ * Round head portrait cropped from the real in-game cat art (skill cards, chips, pops).
+ * Shows the cat's current cosmetic skin; hats are left off so the face stays readable.
+ */
+export function CatHead({ type, loadout, size = 28 }: { type: CatId; loadout: CosmeticLoadout; size?: number }) {
+  const key = JSON.stringify(loadout.skins[type] ?? '');
+  const ref = useAnimatedCanvas(
+    size,
+    (ctx) => {
+      const palette = resolvePalette(type, loadout);
+      // undo the generic preview transform: zoom on the head and clip to a circle
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      const dpr = ctx.canvas.width / size;
+      ctx.beginPath();
+      ctx.arc((size / 2) * dpr, (size / 2) * dpr, (size / 2) * dpr, 0, Math.PI * 2);
+      ctx.clip();
+      const k = (size / 30) * dpr;
+      ctx.setTransform(k, 0, 0, k, (size / 2) * dpr, (size / 2) * dpr + 9 * k);
+      drawCat(ctx, { type, level: 1, palette, hat: null, t: 0, attackAge: 9, aim: 0, seed: 0 });
+    },
+    [type, key],
+    false,
+  );
+  return <canvas ref={ref} style={{ width: size, height: size }} className="cat-head" />;
+}

@@ -29,9 +29,32 @@ npm run build        # type-check + production build into dist/
 | Cycle targeting: First → Nearest → Strongest → Weakest → Treasure | Tap the cat |
 | Cat details (effective stats, active skills); pauses the battle | Long-press the cat (~0.5 s) · desktop: right-click · close with ✕, backdrop or Esc |
 | Pick a chest reward (combat is paused) | Tap one of the 3 cards |
-| Pause / speed | Ⅱ and 1×/2× in the top bar |
+| Start the fight early | **Start Battle** in the 20 s preparation bar (or let the countdown run out) |
+| Pause / speed | pause button and the speed button (cycles 0.75× → 1× → 1.5× → 2×) in the top bar |
 
 While dragging, tiles are tinted to show what the drop will do: green = move, gold = merge, blue = swap. A press only becomes a drag after the pointer moves 10 px, so a tap never moves a cat by accident.
+
+## What's new in V1.3
+
+**Gameplay reliability**
+- **Tiered summon cost:** 1,1,1 → 2,2,2 → 3,3,3 … (`BALANCE.summon.tierSize` / `perTier` / `base` / `maxCost`). Resets every stage.
+- **20-second preparation phase** at the start of every stage: no enemies; summon, move, swap and merge freely. The countdown is in *real* seconds (game speed doesn't touch it), pauses during tutorials, detail panels, the pause menu and hidden tabs, and a **Start Battle / 開始戰鬥** button begins wave 1 immediately. Combat can only start once (`Battle.startBattle()` is idempotent). Tune with `BALANCE.prepSeconds`.
+- **Speed system:** the new 1× runs the simulation at the old 1.2× (`BALANCE.speed.baseline`). Options 0.75× / 1× / 1.5× / 2× (`BALANCE.speed.options`). Everything in the simulation scales (movement, cooldowns, wind-ups, projectiles, spawns, wave timers, slows); UI animations and the prep timer do not.
+- **More room from Stage 1-3:** 8 → 10 → 14 tiles, then +1 per stage up to 21 at 1-10 (`tiles` in `chapters.ts`).
+- **Fair chests:** heavier = slower (bronze 60 HP / fast, silver 190 / medium, gold 360 / slow). Chest HP scales gently by stage (`BALANCE.chest.hpPerStage`) but no longer rides the per-wave enemy HP ramp. Compact chest HP bar.
+- Orange's slam no longer shakes the whole screen; the impact is shown with a local shockwave ring instead.
+
+**UX & tutorials**
+- Shorter, playful tutorial lines (English + Cantonese-style 繁中, e.g. 「召喚貓咪好平㗎！快啲試吓！」). Small details such as cost increments are left out.
+- Stage 2 speed tip once mice are walking: 「覺得老鼠行得太慢？試吓調整遊戲速度！」, which points at the speed button.
+- Skill cards: big effect icon → small owner badge (the real cat's portrait, or a team-paw icon for universal skills) → name → NEW / Lv → description. The same badges appear on skill chips and the "new skill" pop.
+- Victory screen: staggered star animation with bursts, why each star was earned, hearts kept, a per-battle reward summary (first clear / clear reward / chest rewards / battle total) and the current fish-coin balance. Buttons: **Next Stage / Replay / Home** (下一關 / 再玩一次 / 返回主頁).
+
+**Art direction**
+- Main menu emblem (cat ears + crescent moon + paw), layered scenery (twinkling stars, moon glow, forest silhouettes) in both themes, and icon buttons for Shop and Cats.
+- One SVG icon set (`src/ui/components/GameIcon.tsx`) replaces the emoji in the main UI.
+- Battlefield: compact targeting badge at the tile corner, smaller and fainter locked tiles, clearer route chevrons, shorter wave banners, impact sparks on hits, a golden glow under chests.
+- Idle personality: Orange dozes ("z z"), Kitten tilts its head, Tabby hops, Black glances around, White sparkles.
 
 ## V1.2 — Character identity & visual themes
 
@@ -125,7 +148,7 @@ With debug on, the results screen also shows battle stats: duration, base HP lef
 
 | What | File |
 | --- | --- |
-| **Summon cost** (`summon.base`, `summon.perSummon`, `summon.maxCost`), skill cost, wave timing, HP ramp curve, **level multipliers** (`levels.damageMult`), armor rule, skill-shop unlock stage | `src/config/balance.ts` |
+| **Summon cost** (`summon.base`, `summon.tierSize`, `summon.perTier`, `summon.maxCost`), **prep time** (`prepSeconds`), **game speed** (`speed.baseline`, `speed.options`), chest HP per stage (`chest.hpPerStage`), skill cost, wave timing, HP ramp curve, **level multipliers** (`levels.damageMult`), armor rule, skill-shop unlock stage | `src/config/balance.ts` |
 | Each stage: waves (`buildWaves` count/growth/interval/mix/chests), `hpScale`, `waveHpGrowth`, **unlocked tiles**, roster, rewards; which map the chapter uses (`mapId`) | `src/config/chapters.ts` |
 | **Map dimensions**: `FOREST_COMPACT_MAP` (cols, rows, path waypoints, every possible tile) and the old larger `FOREST_MAP` | `src/config/maps.ts` |
 | **Cat stats** (Lv.1 damage, range, interval, combo + `comboGap`, splash, `windup`, slow); the identity table is in the header comment | `src/config/cats.ts` |
@@ -138,13 +161,15 @@ With debug on, the results screen also shows battle stats: duration, base HP lef
 
 `npm run sim` plays every stage 10× with a *naive* bot (never moves cats) and a *smart* bot (keeps strong cats on the best tiles). Both always take the first chest option and never change targeting, so a real player should do better. Current results:
 
-| Stage | naive wins | smart wins | avg length | summons / merges (smart) |
+| Stage | naive wins | smart wins | avg length (sim time) | summons (smart) |
 | --- | --- | --- | --- | --- |
-| 1 | 10/10 | 10/10 | 1.3 min (+ tutorial) | 15 / 10 |
-| 2–3 | 8–9/10 | 10/10 | 2.8–3.3 min | 28–34 / 21–25 |
-| 4–6 | 6–10/10 | 8–9/10 | 4.8–5.6 min | 47–58 / 37–46 |
-| 7–9 | 6–8/10 | 7–8/10 | 4.9–5.4 min | 47–53 / 35–40 |
-| 10 | 5/10 | 6/10 | 5.9 min | 59 / 46 |
+| 1 | 10/10 | 10/10 | 1.2 min (+ prep / tutorial) | 26 |
+| 2–3 | 9–10/10 | 10/10 | 2.7–3.2 min | 52–65 |
+| 4–6 | 6–9/10 | 10/10 | 4.8–5.5 min | 89–106 |
+| 7–9 | 6–7/10 | 8–9/10 | 5.4–6.5 min | 87–120 |
+| 10 | 8/10 | 8/10 | 7.7 min | 127 |
+
+Lengths are simulation time; at the default 1× (= old 1.2×) a real battle takes about 1/1.2 of that, plus up to 20 s of preparation. The bots open nearly every chest, so chests are reachable without perfect targeting.
 
 ## Project layout
 

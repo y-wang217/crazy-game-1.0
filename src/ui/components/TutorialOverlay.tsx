@@ -8,6 +8,7 @@ import type { ActiveStep, Focus } from '../../tutorial/director';
 import type { CosmeticLoadout } from '../../game/types';
 import { CatPreview, FoePreview } from './CatPreview';
 import { CoinIcon } from './Icons';
+import { GameIcon, type IconName } from './GameIcon';
 
 interface Rect {
   x: number;
@@ -36,7 +37,7 @@ export function TutorialOverlay({
   battle: Battle;
   renderer: Renderer | null;
   appRef: React.RefObject<HTMLElement>;
-  buttons: Record<'summon' | 'skill', React.RefObject<HTMLElement>>;
+  buttons: Record<'summon' | 'skill' | 'speed' | 'start', React.RefObject<HTMLElement>>;
   loadout: CosmeticLoadout;
   onContinue: () => void;
 }) {
@@ -140,7 +141,7 @@ export function TutorialOverlay({
         <div className={`tut-bar ${panelAtTop ? 'top' : 'bottom'}`}>
           <div className="tut-bar-title">{t(step.panel.kind === 'text' ? step.panel.titleKey : '')}</div>
           {step.panel.kind === 'text' && <div className="tut-bar-body">{t(step.panel.bodyKey)}</div>}
-          {step.hintKey && <div className="tut-hint">👉 {t(step.hintKey)}</div>}
+          {step.hintKey && <div className="tut-hint"><GameIcon name="next" size={14} /> {t(step.hintKey)}</div>}
         </div>
       ) : (
         <div className="tut-card-wrap">
@@ -167,7 +168,7 @@ function Hand({ from, to }: { from: Rect; to?: Rect }) {
   } as CSSProperties;
   return (
     <div className={`tut-hand ${to ? 'drag' : 'tap'}`} style={style} aria-hidden>
-      <span>👆</span>
+      <GameIcon name="tap" size={40} />
     </div>
   );
 }
@@ -230,11 +231,11 @@ function PanelBody({ step, loadout }: { step: ActiveStep; loadout: CosmeticLoado
         <h2 className="intro-name">{t(`chest.${p.tier}.name`)}</h2>
         <div className="intro-sub">{t(`chest.${p.tier}.desc`)}</div>
         <ul className="intro-list">
-          <li>🎁 {t('intro.chestSkills')}</li>
+          <li><GameIcon name="gift" size={16} /> {t('intro.chestSkills')}</li>
           <li>
             <CoinIcon size={16} /> {t('intro.chestCoins', { min: def.coins[0], max: def.coins[1] })}
           </li>
-          <li>⏳ {t('intro.chestTip')}</li>
+          <li><GameIcon name="speed" size={16} /> {t('intro.chestTip')}</li>
         </ul>
       </div>
     );
@@ -277,17 +278,17 @@ function StatBars({ cat }: { cat: keyof typeof CATS }) {
   const d = CATS[cat];
   const hits = d.comboHits ?? 1;
   const dps = (d.damage * hits) / d.interval;
-  const rows: [string, number][] = [
-    ['⚔️', Math.min(1, (d.damage * hits) / 46)],
-    ['⚡', Math.min(1, 0.75 / d.interval)],
-    ['🎯', Math.min(1, d.range / 150)],
+  const rows: [IconName, number][] = [
+    ['damage', Math.min(1, (d.damage * hits) / 46)],
+    ['speed', Math.min(1, 0.75 / d.interval)],
+    ['range', Math.min(1, d.range / 150)],
   ];
-  if (d.attack === 'aura') rows[0] = ['💖', 0.8];
+  if (d.attack === 'aura') rows[0] = ['charm', 0.8];
   return (
     <div className="stat-bars" title={`DPS ${dps.toFixed(0)}`}>
       {rows.map(([icon, v]) => (
         <div key={icon} className="stat-row">
-          <span>{icon}</span>
+          <GameIcon name={icon} size={16} />
           <div className="stat-track">
             <div className="stat-fill" style={{ width: `${Math.round(v * 100)}%` }} />
           </div>

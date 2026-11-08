@@ -5,6 +5,7 @@ import { t, useLang } from '../../i18n';
 import { useSave } from '../../save/store';
 import type { Screen } from '../App';
 import { CatPreview } from '../components/CatPreview';
+import { GameIcon } from '../components/GameIcon';
 
 /** First stage where a cat can appear (for "Meet in Stage N"). */
 export function firstStageOf(cat: CatId): number {
@@ -25,7 +26,7 @@ export function CatsScreen({ go }: { go: (s: Screen) => void }) {
           {t('common.home')}
         </button>
         <span className="coin-pill collection-count">
-          🐾 {t('guide.discovered', { n: found, total: CAT_ORDER.length })}
+          <GameIcon name="team" size={16} /> {t('guide.discovered', { n: found, total: CAT_ORDER.length })}
         </span>
       </div>
       <h2 className="center">{t('guide.collection')}</h2>
@@ -47,7 +48,7 @@ export function CatsScreen({ go }: { go: (s: Screen) => void }) {
               </div>
               <div className="collection-name">{met ? t(`cat.${id}.name`) : t('guide.unknown')}</div>
               <div className="collection-role">{met ? t(`cat.${id}.role`) : t('guide.discoverAt', { n: firstStageOf(id) })}</div>
-              <div className={`collection-state ${met ? 'met' : ''}`}>{met ? t('guide.tapToView') : `🔒 ${t('guide.undiscovered')}`}</div>
+              <div className={`collection-state ${met ? 'met' : ''}`}>{met ? t('guide.tapToView') : <><GameIcon name="lock" size={13} /> {t('guide.undiscovered')}</>}</div>
             </button>
           );
         })}

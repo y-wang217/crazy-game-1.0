@@ -48,6 +48,21 @@
   --gold: #ffd040;
   --shadow: 0 3px 0 var(--shadow-ink);
   --radius: 16px;
+  /* V1.3: icons, branding & scenery */
+  --icon-line: #5a3e2b;
+  --moon: #ffc95a;
+  --moon-shade: #f2ad3a;
+  --scene-star: #ffffff;
+  --scene-far: #d3eac0;
+  --scene-near: #b5d99c;
+  --emblem-bg: #ffb15c;
+  --emblem-sky: #ffe7c2;
+  --emblem-ear: #ff9f43;
+  --emblem-ear-in: #ffc4d8;
+  --emblem-paw: #ff8fb8;
+  --prep-bg: rgba(255, 253, 247, 0.96);
+  --prep-ink: #5a3e2b;
+  --good-ink: #3e9a48;
   --font: 'Baloo 2', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', ui-rounded, system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
@@ -98,6 +113,21 @@
   --green: #7fa889;
   --green-dark: #657a69;
   --gold: #d9ad72;
+  /* V1.3: icons, branding & scenery */
+  --icon-line: #2a2440;
+  --moon: #f5e9d5;
+  --moon-shade: #ddd0b8;
+  --scene-star: #f5e9d5;
+  --scene-far: #2f3a45;
+  --scene-near: #1f2730;
+  --emblem-bg: #45415c;
+  --emblem-sky: #2a2846;
+  --emblem-ear: #6a5b8a;
+  --emblem-ear-in: #a68bc4;
+  --emblem-paw: #d9ad72;
+  --prep-bg: rgba(48, 45, 72, 0.96);
+  --prep-ink: #f5e9d5;
+  --good-ink: #a8d8a0;
 }
 
 * {
@@ -2131,4 +2161,329 @@ h2 {
 }
 .story {
   line-height: 1.5;
+}
+
+/* =====================================================================
+   V1.3 — icon system, prep phase, skill ownership, results, branding
+   ===================================================================== */
+.game-icon {
+  display: inline-block;
+  vertical-align: -0.2em;
+  flex: none;
+}
+.btn .game-icon,
+.hud-btn .game-icon {
+  vertical-align: -0.25em;
+}
+.tut-hand .game-icon {
+  display: block;
+  transform: translate(-48%, -4%);
+}
+.stat-row .game-icon {
+  width: 16px;
+}
+
+/* Preparation phase: countdown + Start Battle, docked above the action bar */
+.prep-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 6px 6px 14px;
+  border-radius: 999px;
+  background: var(--prep-bg);
+  color: var(--prep-ink);
+  box-shadow: 0 4px 0 var(--shadow-ink), 0 8px 22px rgba(0, 0, 0, 0.18);
+  z-index: 2;
+  white-space: nowrap;
+  animation: pop 0.3s;
+}
+.prep-timer {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-weight: 800;
+}
+.prep-label {
+  font-size: 0.85rem;
+  color: var(--text-soft);
+}
+.prep-secs {
+  display: inline-block;
+  min-width: 1.6em;
+  text-align: center;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--accent-dark);
+  animation: tick 0.35s;
+}
+@keyframes tick {
+  from {
+    transform: scale(1.35);
+  }
+}
+.prep-start {
+  padding: 8px 16px;
+  font-size: 1rem;
+  border-radius: 999px;
+}
+.speed-btn.on {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+/* Skill ownership: real cat portrait, or a team paw for universal skills */
+.skill-owner {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.skill-owner-badge {
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--surface-2);
+  box-shadow: 0 0 0 2px var(--surface), 0 1px 3px var(--shadow-ink);
+  overflow: hidden;
+  flex: none;
+}
+.skill-owner-label {
+  font-weight: 800;
+  font-size: 0.8rem;
+}
+.cat-head {
+  display: block;
+}
+.skill-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.skill-chip .skill-owner {
+  margin-left: -8px;
+  margin-top: 12px;
+}
+.skill-pop-icon {
+  font-size: 0;
+}
+.skill-pop-for {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Skill reward cards: big icon → owner badge → name → NEW/Lv → description */
+.reward-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  background: var(--surface-2);
+  margin-bottom: 4px;
+  font-size: 0;
+}
+.reward-owner {
+  position: absolute;
+  right: -8px;
+  bottom: -6px;
+}
+.reward-level.new {
+  background: var(--accent2);
+}
+.reward-for {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-soft);
+}
+
+/* Result panel */
+.result-panel {
+  max-height: calc(100% - 24px);
+  overflow-y: auto;
+}
+.result-title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.big-stars {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+.big-star {
+  position: relative;
+  display: inline-block;
+  filter: grayscale(1) brightness(1.15) opacity(0.4);
+}
+.big-star.on {
+  filter: drop-shadow(0 3px 0 rgba(192, 144, 16, 0.8));
+  animation: starIn 0.55s cubic-bezier(0.3, 1.6, 0.5, 1) backwards;
+  animation-delay: inherit;
+}
+.big-star.on::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 3px solid var(--gold);
+  opacity: 0;
+  animation: starBurst 0.6s ease-out backwards;
+  animation-delay: inherit;
+}
+@keyframes starIn {
+  0% {
+    transform: scale(0) rotate(-120deg);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1) rotate(0);
+    opacity: 1;
+  }
+}
+@keyframes starBurst {
+  0% {
+    transform: scale(0.4);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+}
+.star-reasons {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  align-self: center;
+}
+.star-reasons li.got {
+  color: var(--good-ink);
+}
+.star-reasons li > span {
+  display: inline-block;
+  width: 1em;
+  text-align: center;
+}
+.star-reasons .hearts-kept {
+  color: var(--text);
+}
+.result-rewards {
+  align-self: stretch;
+  align-items: stretch;
+  background: var(--surface-2);
+  border-radius: 12px;
+  padding: 8px 12px;
+  gap: 2px;
+}
+.reward-head {
+  font-size: 0.8rem;
+  color: var(--text-soft);
+  text-align: left;
+}
+.result-rewards > .reward-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+}
+.reward-row.total {
+  border-top: 1px dashed var(--line);
+  margin-top: 2px;
+  padding-top: 4px;
+  font-size: 1rem;
+}
+.reward-amt {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--fish-ink);
+}
+.balance-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-soft);
+}
+.balance-line b {
+  color: var(--text);
+}
+
+/* Main menu: emblem + layered scenery (both themes) */
+.home {
+  position: relative;
+  overflow: hidden;
+}
+.home > :not(.home-scenery) {
+  position: relative;
+  z-index: 1;
+}
+.home-scenery {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+.scene-stars circle {
+  animation: twinkle 3.5s ease-in-out infinite;
+}
+@keyframes twinkle {
+  50% {
+    opacity: 0.35;
+  }
+}
+.brand-emblem {
+  display: block;
+  margin: 0 auto -6px;
+  filter: drop-shadow(0 4px 0 var(--shadow-ink));
+  animation: emblemBob 4s ease-in-out infinite;
+}
+@keyframes emblemBob {
+  50% {
+    transform: translateY(-4px) rotate(-2deg);
+  }
+}
+:root[data-theme='moonlit'] .home {
+  background: linear-gradient(var(--home-top), var(--bg-app) 70%);
+}
+.home-menu .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.collection-state .game-icon,
+.stage-num .game-icon {
+  vertical-align: -0.15em;
+}
+
+/* Shorter, smaller wave banner that doesn't cover the lane */
+.wave-banner {
+  top: 22%;
+  font-size: 1.25rem;
+  animation-duration: 1.1s;
+}
+.wave-banner span {
+  padding: 2px 18px;
+}
+.wave-banner.stage {
+  animation-duration: 1.6s;
 }

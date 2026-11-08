@@ -139,6 +139,18 @@ const MERGE_INFO: StepDef = {
   },
 };
 
+const SPEED_TIP: StepDef = {
+  id: 'tut:speed',
+  when: (b) => !b.preparing && b.foes.some((f) => f.alive && f.kind === 'enemy' && f.dist > 60),
+  build: () => ({
+    panel: text('speed'),
+    expect: 'speed',
+    hintKey: 'tut.hint.speed',
+    focus: [{ kind: 'button', id: 'speed' }],
+    pointer: { type: 'tap', at: { kind: 'button', id: 'speed' } },
+  }),
+};
+
 export const STAGE_STEPS: Record<string, StepDef[]> = {
   // Stage 1: every basic control, one lesson at a time.
   '1-1': [
@@ -194,7 +206,7 @@ export const STAGE_STEPS: Record<string, StepDef[]> = {
       // Players who learned moving in V1.1 don't need this warm-up.
       skip: (seen) => seen.has('tut:move'),
       setup: (b) => {
-        const need = b.summonCost + b.summonCost + 1;
+        const need = b.summonCost * 3; // tiered costs: covers the next two summons
         if (b.fish < need) b.fish = need;
       },
       build: () => ({
@@ -210,11 +222,12 @@ export const STAGE_STEPS: Record<string, StepDef[]> = {
     SWAP,
     MERGE,
     MERGE_INFO,
-    { id: 'tut:ready', build: () => ({ panel: text('ready'), focus: [{ kind: 'button', id: 'summon' }] }) },
+    { id: 'tut:ready', build: () => ({ panel: text('ready'), focus: [{ kind: 'button', id: 'start' }] }) },
   ],
 
   // Stage 2 is practice. These only appear for players who never saw them (pre-V1.2 saves).
-  '1-2': [MOVE, SWAP, MERGE, MERGE_INFO],
+  // V1.3: once mice are walking, suggest the speed button.
+  '1-2': [MOVE, SWAP, MERGE, MERGE_INFO, SPEED_TIP],
 
   // Stage 4: targeting in practice, right after meeting Zippy Mice.
   '1-4': [

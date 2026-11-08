@@ -60,12 +60,15 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
   },
 };
 
+// Treasure chests trade durability for speed: the tougher the chest, the slower it walks.
+// Chest HP grows a little per stage (BALANCE.chest.hpPerStage) but does NOT follow the
+// per-wave enemy HP ramp, so late chests stay breakable with sensible targeting.
 export const CHESTS: Record<ChestTier, ChestDef> = {
   bronze: {
     tier: 'bronze',
     name: 'Bronze Chest',
-    hp: 110,
-    speed: 30,
+    hp: 60,
+    speed: 24,
     coins: [5, 10],
     levelsPerPick: 1,
     tierWeights: { basic: 3, improved: 1 },
@@ -74,8 +77,8 @@ export const CHESTS: Record<ChestTier, ChestDef> = {
   silver: {
     tier: 'silver',
     name: 'Silver Chest',
-    hp: 220,
-    speed: 28,
+    hp: 190,
+    speed: 20,
     coins: [15, 25],
     levelsPerPick: 1,
     tierWeights: { basic: 1, improved: 2 },
@@ -84,8 +87,8 @@ export const CHESTS: Record<ChestTier, ChestDef> = {
   gold: {
     tier: 'gold',
     name: 'Gold Chest',
-    hp: 420,
-    speed: 26,
+    hp: 360,
+    speed: 16,
     coins: [40, 60],
     levelsPerPick: 2,
     tierWeights: { basic: 1, improved: 3 },

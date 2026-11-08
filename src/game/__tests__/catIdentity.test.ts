@@ -31,7 +31,7 @@ interface Run {
 
 function run(cats: CatId[], s: StageDef): Run {
   const b = new Battle(s, map, 1);
-  b.prepTimer = 0;
+  b.startBattle();
   const tiles = [TILE, '2-1', '1-2'];
   cats.forEach((c, i) => b.placeCat(c, 1, tiles[i]));
   let attacks = 0;

@@ -1,4 +1,5 @@
 import { CHAPTERS } from '../../config/chapters';
+import { BALANCE } from '../../config/balance';
 import { MAPS } from '../../config/maps';
 import { Battle } from '../../game/battle';
 import { TutorialDirector, type ActiveStep, type SeenStore } from '../director';
@@ -15,6 +16,7 @@ function memSeen(initial: string[] = []): SeenStore & { ids: Set<string> } {
 function frame(d: TutorialDirector, b: Battle, dt = 0.1) {
   const s = d.update(b);
   if (b.running) b.update(dt);
+  else if (b.preparing && !d.active) b.tickPrep(dt); // real-time prep countdown, paused by lessons
   return s;
 }
 
@@ -70,8 +72,12 @@ describe('tutorial director', () => {
     const intros = shown.filter((id) => id.startsWith('cat:'));
     expect(new Set(intros).size).toBe(intros.length);
     expect(intros.length).toBeGreaterThanOrEqual(1);
-    // After the lessons the battle runs.
+    // Lessons happen during preparation, and the prep countdown did not run while they were shown.
+    expect(b.preparing).toBe(true);
+    expect(b.prepRemaining).toBeGreaterThan(BALANCE.prepSeconds - 0.2); // at most the one frame after the last lesson
+    // After the lessons the player starts the battle and it runs.
     expect(b.frozen).toBe(false);
+    expect(b.startBattle()).toBe(true);
     frame(d, b);
     expect(b.time).toBeGreaterThan(0);
     // The merge lesson really merged something.
@@ -136,12 +142,12 @@ describe('tutorial director', () => {
   });
 
   it('stage 2 does not repeat lessons for players who finished stage 1', () => {
-    const seen = memSeen([...STAGE1_LESSONS, 'cat:kitten', 'cat:tabby', 'enemy:normal']);
+    const seen = memSeen([...STAGE1_LESSONS, 'tut:speed', 'cat:kitten', 'cat:tabby', 'enemy:normal']);
     const b = new Battle(stage(2), map, 4);
     const d = new TutorialDirector('1-2', seen);
     b.fish = 99;
     for (let i = 0; i < 5; i++) b.summon();
-    for (let i = 0; i < 300; i++) {
+    for (let i = 0; i < 500; i++) {
       expect(frame(d, b)).toBeNull();
     }
     expect(b.time).toBeGreaterThan(20);
@@ -185,6 +191,7 @@ describe('tutorial director', () => {
     const seen = memSeen(['cat:kitten', 'cat:tabby', 'cat:orange', 'cat:black', 'enemy:normal', 'enemy:fast', 'chest:bronze', 'chest:silver']);
     const b = new Battle(stage(5), map, 9);
     const d = new TutorialDirector('1-5', seen);
+    b.startBattle();
     b.fish = 0;
     let s = null;
     for (let i = 0; i < 3000 && !s; i++) {
@@ -202,6 +209,32 @@ describe('tutorial director', () => {
     expect(b.buySkill().ok).toBe(true);
     d.onAction('skill', b);
     expect(d.update(b)?.id).toBe('tut:skillDup');
+  });
+
+  it('stage 2 suggests the speed button once mice are walking, and completes on a speed change', () => {
+    const seen = memSeen([...STAGE1_LESSONS, 'cat:kitten', 'cat:tabby', 'enemy:normal']);
+    const b = new Battle(stage(2), map, 4);
+    const d = new TutorialDirector('1-2', seen);
+    expect(d.update(b)).toBeNull(); // not during preparation
+    b.startBattle();
+    let s = null;
+    for (let i = 0; i < 400 && !s; i++) s = frame(d, b);
+    expect(s?.id).toBe('tut:speed');
+    expect(s?.focus).toEqual([{ kind: 'button', id: 'speed' }]);
+    expect(d.allows('summon')).toBe(false);
+    expect(d.allows('speed')).toBe(true);
+    d.onAction('speed', b);
+    expect(d.active).toBeNull();
+    expect(seen.has('tut:speed')).toBe(true);
+  });
+
+  it('the ready lesson points at the Start Battle button', () => {
+    const seen = memSeen(STAGE1_LESSONS.filter((x) => x !== 'tut:ready'));
+    const b = new Battle(stage(1), map, 4);
+    const d = new TutorialDirector('1-1', seen);
+    const s = d.update(b)!;
+    expect(s.id).toBe('tut:ready');
+    expect(s.focus).toEqual([{ kind: 'button', id: 'start' }]);
   });
 
   it('does not start lessons during a chest reward or after the battle ends', () => {

@@ -287,11 +287,7 @@ export class Renderer {
       ctx.restore();
     }
 
-    // Pre-wave countdown
-    if (battle.waveIndex === -1) {
-      const s = Math.ceil(battle.prepRemaining);
-      if (!battle.frozen) this.banner(tr('battle.firstWaveIn', { n: s }), this.worldH * 0.5);
-    }
+    // (The preparation countdown is shown by the HUD, not on the board.)
   }
 
   /** A few slow, twinkling fireflies (moonlit theme). Purely decorative, kept sparse. */
@@ -322,21 +318,6 @@ export class Renderer {
     ctx.strokeStyle = color;
     ctx.stroke();
     ctx.setLineDash([]);
-  }
-
-  private banner(text: string, y: number) {
-    const ctx = this.ctx;
-    ctx.font = `800 18px ${FONT_STACK}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    const w = ctx.measureText(text).width + 28;
-    ctx.beginPath();
-    ctx.roundRect(this.worldW / 2 - w / 2, y - 17, w, 34, 17);
-    const P = boardPalette();
-    ctx.fillStyle = P.bannerBg;
-    ctx.fill();
-    ctx.fillStyle = P.bannerText;
-    ctx.fillText(text, this.worldW / 2, y + 1);
   }
 
   private drawCatUnit(cat: CatUnit, t: number, loadout: CosmeticLoadout, x: number, y: number, showBadges: boolean, extraScale = 1) {
@@ -408,19 +389,20 @@ export class Renderer {
       // Target mode badge
       const info = TARGET_MODE_INFO[cat.mode];
       const pop = t - cat.modeAt < 0.25 ? 1 + 0.4 * Math.sin(((t - cat.modeAt) / 0.25) * Math.PI) : 1;
+      // V1.3: compact badge tucked into the tile's bottom-right corner (clear of face and hat).
       ctx.save();
-      ctx.translate(15, -17);
+      ctx.translate(14, 15.5);
       ctx.scale(pop, pop);
       ctx.beginPath();
-      ctx.arc(0, 0, 7.5, 0, TAU);
+      ctx.arc(0, 0, 6.2, 0, TAU);
       ctx.fillStyle = info.color;
       ctx.fill();
-      ctx.lineWidth = 1.5;
-      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = 'rgba(255,255,255,0.95)';
       ctx.stroke();
       ctx.fillStyle = '#fff';
-      ctx.font = `900 9px ${FONT_STACK}`;
-      ctx.fillText(tr(`mode.${cat.mode}.short`), 0, 0.8);
+      ctx.font = `900 7.5px ${FONT_STACK}`;
+      ctx.fillText(tr(`mode.${cat.mode}.short`), 0, 0.6);
       ctx.restore();
     }
     ctx.restore();
@@ -451,10 +433,42 @@ export class Renderer {
       ctx.fill();
       ctx.restore();
     }
+    // V1.3: chests get a pulsing golden ground glow so they read instantly.
+    if (f.kind === 'chest') {
+      ctx.save();
+      const pulse = 0.5 + 0.5 * Math.sin(t * 5 + f.uid);
+      const g = ctx.createRadialGradient(0, 2, 2, 0, 2, f.radius + 12);
+      g.addColorStop(0, `rgba(255,220,90,${0.45 + 0.25 * pulse})`);
+      g.addColorStop(1, 'rgba(255,220,90,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(0, 2, f.radius + 12, 0, TAU);
+      ctx.fill();
+      ctx.restore();
+    }
     const walk = f.walk + f.uid * 0.37;
     if (f.kind === 'chest') drawChest(ctx, f.defId as ChestTier, walk, hit);
     else drawMouse(ctx, { id: f.defId as EnemyId, dirX: f.dirX, t: walk, hasShield: f.shield > 0, hit });
     void walkT;
+    // V1.3: tiny impact spark on every hit (visual only).
+    if (hitAge < 0.14) {
+      const k = hitAge / 0.14;
+      ctx.save();
+      ctx.globalAlpha = 1 - k;
+      ctx.strokeStyle = '#fff6c8';
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      const r0 = f.radius * 0.5 + 5 * k;
+      const r1 = r0 + 5;
+      for (let i = 0; i < 4; i++) {
+        const a = (i * TAU) / 4 + f.uid;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * r0, Math.sin(a) * r0 - 4);
+        ctx.lineTo(Math.cos(a) * r1, Math.sin(a) * r1 - 4);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
 
     // Distracted by the white cat
     if (f.slowT > 0) {
@@ -464,7 +478,7 @@ export class Renderer {
     }
 
     // HP / shield bar
-    const w = f.isBoss ? 46 : f.kind === 'chest' ? 26 : 22;
+    const w = f.isBoss ? 40 : f.kind === 'chest' ? 20 : 20;
     const by = -f.radius - (f.isBoss ? 26 : 9);
     const damaged = f.hp < f.maxHp || f.shield < f.maxShield || f.isBoss || f.kind === 'chest';
     if (damaged) {
@@ -672,8 +686,8 @@ function paintBackground(ctx: CanvasRenderingContext2D, map: MapDef, battle: Bat
   }
   // direction chevrons
   ctx.strokeStyle = P.chevron;
-  ctx.lineWidth = 2.2;
-  for (let d = 40; d < battle.path.length - 30; d += 75) {
+  ctx.lineWidth = 2.6;
+  for (let d = 36; d < battle.path.length - 30; d += 56) {
     const p = battle.path.pointAt(d);
     const a = Math.atan2(p.dy, p.dx);
     ctx.save();
@@ -712,10 +726,10 @@ function paintBackground(ctx: CanvasRenderingContext2D, map: MapDef, battle: Bat
 
   // Tiles: buildable ones are bright "pools" with a rim, locked ones are dim and dashed.
   for (const tile of battle.tiles) {
-    const x = tile.x - 21;
-    const y = tile.y - 21;
+    // V1.3: locked tiles are smaller and fainter so buildable tiles stand out.
+    const half = tile.unlocked ? 21 : 16;
     ctx.beginPath();
-    ctx.roundRect(x, y, 42, 42, 9);
+    ctx.roundRect(tile.x - half, tile.y - half, half * 2, half * 2, tile.unlocked ? 9 : 7);
     if (tile.unlocked) {
       const g = ctx.createRadialGradient(tile.x, tile.y, 4, tile.x, tile.y, 28);
       g.addColorStop(0, P.tileGlow);
@@ -736,6 +750,8 @@ function paintBackground(ctx: CanvasRenderingContext2D, map: MapDef, battle: Bat
         ctx.fill();
       }
     } else {
+      ctx.save();
+      ctx.globalAlpha = 0.6;
       ctx.fillStyle = P.lockedFill;
       ctx.fill();
       ctx.setLineDash([4, 4]);
@@ -753,6 +769,7 @@ function paintBackground(ctx: CanvasRenderingContext2D, map: MapDef, battle: Bat
       ctx.beginPath();
       ctx.arc(tile.x, tile.y - 1, 3.5, Math.PI, TAU);
       ctx.stroke();
+      ctx.restore();
     }
   }
 
