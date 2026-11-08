@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { BOARD_PALETTES, type BoardPalette } from './palettes';
+import { BOARD_PALETTES, ENV_OVERRIDES, type BoardPalette, type Environment } from './palettes';
 
 // Visual theme store. Purely cosmetic: it never touches combat, maps or the save.
 // UI colors are CSS tokens (styles.css, `:root` and `[data-theme='moonlit']`);
@@ -49,8 +49,18 @@ export function setTheme(id: ThemeId): void {
   listeners.forEach((l) => l());
 }
 
-export function boardPalette(): BoardPalette {
-  return BOARD_PALETTES[current];
+const envCache = new Map<string, BoardPalette>();
+/** Battlefield palette for the current theme, optionally adjusted for a map environment. */
+export function boardPalette(env: Environment = 'forest'): BoardPalette {
+  const over = ENV_OVERRIDES[env]?.[current];
+  if (!over) return BOARD_PALETTES[current];
+  const key = `${env}|${current}`;
+  let p = envCache.get(key);
+  if (!p) {
+    p = { ...BOARD_PALETTES[current], ...over };
+    envCache.set(key, p);
+  }
+  return p;
 }
 
 export function useTheme(): ThemeId {

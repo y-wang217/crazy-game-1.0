@@ -85,7 +85,52 @@ export const FOREST_COMPACT_MAP: MapDef = {
   theme: FOREST_MAP.theme,
 };
 
+/**
+ * Moonlit Mushroom Forest (Chapter 2): same 5 x 8 portrait grid, but the road
+ * enters from the TOP and spirals inward to a cat house in the middle of a
+ * mushroom ring:
+ *   down col 0, right along row 6, up col 4, left along row 1, down col 2 to the house.
+ * The inner columns (1 and 3) sit between two or three road passes, so a few
+ * well-placed, well-merged cats matter more than filling every tile.
+ */
+export const MUSHROOM_MAP: MapDef = {
+  id: 'mushroom',
+  name: 'Moonlit Mushroom Forest',
+  cols: 5,
+  rows: 8,
+  cell: 50,
+  path: [
+    [0, -0.9],
+    [0, 6],
+    [4, 6],
+    [4, 1],
+    [2, 1],
+    [2, 3.75],
+  ],
+  base: [2, 4],
+  environment: 'mushroom',
+  tiles: [
+    // Inner ring, left: between the first descent and the final approach
+    t(1, 1), t(1, 2), t(1, 3), t(1, 4), t(1, 5),
+    // Inner ring, right: between the final approach and the climb
+    t(3, 2), t(3, 3), t(3, 4), t(3, 5),
+    // Under the cat house
+    t(2, 5),
+    // Top edge (beside the entrance and the upper pass)
+    t(1, 0), t(2, 0), t(3, 0),
+    // Bottom edge (below the long bottom pass)
+    t(1, 7), t(2, 7), t(3, 7),
+  ],
+  theme: {
+    grass: '#b8dcb4',
+    grassDark: '#a2cc9e',
+    road: '#e8d4c0',
+    roadEdge: '#bfa08a',
+  },
+};
+
 export const MAPS: Record<string, MapDef> = {
   forest: FOREST_MAP,
   forest_compact: FOREST_COMPACT_MAP,
+  mushroom: MUSHROOM_MAP,
 };

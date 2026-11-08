@@ -53,6 +53,8 @@ interface Result {
   chestCoins: number;
   firstClear: boolean;
   chapterComplete: boolean;
+  chapterId: string;
+  chapterNumber: number;
   baseHp: number;
   maxHp: number;
   stats: BattleStats;
@@ -119,15 +121,9 @@ export function BattleScreen({
   const speedBtnRef = useRef<HTMLButtonElement>(null);
   const startBtnRef = useRef<HTMLButtonElement>(null);
   const dragRef = useRef<DragView | null>(null);
-  const pressRef = useRef<{
-    uid: number;
-    pointerId: number;
-    sx: number;
-    sy: number;
-    dragging: boolean;
-    long: boolean;
-    timer: number | null;
-  } | null>(null);
+  const pressRef = useRef<{ uid: number; pointerId: number; sx: number; sy: number; dragging: boolean; long: boolean; timer: number | null } | null>(
+    null,
+  );
   /** Cat whose details panel is open (battle is paused meanwhile). */
   const [inspectUid, setInspectUid] = useState<number | null>(null);
   const inspectRef = useRef<number | null>(null);
@@ -187,10 +183,10 @@ export function BattleScreen({
             toast(t('battle.chestEscaped'), 'warn');
             break;
           case 'bossAppeared':
-            toast(t('battle.bossAppeared', { boss: t('enemy.boss.name') }), 'warn');
+            toast(t('battle.bossAppeared', { boss: t(`enemy.${e.enemy}.name`) }), 'warn');
             break;
           case 'bossDefeated':
-            toast(t('battle.bossDefeated', { boss: t('enemy.boss.name') }), 'good');
+            toast(t('battle.bossDefeated', { boss: t(`enemy.${e.enemy}.name`) }), 'good');
             break;
           case 'maxedChestFish':
             toast(t('battle.maxedChestFish', { n: e.fish }), 'good');
@@ -199,7 +195,15 @@ export function BattleScreen({
           case 'defeat': {
             if (resultLoggedRef.current === b) break;
             resultLoggedRef.current = b;
-            const common = { chestCoins: b.chestCoins, baseHp: b.baseHp, maxHp: b.maxBaseHp, stats: { ...b.stats }, duration: b.time };
+            const common = {
+              chapterId: chapter.id,
+              chapterNumber: chapter.number,
+              chestCoins: b.chestCoins,
+              baseHp: b.baseHp,
+              maxHp: b.maxBaseHp,
+              stats: { ...b.stats },
+              duration: b.time,
+            };
             if (e.type === 'victory') {
               const r = saveStore.completeStage(stage.id, b.baseHp, b.maxBaseHp);
               setResult({
@@ -498,7 +502,10 @@ export function BattleScreen({
           </div>
         </div>
         <div className="hud-pill fish" title={t('currency.fish')}>
-          <FishIcon size={20} /> <span key={hud.fish} className="fish-num">{hud.fish}</span>
+          <FishIcon size={20} />{' '}
+          <span key={hud.fish} className="fish-num">
+            {hud.fish}
+          </span>
         </div>
         <button ref={speedBtnRef} className={`hud-btn speed-btn ${speed !== 1 ? 'on' : ''}`} onClick={toggleSpeed} aria-label={t('battle.speed')}>
           {speed}×
@@ -524,17 +531,6 @@ export function BattleScreen({
           onPointerCancel={(e) => endPress(e, true)}
           onContextMenu={onContextMenu}
         />
-        {hud.preparing && hud.status === 'playing' && !result && (
-          <div className="prep-bar">
-            <div className="prep-timer">
-              <span className="prep-label">{t('battle.prep')}</span>
-              <span key={hud.prepLeft} className="prep-secs">{hud.prepLeft}</span>
-            </div>
-            <button ref={startBtnRef} className="btn btn-primary prep-start" onClick={onStartBattle}>
-              <GameIcon name="flag" size={18} /> {t('battle.start')}
-            </button>
-          </div>
-        )}
         {banner && !step && (
           <div key={banner.key} className={`wave-banner ${banner.tone}`}>
             <span>{banner.text}</span>
@@ -566,24 +562,39 @@ export function BattleScreen({
 
       {/* Bottom controls */}
       <div className="controls">
-        <div className="skill-row">
-          {hud.skills.length === 0 ? (
-            <span className="muted tiny">{hud.skillUnlocked ? t('battle.noSkillsShop') : t('battle.noSkills')}</span>
-          ) : (
-            hud.skills.map(([id, lv]) => (
-              <button
-                key={id}
-                className={`skill-chip ${skillPop?.id === id ? 'flash' : ''} ${SKILLS[id].cat ? 'cat' : ''}`}
-                style={SKILLS[id].cat ? { borderColor: CATS[SKILLS[id].cat!].palette.outline } : undefined}
-                onClick={() => toast(`${t(`skill.${id}.name`)} Lv.${lv}: ${t(`skill.${id}.desc`, skillParams(id, lv))}`)}
-              >
-                <GameIcon name={id} size={18} />
-                <SkillOwner id={id} loadout={save.equipped} size={16} />
-                <b key={lv}>{lv}</b>
-              </button>
-            ))
-          )}
-        </div>
+        {/* Preparation: countdown + Start Battle live below the board so no tile is covered. */}
+        {hud.preparing && hud.status === 'playing' && !result ? (
+          <div className="prep-bar">
+            <div className="prep-timer">
+              <span className="prep-label">{t('battle.prep')}</span>
+              <span key={hud.prepLeft} className="prep-secs">
+                {hud.prepLeft}
+              </span>
+            </div>
+            <button ref={startBtnRef} className="btn btn-primary prep-start" onClick={onStartBattle}>
+              <GameIcon name="flag" size={18} /> {t('battle.start')}
+            </button>
+          </div>
+        ) : (
+          <div className="skill-row">
+            {hud.skills.length === 0 ? (
+              <span className="muted tiny">{hud.skillUnlocked ? t('battle.noSkillsShop') : t('battle.noSkills')}</span>
+            ) : (
+              hud.skills.map(([id, lv]) => (
+                <button
+                  key={id}
+                  className={`skill-chip ${skillPop?.id === id ? 'flash' : ''} ${SKILLS[id].cat ? 'cat' : ''}`}
+                  style={SKILLS[id].cat ? { borderColor: CATS[SKILLS[id].cat!].palette.outline } : undefined}
+                  onClick={() => toast(`${t(`skill.${id}.name`)} Lv.${lv}: ${t(`skill.${id}.desc`, skillParams(id, lv))}`)}
+                >
+                  <GameIcon name={id} size={18} />
+                  <SkillOwner id={id} loadout={save.equipped} size={16} />
+                  <b key={lv}>{lv}</b>
+                </button>
+              ))
+            )}
+          </div>
+        )}
         <div className="action-row">
           <button
             ref={summonRef}
@@ -592,7 +603,10 @@ export function BattleScreen({
           >
             <span className="action-label">{hud.boardFull ? t('battle.boardFull') : t('battle.summon')}</span>
             <span className="action-cost">
-              <FishIcon size={18} /> <span key={hud.summonCost} className="cost-num">{hud.summonCost}</span>
+              <FishIcon size={18} />{' '}
+              <span key={hud.summonCost} className="cost-num">
+                {hud.summonCost}
+              </span>
               {costBump && (
                 <span key={costBump.key} className="cost-bump">
                   {t('battle.costUp', { n: costBump.n })}
@@ -690,7 +704,9 @@ export function BattleScreen({
           onReplay={restart}
           onHome={onHome}
           onStages={onExit}
-          extra={debug.enabled ? <StatsTable stats={result.stats} baseHp={result.baseHp} maxHp={result.maxHp} duration={result.duration} /> : undefined}
+          extra={
+            debug.enabled ? <StatsTable stats={result.stats} baseHp={result.baseHp} maxHp={result.maxHp} duration={result.duration} /> : undefined
+          }
         />
       )}
     </div>

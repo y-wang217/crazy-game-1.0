@@ -41,6 +41,21 @@ export function defaultSave(): SaveData {
 }
 
 /** Defensive parse: anything malformed falls back to defaults. */
+/**
+ * Every cleared stage unlocks the one after it (also across chapters). Older saves
+ * that cleared 1-10 before Chapter 2 existed therefore get 2-1 unlocked on load —
+ * nothing is ever locked or reset.
+ */
+export function withProgressUnlocks(unlocked: string[], cleared: Record<string, number>): string[] {
+  const set = new Set(unlocked);
+  for (const id of Object.keys(cleared)) {
+    set.add(id);
+    const i = ALL_STAGE_IDS.indexOf(id);
+    if (i >= 0 && i < ALL_STAGE_IDS.length - 1) set.add(ALL_STAGE_IDS[i + 1]);
+  }
+  return ALL_STAGE_IDS.filter((x) => set.has(x));
+}
+
 export function parseSave(raw: string | null): SaveData {
   const d = defaultSave();
   if (!raw) return d;
@@ -68,7 +83,7 @@ export function parseSave(raw: string | null): SaveData {
     return {
       version: 2,
       fishCoins: typeof o.fishCoins === 'number' && o.fishCoins >= 0 ? Math.floor(o.fishCoins) : 0,
-      unlocked: unlocked.length ? Array.from(new Set([ALL_STAGE_IDS[0], ...unlocked])) : d.unlocked,
+      unlocked: withProgressUnlocks(unlocked.length ? [ALL_STAGE_IDS[0], ...unlocked] : d.unlocked, cleared),
       cleared,
       owned,
       equipped: { hat, skins },

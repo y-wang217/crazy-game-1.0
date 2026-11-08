@@ -137,8 +137,8 @@ export type BattleEvent =
   | { type: 'waveCleared'; wave: number; bonus: number }
   | { type: 'chestAppeared'; tier: ChestTier }
   | { type: 'chestEscaped' }
-  | { type: 'bossAppeared' }
-  | { type: 'bossDefeated' }
+  | { type: 'bossAppeared'; enemy: EnemyId }
+  | { type: 'bossDefeated'; enemy: EnemyId }
   | { type: 'maxedChestFish'; fish: number }
   | { type: 'victory' }
   | { type: 'defeat' };
@@ -295,7 +295,7 @@ export class Battle {
     return skillRollCost(this.skillRolls);
   }
   get skillShopUnlocked(): boolean {
-    return this.stage.number >= BALANCE.unlocks.skillShopFromStage;
+    return (this.stage.order ?? this.stage.number) >= BALANCE.unlocks.skillShopFromStage;
   }
   get totalWaves(): number {
     return this.stage.waves.length;
@@ -596,7 +596,8 @@ export class Battle {
   }
 
   /** Toughness multiplier for the current wave (stage scale × in-stage ramp × debug). */
-  private toughness(): number {
+  /** Current enemy HP multiplier (stage hpScale × per-wave growth). */
+  toughness(): number {
     const growth = this.stage.waveHpGrowth ?? BALANCE.waveHpGrowth;
     return this.stage.hpScale * (1 + growth * Math.pow(Math.max(0, this.waveIndex), BALANCE.waveHpCurve));
   }
@@ -625,7 +626,7 @@ export class Battle {
     let foe: Foe;
     if ('chest' in g) {
       const def = CHESTS[g.chest];
-      const chestScale = 1 + BALANCE.chest.hpPerStage * (this.stage.number - 1);
+      const chestScale = this.stage.chestHpScale ?? 1 + BALANCE.chest.hpPerStage * ((this.stage.order ?? this.stage.number) - 1);
       const hp = Math.round(def.hp * chestScale * this.tuning.enemyHpMult);
       foe = {
         ...base,
@@ -655,14 +656,14 @@ export class Battle {
         maxHp: hp,
         shield,
         maxShield: shield,
-        armor: def.armor,
+        armor: def.armor > 0 ? def.armor + (this.stage.armorBonus ?? 0) : 0,
         speed: def.speed * this.tuning.enemySpeedMult,
         reward: Math.max(1, Math.round(def.reward * Math.pow(tough, BALANCE.rewardScaleExponent))),
         baseDamage: def.baseDamage,
         radius: def.radius,
         isBoss: !!def.isBoss,
       };
-      if (def.isBoss) this.events.push({ type: 'bossAppeared' });
+      if (def.isBoss) this.events.push({ type: 'bossAppeared', enemy: def.id });
     }
     this.foes.push(foe);
     return foe;
@@ -894,7 +895,7 @@ export class Battle {
       this.earn(gain);
       this.burst(f.x, f.y, ['#ffffff', '#e8e0f0', '#c8c0d8'], f.isBoss ? 40 : 9, f.isBoss ? 160 : 70);
       this.addText(f.x, f.y - 12, `+${gain}`, '#ff9f1c', f.isBoss ? 20 : 12, 0.8);
-      if (f.isBoss) this.events.push({ type: 'bossDefeated' });
+      if (f.isBoss) this.events.push({ type: 'bossDefeated', enemy: f.defId as EnemyId });
       return;
     }
     // Treasure chest

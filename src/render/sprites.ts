@@ -560,11 +560,12 @@ const MOUSE_COLORS: Record<EnemyId, { body: string; belly: string; outline: stri
   armored: { body: '#9a8c80', belly: '#d8cec4', outline: '#4e443a' },
   shielded: { body: '#a8b8a0', belly: '#e4eede', outline: '#4e6046' },
   boss: { body: '#8a7a9e', belly: '#d8cce6', outline: '#3e3250' },
+  mushroomKing: { body: '#7a8a9a', belly: '#dde4ea', outline: '#2e3846' },
 };
 
 export function drawMouse(ctx: Ctx, o: MouseDrawOpts) {
   const c = MOUSE_COLORS[o.id];
-  const s = o.id === 'boss' ? 2 : o.id === 'fast' ? 0.85 : o.id === 'armored' ? 1.08 : 1;
+  const s = o.id === 'boss' || o.id === 'mushroomKing' ? 2 : o.id === 'fast' ? 0.85 : o.id === 'armored' ? 1.08 : 1;
   const bob = Math.abs(Math.sin(o.t * (o.id === 'fast' ? 16 : 9))) * 1.5;
   ctx.save();
   ellipse(ctx, 0, 9 * s, 10 * s, 3 * s, 'rgba(60,80,40,0.25)');
@@ -669,6 +670,66 @@ export function drawMouse(ctx: Ctx, o: MouseDrawOpts) {
     ctx.stroke();
     poly(ctx, [8, 4, 14, 1, 14, 7], '#ffd060', '#b08a20', 0.8);
     circle(ctx, 12, 4.5, 0.8, '#e0a830');
+  } else if (o.id === 'mushroomKing') {
+    // mossy cloak
+    poly(ctx, [-9, -3, 6, -3, 3, 9, -13, 8], '#3f6a5a', '#1e3a30', 0.8);
+    ellipse(ctx, 2, 3, 5.5, 4.5, c.belly);
+    // glowing eyes + stern brow
+    circle(ctx, 4.5, -2.5, 1.9, '#9ff0d8');
+    ctx.strokeStyle = '#1e2430';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(2.5, -5.6);
+    ctx.lineTo(7, -4.6);
+    ctx.stroke();
+    // mushroom scepter
+    ctx.strokeStyle = '#6a4a3a';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(10, 8);
+    ctx.lineTo(13, -6);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(13, -6, 3.2, Math.PI, TAU);
+    ctx.fillStyle = '#e86a5a';
+    ctx.fill();
+    circle(ctx, 12, -7.5, 0.7, '#ffffff');
+    // The giant cap IS the shield: full and glowing while shielded, cracked once broken.
+    const capW = o.hasShield ? 15 : 12;
+    const capH = o.hasShield ? 11 : 8;
+    if (o.hasShield) {
+      ctx.save();
+      ctx.globalAlpha = 0.35 + 0.15 * Math.sin(o.t * 3);
+      circle(ctx, 0, -10, 17, '#c89aff');
+      ctx.restore();
+    }
+    ctx.beginPath();
+    ctx.ellipse(0, -9, capW, capH, 0, Math.PI, TAU);
+    ctx.closePath();
+    ctx.fillStyle = o.hit ? '#ffffff' : o.hasShield ? '#9a5ac8' : '#7a5a8a';
+    ctx.fill();
+    ctx.strokeStyle = '#3a2050';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    for (const [x, y, r] of [
+      [-8, -13, 2.2],
+      [-1, -17, 2.6],
+      [7, -13, 2],
+      [2, -11, 1.4],
+    ] as const) {
+      circle(ctx, x * (capW / 15), -9 + (y + 9) * (capH / 11), r, '#f5e9d5');
+    }
+    if (!o.hasShield) {
+      ctx.strokeStyle = '#2a1838';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(-3, -16);
+      ctx.lineTo(-1, -12);
+      ctx.lineTo(-4, -10);
+      ctx.moveTo(5, -15);
+      ctx.lineTo(3, -11);
+      ctx.stroke();
+    }
   }
   ctx.restore();
 }

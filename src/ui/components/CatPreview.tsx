@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { CATS } from '../../config/cats';
+import { ENEMIES } from '../../config/enemies';
 import { resolvePalette } from '../../render/renderer';
 import { drawCat, drawChest, drawMouse } from '../../render/sprites';
 import type { CatId, ChestTier, CosmeticLoadout, EnemyId } from '../../game/types';
@@ -75,7 +76,7 @@ export function FoePreview({ enemy, chest, size = 96 }: { enemy?: EnemyId; chest
         ctx.scale(1.3, 1.3);
         drawChest(ctx, chest, t, false);
       } else if (enemy) {
-        const s = enemy === 'boss' ? 0.75 : 1.4;
+        const s = ENEMIES[enemy].isBoss ? 0.75 : 1.4;
         ctx.scale(s, s);
         drawMouse(ctx, { id: enemy, dirX: 1, t, hasShield: true, hit: false });
       }

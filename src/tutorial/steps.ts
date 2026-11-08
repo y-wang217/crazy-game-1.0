@@ -229,6 +229,24 @@ export const STAGE_STEPS: Record<string, StepDef[]> = {
   // V1.3: once mice are walking, suggest the speed button.
   '1-2': [MOVE, SWAP, MERGE, MERGE_INFO, SPEED_TIP],
 
+  // Chapter 2 opener: the spiral road and the central cat house.
+  '2-1': [
+    {
+      id: 'tut:ch2',
+      build: (b) => {
+        const start = b.path.pointAt(30);
+        const end = b.path.pointAt(b.path.length);
+        return {
+          panel: text('ch2'),
+          focus: [
+            { kind: 'point', x: start.x, y: start.y, r: 30 },
+            { kind: 'point', x: end.x, y: end.y + 10, r: 34 },
+          ],
+        };
+      },
+    },
+  ],
+
   // Stage 4: targeting in practice, right after meeting Zippy Mice.
   '1-4': [
     {

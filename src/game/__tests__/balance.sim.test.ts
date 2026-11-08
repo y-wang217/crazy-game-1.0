@@ -7,12 +7,11 @@ import { runBot } from '../bot';
 // Both always take the first chest option and never change targeting, so a human
 // who positions, merges and targets deliberately should beat these numbers.
 describe('balance simulation', () => {
-  const chapter = CHAPTERS[0];
-  const map = MAPS[chapter.mapId];
   const SEEDS = 10;
   const rows: string[] = [];
 
-  for (const stage of chapter.stages) {
+  for (const stage of CHAPTERS.flatMap((c) => c.stages)) {
+    const map = MAPS[CHAPTERS.find((c) => c.stages.includes(stage))!.mapId];
     it(`stage ${stage.id} is winnable`, () => {
       let naive = 0;
       let smart = 0;
@@ -42,7 +41,7 @@ describe('balance simulation', () => {
           `  time ${(time / SEEDS / 60).toFixed(1)}m  summons ${avg(summons)}  merges ${avg(merges)}  cats ${avg(cats)}  hp ${avg(hp)}` +
           (chestsTotal ? `  chests ${chestsOpened}/${chestsTotal}` : ''),
       );
-      if (stage.number === 1) expect(naive).toBeGreaterThanOrEqual(SEEDS - 1);
+      if (stage.order === 1) expect(naive).toBeGreaterThanOrEqual(SEEDS - 1);
       expect(smart).toBeGreaterThan(0);
     });
   }

@@ -3,7 +3,7 @@
 export type CatId = 'kitten' | 'tabby' | 'orange' | 'black' | 'white';
 export type AttackKind = 'projectile' | 'combo' | 'slam' | 'snipe' | 'aura';
 export type TargetMode = 'first' | 'nearest' | 'strongest' | 'weakest' | 'treasure';
-export type EnemyId = 'normal' | 'fast' | 'armored' | 'shielded' | 'boss';
+export type EnemyId = 'normal' | 'fast' | 'armored' | 'shielded' | 'boss' | 'mushroomKing';
 export type ChestTier = 'bronze' | 'silver' | 'gold';
 export type SkillId =
   // general
@@ -147,6 +147,8 @@ export interface MapDef {
   tiles: TileDef[];
   /** Where the base/house is drawn (cell units). */
   base: [number, number];
+  /** Visual environment (palette overrides + decorations). Defaults to 'forest'. */
+  environment?: 'forest' | 'mushroom';
   theme: {
     grass: string;
     grassDark: string;
@@ -186,6 +188,12 @@ export interface StageDef {
   startCats?: StartCat[];
   /** Per-wave HP growth inside this stage (defaults to BALANCE.waveHpGrowth). */
   waveHpGrowth?: number;
+  /** 1-based position across ALL chapters (filled in by chapters.ts). Drives unlocks & chest scaling. */
+  order?: number;
+  /** Flat armor added to every mouse that already has armor (later chapters). */
+  armorBonus?: number;
+  /** Chest HP multiplier; defaults to 1 + BALANCE.chest.hpPerStage × (order − 1). */
+  chestHpScale?: number;
 }
 
 export interface ChapterDef {

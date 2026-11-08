@@ -58,6 +58,20 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     radius: 22,
     isBoss: true,
   },
+  // Chapter 2 boss: the huge mushroom cap is a regenerating-free shield (existing mechanic),
+  // the body underneath is armored. Break the cap first, then burn through the HP.
+  mushroomKing: {
+    id: 'mushroomKing',
+    name: 'Mushroom King',
+    hp: 2200,
+    shield: 1100,
+    armor: 6,
+    speed: 13,
+    reward: 60,
+    baseDamage: 8,
+    radius: 23,
+    isBoss: true,
+  },
 };
 
 // Treasure chests trade durability for speed: the tougher the chest, the slower it walks.

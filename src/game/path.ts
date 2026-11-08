@@ -42,6 +42,21 @@ export class PathGeom {
       dy: (b.y - a.y) / segLen,
     };
   }
+
+  /** Shortest distance from a point to the road polyline. */
+  distanceTo(x: number, y: number): number {
+    let best = Infinity;
+    for (let i = 1; i < this.points.length; i++) {
+      const a = this.points[i - 1];
+      const b = this.points[i];
+      const vx = b.x - a.x;
+      const vy = b.y - a.y;
+      const len2 = vx * vx + vy * vy || 1;
+      const t = Math.max(0, Math.min(1, ((x - a.x) * vx + (y - a.y) * vy) / len2));
+      best = Math.min(best, Math.hypot(x - (a.x + vx * t), y - (a.y + vy * t)));
+    }
+    return best;
+  }
 }
 
 export function cellCenter(map: MapDef, c: number, r: number): Point {

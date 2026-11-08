@@ -122,3 +122,47 @@ export const BOARD_PALETTES: Record<'light' | 'moonlit', BoardPalette> = {
     moon: true,
   },
 };
+
+export type Environment = 'forest' | 'mushroom';
+
+/**
+ * Per-environment overrides on top of the theme palette. Chapter 2's Moonlit
+ * Mushroom Forest keeps each theme's style but shifts the ground, road stones,
+ * tile rims and house roof so the chapter feels like a new place.
+ */
+export const ENV_OVERRIDES: Record<Environment, Partial<Record<'light' | 'moonlit', Partial<BoardPalette>>>> = {
+  forest: {},
+  mushroom: {
+    light: {
+      grass: '#b6d9b0',
+      grassChecker: 'rgba(255,255,255,0.08)',
+      tuft: '#9cc896',
+      road: '#ecd9c6',
+      roadEdge: '#c4a48c',
+      roadDash: 'rgba(180,140,120,0.35)',
+      chevron: 'rgba(150,100,80,0.45)',
+      pebble: 'rgba(170,130,110,0.35)',
+      tileBorder: '#d0a8c8',
+      mushroomCaps: ['#e85a4a', '#f08ac0', '#b07ad6', '#f0a040'],
+      mushroomStem: '#fbf3e4',
+      houseRoof: '#b46ad8',
+      houseRoofEdge: '#6a3a8a',
+    },
+    moonlit: {
+      grass: '#2f3550',
+      grassChecker: 'rgba(180,170,255,0.05)',
+      tuft: '#46507a',
+      road: '#a69cb8',
+      roadEdge: '#5e5478',
+      roadDash: 'rgba(60,50,80,0.35)',
+      chevron: 'rgba(60,50,90,0.5)',
+      pebble: 'rgba(80,70,110,0.4)',
+      tileFill: '#5a5280',
+      tileGlow: '#8e86b4',
+      tileBorder: '#9fe0d0',
+      mushroomCaps: ['#b58ad6', '#7fc8c0', '#e08aa8', '#d9ad72'],
+      houseRoof: '#3f7a72',
+      houseRoofEdge: '#1f4a44',
+    },
+  },
+};

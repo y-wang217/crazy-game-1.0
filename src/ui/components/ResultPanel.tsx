@@ -14,6 +14,8 @@ export interface BattleResult {
   chestCoins: number;
   firstClear: boolean;
   chapterComplete: boolean;
+  chapterId: string;
+  chapterNumber: number;
   baseHp: number;
   maxHp: number;
 }
@@ -76,7 +78,7 @@ export function ResultPanel({
             <h2 className="result-title">
               {result.chapterComplete ? (
                 <>
-                  <GameIcon name="trophy" size={28} /> {t('result.chapter')}
+                  <GameIcon name="trophy" size={28} /> {t('result.chapter', { n: result.chapterNumber })}
                 </>
               ) : result.baseHp <= 3 ? (
                 t('result.close')
@@ -84,7 +86,7 @@ export function ResultPanel({
                 t('result.victory')
               )}
             </h2>
-            {result.chapterComplete && <p className="small">{t('result.chapterText')}</p>}
+            {result.chapterComplete && <p className="small">{t(`result.chapterText.${result.chapterId}`)}</p>}
             <div className="big-stars" aria-label={`${result.stars}/3`}>
               {[1, 2, 3].map((k) => (
                 <span key={k} className={`big-star ${k <= result.stars ? 'on' : ''}`} style={{ animationDelay: `${0.25 + k * 0.35}s` }}>

@@ -8,6 +8,7 @@ import { Rng } from '../game/rng';
 import type { CatId, CatPalette, ChestTier, CosmeticLoadout, EnemyId, MapDef } from '../game/types';
 import { FONT_STACK, t as tr } from '../i18n';
 import { boardPalette, getTheme } from '../theme';
+import type { Environment } from '../theme/palettes';
 import type { BoardPalette } from '../theme/palettes';
 import { drawCat, drawChest, drawHeart, drawMouse, drawStar } from './sprites';
 
@@ -43,7 +44,13 @@ export class Renderer {
   readonly worldW: number;
   readonly worldH: number;
 
-  constructor(private canvas: HTMLCanvasElement, private map: MapDef) {
+  private env: Environment;
+
+  constructor(
+    private canvas: HTMLCanvasElement,
+    private map: MapDef,
+  ) {
+    this.env = map.environment ?? 'forest';
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Canvas 2D not supported');
     this.ctx = ctx;
@@ -97,7 +104,7 @@ export class Renderer {
     bg.height = this.canvas.height;
     const ctx = bg.getContext('2d')!;
     ctx.setTransform(this.dpr * this.scale, 0, 0, this.dpr * this.scale, 0, 0);
-    paintBackground(ctx, this.map, battle, boardPalette());
+    paintBackground(ctx, this.map, battle, boardPalette(this.env));
     this.bg = bg;
     this.bgKey = key;
   }
@@ -130,7 +137,7 @@ export class Renderer {
     if (this.bg) ctx.drawImage(this.bg, sx * k, sy * k);
     ctx.setTransform(k, 0, 0, k, sx * k, sy * k);
     const t = battle.vtime;
-    const dragCat = drag ? battle.catByUid(drag.uid) ?? null : null;
+    const dragCat = drag ? (battle.catByUid(drag.uid) ?? null) : null;
 
     // Drop-target highlights
     if (dragCat) {
@@ -277,7 +284,8 @@ export class Renderer {
     }
 
     this.drawEffects(battle);
-    if (boardPalette().fireflies) this.drawFireflies(t);
+    if (this.env === 'mushroom') this.drawSpores(t);
+    else if (boardPalette().fireflies) this.drawFireflies(t);
 
     // Dragged cat follows pointer (on top of everything)
     if (dragCat) {
@@ -291,6 +299,26 @@ export class Renderer {
   }
 
   /** A few slow, twinkling fireflies (moonlit theme). Purely decorative, kept sparse. */
+  /** Mushroom forest: glowing spores drifting slowly upward (both themes). */
+  private drawSpores(t: number) {
+    const ctx = this.ctx;
+    const moon = boardPalette(this.env).moon;
+    for (let i = 0; i < 14; i++) {
+      const speed = 6 + (i % 4) * 2;
+      const bx = ((i * 71) % this.worldW) + Math.sin(t * 0.6 + i) * 8;
+      const by = this.worldH - ((t * speed + i * 113) % (this.worldH + 20));
+      const a = (moon ? 0.35 : 0.5) * (0.6 + 0.4 * Math.sin(t * 2 + i));
+      const col = moon ? (i % 2 ? '159,224,208' : '200,160,255') : '255,255,255';
+      const g = ctx.createRadialGradient(bx, by, 0, bx, by, moon ? 5 : 3.5);
+      g.addColorStop(0, `rgba(${col},${a})`);
+      g.addColorStop(1, `rgba(${col},0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(bx, by, moon ? 5 : 3.5, 0, TAU);
+      ctx.fill();
+    }
+  }
+
   private drawFireflies(t: number) {
     const ctx = this.ctx;
     for (let i = 0; i < 9; i++) {
@@ -311,7 +339,7 @@ export class Renderer {
     const ctx = this.ctx;
     ctx.beginPath();
     ctx.arc(x, y, r, 0, TAU);
-    ctx.fillStyle = boardPalette().rangeFill;
+    ctx.fillStyle = boardPalette(this.env).rangeFill;
     ctx.fill();
     ctx.setLineDash([5, 4]);
     ctx.lineWidth = 1.6;
@@ -364,7 +392,9 @@ export class Renderer {
       attackAge: t - cat.attackAt,
       aim: Math.atan2(cat.aimY - cat.y, cat.aimX - cat.x),
       seed: cat.uid,
-      windup: cat.windup ? Math.min(1, Math.max(0, (this.simTime - cat.windup.start) / Math.max(0.01, cat.windup.fireAt - cat.windup.start))) : undefined,
+      windup: cat.windup
+        ? Math.min(1, Math.max(0, (this.simTime - cat.windup.start) / Math.max(0.01, cat.windup.fireAt - cat.windup.start)))
+        : undefined,
       comboIndex: cat.comboIndex,
     });
     ctx.restore();
@@ -672,9 +702,19 @@ function paintBackground(ctx: CanvasRenderingContext2D, map: MapDef, battle: Bat
     ctx.stroke();
     ctx.setLineDash([]);
   };
+  const mushroomEnv = map.environment === 'mushroom';
   stroke(40, P.roadEdge);
   stroke(34, P.road);
-  stroke(3, P.roadDash, [6, 10]);
+  if (mushroomEnv) {
+    // Stepping stones instead of a dashed centre line.
+    for (let d = 8; d < battle.path.length; d += 17) {
+      const p = battle.path.pointAt(d);
+      ctx.fillStyle = P.roadDash;
+      ctx.beginPath();
+      ctx.ellipse(p.x + (rng.next() - 0.5) * 6, p.y + (rng.next() - 0.5) * 6, 5 + rng.next() * 2, 3.5 + rng.next() * 1.5, rng.next() * 3, 0, TAU);
+      ctx.fill();
+    }
+  } else stroke(3, P.roadDash, [6, 10]);
   for (let i = 0; i < 40; i++) {
     const p = battle.path.pointAt(rng.next() * battle.path.length);
     const ox = (rng.next() - 0.5) * 24;
@@ -718,9 +758,34 @@ function paintBackground(ctx: CanvasRenderingContext2D, map: MapDef, battle: Bat
       if (used.has(`${c}-${r}`) || onPath(c, r) || (c === bc && r === br)) continue;
       const p = cellCenter(map, c, r);
       const roll = rng.next();
+      if (mushroomEnv) {
+        if (roll < 0.6) drawGiantMushroom(ctx, p.x, p.y + 4, 0.95 + rng.next() * 0.2, rng, P);
+        else drawMushrooms(ctx, p.x, p.y, rng, P);
+        continue;
+      }
       if (roll < 0.55) drawTree(ctx, p.x + (rng.next() - 0.5) * 10, p.y + (rng.next() - 0.5) * 8, 0.8 + rng.next() * 0.35, rng, P);
       else if (roll < 0.75) drawMushrooms(ctx, p.x, p.y, rng, P);
       else drawFlowers(ctx, p.x, p.y, rng, P);
+    }
+  }
+
+  if (mushroomEnv) {
+    // Little mushrooms sprinkled in the gaps (never on the road or a tile).
+    const tileNear = (x: number, y: number) => battle.tiles.some((t) => Math.abs(t.x - x) < 26 && Math.abs(t.y - y) < 26);
+    let placed = 0;
+    for (let i = 0; i < 400 && placed < 28; i++) {
+      const x = rng.next() * w;
+      const y = rng.next() * h;
+      if (tileNear(x, y) || battle.path.distanceTo(x, y) < 26) continue;
+      drawTinyMushroom(ctx, x, y, P.mushroomCaps[placed % P.mushroomCaps.length], P);
+      placed++;
+    }
+    // Fairy ring around the cat house.
+    const hb = cellCenter(map, map.base[0], map.base[1]);
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * TAU + 0.2;
+      if (Math.sin(a) < -0.6) continue; // leave the road side open
+      drawTinyMushroom(ctx, hb.x + Math.cos(a) * 25, hb.y + 4 + Math.sin(a) * 21, P.mushroomCaps[i % P.mushroomCaps.length], P);
     }
   }
 
@@ -744,7 +809,12 @@ function paintBackground(ctx: CanvasRenderingContext2D, map: MapDef, battle: Bat
       ctx.beginPath();
       ctx.ellipse(tile.x, tile.y + 3, 5, 4, 0, 0, TAU);
       ctx.fill();
-      for (const [dx, dy] of [[-5.5, -3], [-2, -6.5], [2, -6.5], [5.5, -3]]) {
+      for (const [dx, dy] of [
+        [-5.5, -3],
+        [-2, -6.5],
+        [2, -6.5],
+        [5.5, -3],
+      ]) {
         ctx.beginPath();
         ctx.arc(tile.x + dx, tile.y + dy, 1.9, 0, TAU);
         ctx.fill();
@@ -779,6 +849,17 @@ function paintBackground(ctx: CanvasRenderingContext2D, map: MapDef, battle: Bat
       const p = battle.path.pointAt(battle.path.length * frac);
       const lx = p.x + p.dy * 20;
       const ly = p.y - p.dx * 20;
+      if (mushroomEnv) {
+        const g = ctx.createRadialGradient(lx, ly, 1, lx, ly, 30);
+        g.addColorStop(0, 'rgba(159,224,208,0.35)');
+        g.addColorStop(1, 'rgba(159,224,208,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(lx, ly, 30, 0, TAU);
+        ctx.fill();
+        drawTinyMushroom(ctx, lx, ly + 3, '#9fe0d0', P, 1.4);
+        continue;
+      }
       const g = ctx.createRadialGradient(lx, ly, 1, lx, ly, 34);
       g.addColorStop(0, 'rgba(255,214,140,0.35)');
       g.addColorStop(1, 'rgba(255,214,140,0)');
@@ -800,17 +881,22 @@ function paintBackground(ctx: CanvasRenderingContext2D, map: MapDef, battle: Bat
 
   // Entrance burrow
   const start = pts[0];
-  const ex = Math.max(8, start.x + 10);
+  // Burrow sits on the board edge where the road enters, opening toward the road.
+  const dirA = Math.atan2(pts[1].y - start.y, pts[1].x - start.x);
+  ctx.save();
+  ctx.translate(Math.min(w, Math.max(0, start.x)), Math.min(h, Math.max(0, start.y)));
+  ctx.rotate(dirA);
   ctx.fillStyle = P.burrowOuter;
   ctx.beginPath();
-  ctx.ellipse(ex - 6, start.y, 16, 22, 0, -Math.PI / 2, Math.PI / 2);
+  ctx.ellipse(2, 0, 16, 22, 0, -Math.PI / 2, Math.PI / 2);
   ctx.fill();
   ctx.fillStyle = P.burrowInner;
   ctx.beginPath();
-  ctx.ellipse(ex - 6, start.y, 10, 15, 0, -Math.PI / 2, Math.PI / 2);
+  ctx.ellipse(2, 0, 10, 15, 0, -Math.PI / 2, Math.PI / 2);
   ctx.fill();
+  ctx.restore();
   // little sign (only where there is room above the road)
-  if (start.y > 45) {
+  if (start.y > 45 && Math.abs(dirA) < 0.3) {
     ctx.fillStyle = '#b08050';
     ctx.fillRect(14, start.y - 34, 3, 14);
     ctx.beginPath();
@@ -840,7 +926,12 @@ function drawTree(ctx: CanvasRenderingContext2D, x: number, y: number, s: number
   ctx.beginPath();
   ctx.roundRect(-3.5, 2, 7, 13, 2);
   ctx.fill();
-  for (const [dx, dy, r] of [[-7, -2, 10], [7, -2, 10], [0, -10, 12], [0, 0, 11]] as const) {
+  for (const [dx, dy, r] of [
+    [-7, -2, 10],
+    [7, -2, 10],
+    [0, -10, 12],
+    [0, 0, 11],
+  ] as const) {
     ctx.fillStyle = P.treeGreens[Math.floor(rng.next() * P.treeGreens.length)];
     ctx.beginPath();
     ctx.arc(dx, dy, r, 0, TAU);
@@ -879,6 +970,74 @@ function drawMushrooms(ctx: CanvasRenderingContext2D, x: number, y: number, rng:
     ctx.arc(mx + 2.5, my - 3, 1, 0, TAU);
     ctx.fill();
   }
+}
+
+function drawTinyMushroom(ctx: CanvasRenderingContext2D, x: number, y: number, cap: string, P: BoardPalette, s = 1) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(s, s);
+  ctx.fillStyle = P.mushroomStem;
+  ctx.fillRect(-1.2, -1, 2.4, 4);
+  ctx.fillStyle = cap;
+  ctx.beginPath();
+  ctx.arc(0, -1, 3.6, Math.PI, TAU);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.beginPath();
+  ctx.arc(-1.2, -2.6, 0.7, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+}
+
+/** Big spotted toadstool for the mushroom forest (replaces trees). */
+function drawGiantMushroom(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, rng: Rng, P: BoardPalette) {
+  const cap = P.mushroomCaps[Math.floor(rng.next() * P.mushroomCaps.length)];
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(s, s);
+  if (P.moon) {
+    const g = ctx.createRadialGradient(0, -8, 2, 0, -8, 30);
+    g.addColorStop(0, 'rgba(181,138,214,0.32)');
+    g.addColorStop(1, 'rgba(181,138,214,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, -8, 30, 0, TAU);
+    ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(20,20,40,0.25)';
+  ctx.beginPath();
+  ctx.ellipse(0, 14, 15, 4.5, 0, 0, TAU);
+  ctx.fill();
+  // stem
+  ctx.fillStyle = P.mushroomStem;
+  ctx.beginPath();
+  ctx.moveTo(-5, 14);
+  ctx.quadraticCurveTo(-3, 0, -4, -6);
+  ctx.lineTo(4, -6);
+  ctx.quadraticCurveTo(3, 0, 5, 14);
+  ctx.closePath();
+  ctx.fill();
+  // cap
+  ctx.fillStyle = cap;
+  ctx.beginPath();
+  ctx.ellipse(0, -7, 18, 13, 0, Math.PI, TAU);
+  ctx.quadraticCurveTo(0, -2, -18, -7);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  for (const [dx, dy, r] of [
+    [-9, -11, 2.6],
+    [0, -16, 3],
+    [8, -11, 2.2],
+    [3, -9, 1.5],
+    [-3, -8, 1.3],
+  ] as const) {
+    ctx.beginPath();
+    ctx.arc(dx, dy, r, 0, TAU);
+    ctx.fill();
+  }
+  // a tiny companion mushroom
+  drawTinyMushroom(ctx, 11, 12, P.mushroomCaps[(P.mushroomCaps.indexOf(cap) + 1) % P.mushroomCaps.length], P);
+  ctx.restore();
 }
 
 function drawFlowers(ctx: CanvasRenderingContext2D, x: number, y: number, rng: Rng, P: BoardPalette) {

@@ -50,6 +50,15 @@ While dragging, tiles are tinted to show what the drop will do: green = move, go
 - Skill cards: big effect icon → small owner badge (the real cat's portrait, or a team-paw icon for universal skills) → name → NEW / Lv → description. The same badges appear on skill chips and the "new skill" pop.
 - Victory screen: staggered star animation with bursts, why each star was earned, hearts kept, a per-battle reward summary (first clear / clear reward / chest rewards / battle total) and the current fish-coin balance. Buttons: **Next Stage / Replay / Home** (下一關 / 再玩一次 / 返回主頁).
 
+**Chapter 2 — Moonlit Mushroom Forest / 月夜蘑菇森林 (stages 2-1 to 2-10)**
+- 20 playable stages in two chapters. Chapter 2 unlocks when 1-10 is cleared, and every cleared stage stays replayable.
+- **New map** (`MUSHROOM_MAP` in `maps.ts`): same 5×8 portrait grid, but the road enters from the **top** and **spirals inward** to a cat house in the **middle**. Inner tiles sit between two or three road passes; edge tiles cover far less. Tiles grow from 11 to 16 across the chapter.
+- **Environment:** giant spotted toadstools instead of trees, stepping-stone road, a mushroom fairy ring around the house, glowing mushroom lamps and drifting spores. Both themes get their own ground, road and roof colours (`ENV_OVERRIDES` in `theme/palettes.ts`).
+- **Difficulty** uses only existing enemies and systems: bigger and more mixed waves, faster spawns, steeper per-wave HP, more speed variety (Zippy Mice alongside slow Acorn Knights) and extra armor on armored mice (`armorBonus`). No new mechanics or cats.
+- **Boss — Mushroom King / 蘑菇鼠王 (2-10):** its giant cap is a shield (glows while intact, cracks once broken), with armor and huge HP underneath. It is slow, but escaping costs 8 hearts.
+- **Saves:** existing progress is untouched. On load, every cleared stage unlocks the next one, so players who finished 1-10 before this update find 2-1 open.
+- **Adding a chapter:** add a map to `maps.ts`, a stage list to `chapters.ts` and the `chapter.<id>` / `stage.<id>` names to the i18n files. Unlocks, stage select, results and the skill-shop unlock (global `order`) work automatically.
+
 **Art direction**
 - Main menu emblem (cat ears + crescent moon + paw), layered scenery (twinkling stars, moon glow, forest silhouettes) in both themes, and icon buttons for Shop and Cats.
 - One SVG icon set (`src/ui/components/GameIcon.tsx`) replaces the emoji in the main UI.
@@ -168,8 +177,12 @@ With debug on, the results screen also shows battle stats: duration, base HP lef
 | 4–6 | 6–9/10 | 10/10 | 4.8–5.5 min | 89–106 |
 | 7–9 | 6–7/10 | 8–9/10 | 5.4–6.5 min | 87–120 |
 | 10 | 8/10 | 8/10 | 7.7 min | 127 |
+| 2-1 – 2-3 | 8–10/10 | 10/10 | 4.1–5.1 min | 30–39 |
+| 2-4 – 2-6 | 9–10/10 | 9–10/10 | 5.7–5.8 min | 38–52 |
+| 2-7 – 2-9 | 9/10 | 10/10 | 6.4–7.7 min | 57–74 |
+| 2-10 (boss) | 9/10 | 9/10 | 8.3 min | 66 |
 
-Lengths are simulation time; at the default 1× (= old 1.2×) a real battle takes about 1/1.2 of that, plus up to 20 s of preparation. The bots open nearly every chest, so chests are reachable without perfect targeting.
+Chapter 2 is tuned by *headroom*: how much extra enemy HP the smart bot can still beat 7/10 times. Chapter 1's late stages sit at about +15–20%. Chapter 2 starts gentler on its new map (2-1 ≈ +45%), then tightens steadily to about +10% at 2-10. Lengths are simulation time; at the default 1× (= old 1.2×) a real battle takes about 1/1.2 of that, plus up to 20 s of preparation. The bots open nearly every chest, so chests are reachable without perfect targeting.
 
 ## Project layout
 
