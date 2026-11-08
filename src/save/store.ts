@@ -5,11 +5,18 @@ import { computeStars, nextStageId, stageClearCoins } from '../game/progression'
 import type { CatId, CosmeticLoadout } from '../game/types';
 
 // Persistent progression only. Battle cats/skills/dried fish are never saved.
+//
+// Save format history (the storage key stays the same so old saves keep working):
+//   v1 — coins, unlocks, stars, cosmetics.
+//   v2 — adds `seen`: ids of tutorials and first-time introductions already shown
+//        (e.g. "cat:kitten", "enemy:fast", "chest:bronze", "tut:summon").
+// parseSave() accepts any older version and fills new fields with safe defaults.
 
 const KEY = 'catdefense.save.v1';
+export const SAVE_VERSION = 2;
 
 export interface SaveData {
-  version: 1;
+  version: 2;
   fishCoins: number;
   /** Stage ids the player may enter. */
   unlocked: string[];
@@ -17,16 +24,19 @@ export interface SaveData {
   cleared: Record<string, number>;
   owned: string[];
   equipped: CosmeticLoadout;
+  /** Tutorial steps and introductions the player has already completed. */
+  seen: string[];
 }
 
 export function defaultSave(): SaveData {
   return {
-    version: 1,
+    version: 2,
     fishCoins: 0,
     unlocked: [ALL_STAGE_IDS[0]],
     cleared: {},
     owned: [],
     equipped: { hat: null, skins: {} },
+    seen: [],
   };
 }
 
@@ -54,13 +64,15 @@ export function parseSave(raw: string | null): SaveData {
         if (c && c.slot === 'skin' && c.cat === cat && owned.includes(c.id)) skins[cat as CatId] = c.id;
       }
     }
+    const seen = Array.isArray(o.seen) ? Array.from(new Set(o.seen.filter((x: unknown) => typeof x === 'string'))) as string[] : [];
     return {
-      version: 1,
+      version: 2,
       fishCoins: typeof o.fishCoins === 'number' && o.fishCoins >= 0 ? Math.floor(o.fishCoins) : 0,
       unlocked: unlocked.length ? Array.from(new Set([ALL_STAGE_IDS[0], ...unlocked])) : d.unlocked,
       cleared,
       owned,
       equipped: { hat, skins },
+      seen,
     };
   } catch {
     return d;
@@ -139,6 +151,20 @@ export const saveStore = {
       else eq.skins[c.cat] = id;
     }
     commit({ ...state, equipped: eq });
+  },
+
+  hasSeen(id: string): boolean {
+    return state.seen.includes(id);
+  },
+
+  markSeen(id: string): void {
+    if (state.seen.includes(id)) return;
+    commit({ ...state, seen: [...state.seen, id] });
+  },
+
+  /** Show every tutorial and introduction again (keeps coins, unlocks and cosmetics). */
+  resetTutorials(): void {
+    commit({ ...state, seen: [] });
   },
 
   reset(): void {

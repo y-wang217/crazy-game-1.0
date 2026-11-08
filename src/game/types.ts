@@ -88,7 +88,6 @@ export interface SkillDef {
   maxLevel: number;
   /** Only offered if this cat is in the stage roster. */
   requiresCat?: CatId;
-  describe: (level: number) => string;
 }
 
 export interface TileDef {
@@ -125,12 +124,16 @@ export interface WaveDef {
   groups: SpawnGroup[];
 }
 
+export interface StartCat {
+  type: CatId;
+  level: number;
+  tile: string;
+}
+
 export interface StageDef {
   id: string;
   number: number;
-  name: string;
-  /** Short tutorial / flavour lines shown at stage start. */
-  intro: string[];
+  /** Stage names live in the i18n dictionaries under `stage.<id>`. */
   roster: CatId[];
   tiles: string[];
   startFish: number;
@@ -140,6 +143,10 @@ export interface StageDef {
   waves: WaveDef[];
   rewards: { firstClear: number; replay: number };
   isBoss?: boolean;
+  /** Cats already on the board when the stage starts (free; used by tutorials). */
+  startCats?: StartCat[];
+  /** Per-wave HP growth inside this stage (defaults to BALANCE.waveHpGrowth). */
+  waveHpGrowth?: number;
 }
 
 export interface ChapterDef {

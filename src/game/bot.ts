@@ -1,30 +1,43 @@
+import type { Tuning } from '../config/debug';
 import { Battle, canMerge } from './battle';
 import type { MapDef, StageDef } from './types';
 
+export interface BotResult {
+  win: boolean;
+  baseHp: number;
+  time: number;
+  summons: number;
+  merges: number;
+  skills: number;
+  cats: number;
+  topLevel: number;
+  waveReached: number;
+}
+
 /**
- * A simple autoplayer used for headless balance checks. It is deliberately naive:
- * it never repositions cats or changes targeting, so real players should do better.
+ * A simple autoplayer used for headless balance checks. The naive version never
+ * repositions cats or changes targeting, so real players should do better.
+ * `smart` moves its strongest cats onto the tiles that cover the most road.
  */
 export function runBot(
   stage: StageDef,
   map: MapDef,
   seed: number,
-  opts: { smartPlacement?: boolean } = {},
-): { win: boolean; baseHp: number; time: number; summons: number; skills: number; topLevel: number } {
-  const b = new Battle(stage, map, seed);
+  opts: { smart?: boolean; tuning?: Partial<Tuning> } = {},
+): BotResult {
+  const b = new Battle(stage, map, { seed, tuning: opts.tuning as Tuning | undefined });
   const tick = 0.25;
-  const coverage = opts.smartPlacement ? tileCoverage(b) : null;
+  const coverage = opts.smart ? tileCoverage(b) : null;
   let guard = 0;
-  while ((b.status === 'playing' || b.status === 'reward') && guard++ < 20000) {
+  while ((b.status === 'playing' || b.status === 'reward') && guard++ < 40000) {
     if (b.status === 'reward') {
       b.chooseReward(0);
       continue;
     }
-    // Summon when possible; merge lowest pair when the board is full.
     if (b.emptyTiles().length === 0) mergeLowest(b);
+    else if (opts.smart && b.emptyTiles().length <= 2) mergeLowest(b);
     if (b.emptyTiles().length && b.fish >= b.summonCost) b.summon();
-    else if (!b.emptyTiles().length && b.fish >= b.skillCost) b.buySkill();
-    else if (b.fish >= b.skillCost + b.summonCost * 2) b.buySkill();
+    else if (b.skillShopUnlocked && b.fish >= b.skillCost && (!b.emptyTiles().length || b.fish >= b.skillCost + b.summonCost)) b.buySkill();
     if (coverage) relocateBest(b, coverage);
     b.update(tick);
   }
@@ -32,9 +45,12 @@ export function runBot(
     win: b.status === 'victory',
     baseHp: b.baseHp,
     time: b.time,
-    summons: b.summons,
+    summons: b.stats.summons,
+    merges: b.stats.merges,
     skills: Object.values(b.skills).reduce((a, v) => a + (v ?? 0), 0),
+    cats: b.cats.length,
     topLevel: Math.max(0, ...b.cats.map((c) => c.level)),
+    waveReached: b.waveIndex + 1,
   };
 }
 
@@ -65,15 +81,17 @@ function tileCoverage(b: Battle): Map<string, number> {
   return m;
 }
 
-/** Move the highest-level cat into the best empty tile if it improves coverage. */
+/** Swap the strongest cat onto the best-covering tile it isn't on yet. */
 function relocateBest(b: Battle, cov: Map<string, number>): void {
-  const empty = b.emptyTiles().sort((x, y) => (cov.get(y.id) ?? 0) - (cov.get(x.id) ?? 0));
-  if (!empty.length) return;
-  const cats = [...b.cats].sort((x, y) => y.level - x.level);
-  for (const c of cats) {
-    if ((cov.get(empty[0].id) ?? 0) > (cov.get(c.tileId) ?? 0) + 20) {
-      b.dropCat(c.uid, empty[0].id);
-      return;
-    }
+  const tiles = b.tiles.filter((t) => t.unlocked).sort((x, y) => (cov.get(y.id) ?? 0) - (cov.get(x.id) ?? 0));
+  const cats = [...b.cats].sort((x, y) => y.level - x.level || (x.type === 'white' ? 1 : -1));
+  for (let i = 0; i < Math.min(cats.length, tiles.length); i++) {
+    const c = cats[i];
+    const want = tiles[i];
+    if (c.tileId === want.id) continue;
+    const occ = b.catAt(want.id);
+    if (occ && occ.level >= c.level) continue;
+    b.dropCat(c.uid, want.id);
+    return;
   }
 }

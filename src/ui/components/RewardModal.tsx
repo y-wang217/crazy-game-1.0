@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { CHESTS } from '../../config/enemies';
-import { SKILLS } from '../../config/skills';
+import { SKILLS, skillParams } from '../../config/skills';
+import { t, useLang } from '../../i18n';
 import type { RewardOffer } from '../../game/battle';
 import type { SkillId } from '../../game/types';
 import { CoinIcon } from './Icons';
@@ -15,14 +16,15 @@ export function RewardModal({
   owned: Partial<Record<SkillId, number>>;
   onChoose: (i: number) => void;
 }) {
+  useLang();
   const [phase, setPhase] = useState<'opening' | 'choose'>('opening');
   const [picked, setPicked] = useState(false);
 
   useEffect(() => {
     setPhase('opening');
     setPicked(false);
-    const t = window.setTimeout(() => setPhase('choose'), 750);
-    return () => window.clearTimeout(t);
+    const timer = window.setTimeout(() => setPhase('choose'), 850);
+    return () => window.clearTimeout(timer);
   }, [offer]);
 
   const chest = CHESTS[offer.tier];
@@ -32,13 +34,20 @@ export function RewardModal({
         <div className="chest-lid" />
         <div className="chest-box" />
         <div className="chest-rays" />
+        <div className="chest-coins">
+          {Array.from({ length: 8 }, (_, i) => (
+            <span key={i} style={{ '--i': i } as React.CSSProperties}>
+              <CoinIcon size={18} />
+            </span>
+          ))}
+        </div>
       </div>
       <div className="reward-title">
-        {chest.name}! <span className="coin-gain"><CoinIcon size={18} /> +{offer.coins}</span>
+        {t(`chest.${offer.tier}.name`)}! <span className="coin-gain"><CoinIcon size={18} /> +{offer.coins}</span>
       </div>
       {phase === 'choose' && (
         <>
-          <div className="muted small light">Choose one skill{chest.levelsPerPick > 1 ? ` (+${chest.levelsPerPick} levels!)` : ''}</div>
+          <div className="muted small light">{chest.levelsPerPick > 1 ? t('reward.choosePlus', { n: chest.levelsPerPick }) : t('reward.choose')}</div>
           <div className="reward-cards">
             {offer.choices.map((c, i) => {
               const def = SKILLS[c.skillId];
@@ -57,10 +66,10 @@ export function RewardModal({
                   }}
                 >
                   <span className="reward-icon">{def.icon}</span>
-                  <span className="reward-name">{def.name}</span>
-                  <span className="reward-level">{cur === 0 ? 'NEW!' : `Lv.${cur} → Lv.${next}`}</span>
-                  <span className="reward-desc">{def.describe(next)}</span>
-                  {c.levels > 1 && <span className="reward-bonus">+{c.levels} Lv</span>}
+                  <span className="reward-name">{t(`skill.${c.skillId}.name`)}</span>
+                  <span className="reward-level">{cur === 0 ? t('reward.new') : t('reward.levelUp', { a: cur, b: next })}</span>
+                  <span className="reward-desc">{t(`skill.${c.skillId}.desc`, skillParams(c.skillId, next))}</span>
+                  {c.levels > 1 && <span className="reward-bonus">{t('reward.bonus', { n: c.levels })}</span>}
                 </button>
               );
             })}

@@ -12,8 +12,6 @@ export const SKILL_VALUES = {
   fishyFortune: { fishPerLevel: 0.2 },
 } as const;
 
-const pct = (x: number) => `${Math.round(x * 100)}%`;
-
 export const SKILLS: Record<SkillId, SkillDef> = {
   sharpClaws: {
     id: 'sharpClaws',
@@ -21,7 +19,6 @@ export const SKILLS: Record<SkillId, SkillDef> = {
     icon: '🗡️',
     tier: 'improved',
     maxLevel: 5,
-    describe: (l) => `All cats deal +${pct(SKILL_VALUES.sharpClaws.damagePerLevel * l)} damage.`,
   },
   catnipRush: {
     id: 'catnipRush',
@@ -29,7 +26,6 @@ export const SKILLS: Record<SkillId, SkillDef> = {
     icon: '🌿',
     tier: 'improved',
     maxLevel: 5,
-    describe: (l) => `All cats attack ${pct(SKILL_VALUES.catnipRush.speedPerLevel * l)} faster.`,
   },
   keenEyes: {
     id: 'keenEyes',
@@ -37,7 +33,6 @@ export const SKILLS: Record<SkillId, SkillDef> = {
     icon: '👀',
     tier: 'basic',
     maxLevel: 4,
-    describe: (l) => `All cats get +${pct(SKILL_VALUES.keenEyes.rangePerLevel * l)} range.`,
   },
   bellySlam: {
     id: 'bellySlam',
@@ -46,10 +41,6 @@ export const SKILLS: Record<SkillId, SkillDef> = {
     tier: 'improved',
     maxLevel: 4,
     requiresCat: 'orange',
-    describe: (l) =>
-      `Orange slams: +${pct(SKILL_VALUES.bellySlam.splashPerLevel * l)} splash size, +${pct(
-        SKILL_VALUES.bellySlam.damagePerLevel * l,
-      )} damage.`,
   },
   flurryPaws: {
     id: 'flurryPaws',
@@ -58,7 +49,6 @@ export const SKILLS: Record<SkillId, SkillDef> = {
     tier: 'basic',
     maxLevel: 3,
     requiresCat: 'tabby',
-    describe: (l) => `Tabby combos hit +${SKILL_VALUES.flurryPaws.hitsPerLevel * l} extra time(s).`,
   },
   armorBreak: {
     id: 'armorBreak',
@@ -66,7 +56,6 @@ export const SKILLS: Record<SkillId, SkillDef> = {
     icon: '🔨',
     tier: 'improved',
     maxLevel: 3,
-    describe: (l) => `Enemies lose ${SKILL_VALUES.armorBreak.armorPerLevel * l} armor.`,
   },
   dazzlingGrace: {
     id: 'dazzlingGrace',
@@ -75,10 +64,6 @@ export const SKILLS: Record<SkillId, SkillDef> = {
     tier: 'basic',
     maxLevel: 3,
     requiresCat: 'white',
-    describe: (l) =>
-      `White cat slows +${pct(SKILL_VALUES.dazzlingGrace.slowPerLevel * l)} more, lasting +${(
-        SKILL_VALUES.dazzlingGrace.durationPerLevel * l
-      ).toFixed(1)}s.`,
   },
   fishyFortune: {
     id: 'fishyFortune',
@@ -86,7 +71,6 @@ export const SKILLS: Record<SkillId, SkillDef> = {
     icon: '🐟',
     tier: 'basic',
     maxLevel: 3,
-    describe: (l) => `+${pct(SKILL_VALUES.fishyFortune.fishPerLevel * l)} dried fish from enemies.`,
   },
 };
 
@@ -100,3 +84,28 @@ export const SKILL_ORDER: SkillId[] = [
   'dazzlingGrace',
   'fishyFortune',
 ];
+
+const pct = (x: number) => Math.round(x * 100);
+
+/** Numbers for a skill's localized description at a given level (`skill.<id>.desc`). */
+export function skillParams(id: SkillId, level: number): Record<string, number | string> {
+  const V = SKILL_VALUES;
+  switch (id) {
+    case 'sharpClaws':
+      return { a: pct(V.sharpClaws.damagePerLevel * level) };
+    case 'catnipRush':
+      return { a: pct(V.catnipRush.speedPerLevel * level) };
+    case 'keenEyes':
+      return { a: pct(V.keenEyes.rangePerLevel * level) };
+    case 'bellySlam':
+      return { a: pct(V.bellySlam.splashPerLevel * level), b: pct(V.bellySlam.damagePerLevel * level) };
+    case 'flurryPaws':
+      return { a: V.flurryPaws.hitsPerLevel * level };
+    case 'armorBreak':
+      return { a: V.armorBreak.armorPerLevel * level };
+    case 'dazzlingGrace':
+      return { a: pct(V.dazzlingGrace.slowPerLevel * level), b: (V.dazzlingGrace.durationPerLevel * level).toFixed(1) };
+    case 'fishyFortune':
+      return { a: pct(V.fishyFortune.fishPerLevel * level) };
+  }
+}

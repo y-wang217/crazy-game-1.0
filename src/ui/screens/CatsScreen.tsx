@@ -1,32 +1,26 @@
-import { CATS, CAT_ORDER, TARGET_MODES, TARGET_MODE_INFO } from '../../config/cats';
+import { CAT_ORDER, TARGET_MODES, TARGET_MODE_INFO } from '../../config/cats';
+import { t, useLang } from '../../i18n';
 import { useSave } from '../../save/store';
 import type { Screen } from '../App';
 import { CatPreview } from '../components/CatPreview';
 
-const ATTACK_TEXT: Record<string, string> = {
-  projectile: 'Throws yarn balls at one target.',
-  combo: 'Rapid multi-hit punches. Weak vs armor, great vs shields.',
-  slam: 'Heavy ground slam that splashes nearby mice.',
-  snipe: 'One precise long-range shot. Shreds armor.',
-  aura: 'No damage. Her elegance slows every mouse nearby.',
-};
-
 export function CatsScreen({ go }: { go: (s: Screen) => void }) {
+  useLang();
   const save = useSave();
   return (
     <div className="screen cats">
       <div className="topbar">
         <button className="btn btn-small" onClick={() => go({ name: 'home' })}>
-          ← Home
+          {t('common.home')}
         </button>
         <span />
       </div>
-      <h2 className="center">The Cat Squad</h2>
+      <h2 className="center">{t('guide.title')}</h2>
       <div className="cat-list">
         {CAT_ORDER.map((id) => {
-          const c = CATS[id];
+          const met = save.seen.includes(`cat:${id}`);
           return (
-            <div key={id} className="cat-row">
+            <div key={id} className={`cat-row ${met ? '' : 'unknown'}`}>
               <div className="cat-levels">
                 <CatPreview type={id} level={1} loadout={save.equipped} size={56} />
                 <CatPreview type={id} level={3} loadout={save.equipped} size={56} />
@@ -34,31 +28,45 @@ export function CatsScreen({ go }: { go: (s: Screen) => void }) {
               </div>
               <div>
                 <div className="cat-name">
-                  {c.name} <span className="muted small">— {c.title}</span>
+                  {t(`cat.${id}.name`)} <span className="muted small">— {t(`cat.${id}.title`)}</span>
                 </div>
-                <div className="small">{c.personality}</div>
-                <div className="small role">
-                  <b>{c.role}:</b> {ATTACK_TEXT[c.attack]}
-                </div>
+                {met ? (
+                  <>
+                    <div className="small">{t(`cat.${id}.personality`)}</div>
+                    <div className="small role">
+                      <b>{t(`cat.${id}.role`)}:</b> {t(`cat.${id}.attack`)}
+                    </div>
+                    <div className="small">
+                      <span className="good">＋</span> {t(`cat.${id}.strengths`)}
+                    </div>
+                    <div className="small">
+                      <span className="bad">－</span> {t(`cat.${id}.weaknesses`)}
+                    </div>
+                  </>
+                ) : (
+                  <div className="small muted">{t('guide.unknownHint')}</div>
+                )}
               </div>
             </div>
           );
         })}
       </div>
       <div className="help-card">
-        <h3>How to play</h3>
+        <h3>{t('guide.howTo')}</h3>
         <ul className="small">
-          <li><b>Summon</b>: spend dried fish for a random cat on a random free tile.</li>
-          <li><b>Drag</b> a cat to an empty tile to move it (free, any time).</li>
-          <li><b>Drag onto an identical cat</b> (same type & level) to merge into a stronger one.</li>
-          <li><b>Tap</b> a cat to cycle its targeting:{' '}
+          <li>{t('guide.summon')}</li>
+          <li>{t('guide.move')}</li>
+          <li>{t('guide.swap')}</li>
+          <li>{t('guide.merge')}</li>
+          <li>
+            {t('guide.target')}{' '}
             {TARGET_MODES.map((m) => (
               <span key={m} className="mode-chip" style={{ background: TARGET_MODE_INFO[m].color }}>
-                {TARGET_MODE_INFO[m].short} {TARGET_MODE_INFO[m].label}
+                {t(`mode.${m}.short`)} {t(`mode.${m}`)}
               </span>
             ))}
           </li>
-          <li><b>Treasure chests</b> walk the road — break them for 3 skill choices and fish coins.</li>
+          <li>{t('guide.chest')}</li>
         </ul>
       </div>
     </div>

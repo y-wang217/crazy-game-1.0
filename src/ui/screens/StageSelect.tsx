@@ -1,30 +1,37 @@
-import { CATS } from '../../config/cats';
+import { BALANCE } from '../../config/balance';
 import { CHAPTERS } from '../../config/chapters';
+import { t, useLang } from '../../i18n';
 import { useSave } from '../../save/store';
-import type { StageDef } from '../../game/types';
+import type { EnemyId, StageDef } from '../../game/types';
 import type { Screen } from '../App';
 import { CoinIcon } from '../components/Icons';
 
+function enemiesOf(stage?: StageDef): Set<EnemyId> {
+  return new Set((stage?.waves ?? []).flatMap((w) => w.groups.flatMap((g) => ('enemy' in g ? [g.enemy] : []))));
+}
+
+/** Small tag describing what a stage introduces. */
 function newThing(stage: StageDef, prev: StageDef | undefined): string {
-  if (stage.isBoss) return 'Boss';
+  if (stage.isBoss) return t('tag.boss');
   const newCat = stage.roster.find((c) => !prev?.roster.includes(c));
-  if (newCat && prev) return `New: ${CATS[newCat].name}`;
-  const enemies = new Set(stage.waves.flatMap((w) => w.groups.map((g) => ('enemy' in g ? g.enemy : ''))));
-  const prevEnemies = new Set(prev?.waves.flatMap((w) => w.groups.map((g) => ('enemy' in g ? g.enemy : ''))) ?? []);
-  if (enemies.has('fast') && !prevEnemies.has('fast')) return 'New: Zippy Mice';
-  if (enemies.has('armored') && !prevEnemies.has('armored')) return 'New: Armor';
-  if (enemies.has('shielded') && !prevEnemies.has('shielded')) return 'New: Shields';
-  if (stage.number === 2) return 'Merging';
+  if (newCat && prev) return t('tag.newCat', { name: t(`cat.${newCat}.name`) });
+  const before = enemiesOf(prev);
+  const newEnemy = [...enemiesOf(stage)].find((e) => !before.has(e) && e !== 'normal');
+  if (newEnemy) return t('tag.newEnemy', { name: t(`enemy.${newEnemy}.name`) });
+  if (stage.number === 1) return t('tag.basics');
+  if (stage.number === 2) return t('tag.merge');
+  if (stage.number === BALANCE.unlocks.skillShopFromStage) return t('tag.skills');
   return '';
 }
 
 export function StageSelect({ go, play }: { go: (s: Screen) => void; play: (id: string) => void }) {
+  useLang();
   const save = useSave();
   return (
     <div className="screen stages">
       <div className="topbar">
         <button className="btn btn-small" onClick={() => go({ name: 'home' })}>
-          ← Home
+          {t('common.home')}
         </button>
         <span className="coin-pill">
           <CoinIcon /> {save.fishCoins}
@@ -32,9 +39,7 @@ export function StageSelect({ go, play }: { go: (s: Screen) => void; play: (id: 
       </div>
       {CHAPTERS.map((ch) => (
         <div key={ch.id} className="chapter">
-          <h2>
-            Chapter {ch.number} · {ch.name}
-          </h2>
+          <h2>{t('stages.chapter', { n: ch.number, name: t(`chapter.${ch.id}`) })}</h2>
           <div className="stage-grid">
             {ch.stages.map((s, i) => {
               const unlocked = save.unlocked.includes(s.id);
@@ -48,7 +53,7 @@ export function StageSelect({ go, play }: { go: (s: Screen) => void; play: (id: 
                   onClick={() => play(s.id)}
                 >
                   <span className="stage-num">{unlocked ? s.number : '🔒'}</span>
-                  <span className="stage-name">{s.name}</span>
+                  <span className="stage-name">{t(`stage.${s.id}`)}</span>
                   <span className="stars">
                     {[1, 2, 3].map((k) => (
                       <span key={k} className={k <= stars ? 'on' : ''}>
@@ -63,7 +68,7 @@ export function StageSelect({ go, play }: { go: (s: Screen) => void; play: (id: 
           </div>
         </div>
       ))}
-      <p className="muted small center">Clear a stage to unlock the next. Stars = base HP kept.</p>
+      <p className="muted small center">{t('stages.footer')}</p>
     </div>
   );
 }

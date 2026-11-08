@@ -2,14 +2,20 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { BALANCE } from '../../config/balance';
 import { findStage } from '../../config/chapters';
 import { MAPS } from '../../config/maps';
-import { SKILLS, SKILL_ORDER } from '../../config/skills';
-import { Battle, type BattleEvent } from '../../game/battle';
+import { SKILLS, SKILL_ORDER, skillParams } from '../../config/skills';
+import { Battle, type BattleEvent, type BattleStats } from '../../game/battle';
 import { nextStageId } from '../../game/progression';
 import type { SkillId } from '../../game/types';
+import { t, useLang } from '../../i18n';
 import { Renderer, type DragView } from '../../render/renderer';
 import { saveStore, useSave } from '../../save/store';
+import { TutorialDirector, type ActiveStep, type TutAction } from '../../tutorial/director';
+import { CatPreview } from '../components/CatPreview';
+import { DebugPanel, StatsTable } from '../components/DebugPanel';
 import { CoinIcon, FishIcon, HeartIcon } from '../components/Icons';
 import { RewardModal } from '../components/RewardModal';
+import { TutorialOverlay } from '../components/TutorialOverlay';
+import { debugStore, useDebug } from '../debugStore';
 
 interface Toast {
   id: number;
@@ -24,12 +30,14 @@ interface Hud {
   wave: number;
   totalWaves: number;
   status: Battle['status'];
+  frozen: boolean;
   summonCost: number;
   skillCost: number;
+  skillUnlocked: boolean;
   boardFull: boolean;
   skillsMaxed: boolean;
   skills: [SkillId, number][];
-  rewardKey: number;
+  rewardId: number;
 }
 
 interface Result {
@@ -39,6 +47,10 @@ interface Result {
   chestCoins: number;
   firstClear: boolean;
   chapterComplete: boolean;
+  baseHp: number;
+  maxHp: number;
+  stats: BattleStats;
+  duration: number;
 }
 
 function hudOf(b: Battle): Hud {
@@ -49,15 +61,18 @@ function hudOf(b: Battle): Hud {
     wave: Math.max(0, b.waveIndex + 1),
     totalWaves: b.totalWaves,
     status: b.status,
+    frozen: b.frozen,
     summonCost: b.summonCost,
     skillCost: b.skillCost,
+    skillUnlocked: b.skillShopUnlocked,
     boardFull: b.emptyTiles().length === 0,
     skillsMaxed: b.availableSkills().length === 0,
     skills: SKILL_ORDER.filter((id) => (b.skills[id] ?? 0) > 0).map((id) => [id, b.skills[id]!]),
-    rewardKey: b.rewardQueue.length ? b.rewardQueue.length * 1000 + Math.round(b.time * 10) : 0,
+    rewardId: b.currentReward?.id ?? 0,
   };
 }
 
+const seenStore = { has: (id: string) => saveStore.hasSeen(id), mark: (id: string) => saveStore.markSeen(id) };
 let toastId = 1;
 
 export function BattleScreen({
@@ -69,18 +84,26 @@ export function BattleScreen({
   onExit: () => void;
   onPlay: (id: string) => void;
 }) {
+  useLang();
   const found = findStage(stageId)!;
   const { stage, chapter } = found;
   const map = MAPS[chapter.mapId];
   const save = useSave();
+  const debug = useDebug();
   const loadoutRef = useRef(save.equipped);
   loadoutRef.current = save.equipped;
 
+  const rootRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fieldRef = useRef<HTMLDivElement>(null);
+  const summonRef = useRef<HTMLButtonElement>(null);
+  const skillRef = useRef<HTMLButtonElement>(null);
   const rendererRef = useRef<Renderer | null>(null);
+  const newBattle = () => new Battle(stage, map, { tuning: debugStore.get().enabled ? debugStore.get().tuning : undefined });
   const battleRef = useRef<Battle>(null as unknown as Battle);
-  if (!battleRef.current) battleRef.current = new Battle(stage, map);
+  if (!battleRef.current) battleRef.current = newBattle();
+  const directorRef = useRef<TutorialDirector>(null as unknown as TutorialDirector);
+  if (!directorRef.current) directorRef.current = new TutorialDirector(stage.id, seenStore);
   const speedRef = useRef(1);
   const dragRef = useRef<DragView | null>(null);
   const pressRef = useRef<{ uid: number; pointerId: number; sx: number; sy: number; dragging: boolean } | null>(null);
@@ -88,19 +111,26 @@ export function BattleScreen({
 
   const [hud, setHud] = useState<Hud>(() => hudOf(battleRef.current));
   const hudKeyRef = useRef('');
+  const [step, setStep] = useState<ActiveStep | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const [waveBanner, setWaveBanner] = useState<{ text: string; key: number } | null>(null);
-  const [introKey, setIntroKey] = useState(1);
-  const [showIntro, setShowIntro] = useState(true);
+  const [banner, setBanner] = useState<{ text: string; sub?: string; tone: 'wave' | 'final' | 'stage'; key: number } | null>(null);
+  const [skillPop, setSkillPop] = useState<{ id: SkillId; level: number; isNew: boolean; key: number } | null>(null);
+  const [costBump, setCostBump] = useState<{ n: number; key: number } | null>(null);
   const [result, setResult] = useState<Result | null>(null);
   const [speed, setSpeed] = useState(1);
   const [shake, setShake] = useState<'summon' | 'skill' | null>(null);
+  const [showDebug, setShowDebug] = useState(false);
 
   const toast = useCallback((text: string, tone: Toast['tone'] = 'info') => {
     const id = toastId++;
-    setToasts((t) => [...t.slice(-2), { id, text, tone }]);
-    window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 1900);
+    setToasts((ts) => [...ts.slice(-2), { id, text, tone }]);
+    window.setTimeout(() => setToasts((ts) => ts.filter((x) => x.id !== id)), 2000);
   }, []);
+
+  const showStageBanner = useCallback(() => {
+    setBanner({ text: t('battle.stageBanner', { id: stage.id, name: t(`stage.${stage.id}`) }), tone: 'stage', key: Date.now() });
+  }, [stage.id]);
+  useEffect(showStageBanner, [showStageBanner]);
 
   // ---- Battle events → UI / persistence ----
   const handleEvents = useCallback(
@@ -108,36 +138,55 @@ export function BattleScreen({
       const b = battleRef.current;
       for (const e of events) {
         switch (e.type) {
-          case 'toast':
-            toast(e.text, e.tone);
-            break;
           case 'coins':
             saveStore.addCoins(e.amount); // chest coins are kept even if the stage is lost
+            toast(t('battle.chestCoins', { n: e.amount }), 'good');
             break;
-          case 'skill': {
-            const def = SKILLS[e.skillId];
-            toast(e.isNew ? `${def.icon} New skill: ${def.name}!` : `${def.icon} ${def.name} → Lv.${e.level}`, 'good');
+          case 'skill':
+            setSkillPop({ id: e.skillId, level: e.level, isNew: e.isNew, key: Date.now() });
             break;
-          }
           case 'wave':
-            setWaveBanner({ text: e.wave === e.total ? `Final wave!` : `Wave ${e.wave} / ${e.total}`, key: Date.now() });
+            setBanner(
+              e.wave === e.total
+                ? { text: t('battle.finalWave'), tone: 'final', key: Date.now() }
+                : { text: t('battle.waveBanner', { n: e.wave }), sub: `${e.wave} / ${e.total}`, tone: 'wave', key: Date.now() },
+            );
+            break;
+          case 'waveCleared':
+            toast(t('battle.waveCleared', { n: e.wave, bonus: e.bonus }), 'good');
+            break;
+          case 'chestAppeared':
+            toast(t('battle.chestAppeared', { chest: t(`chest.${e.tier}.name`) }), 'good');
+            break;
+          case 'chestEscaped':
+            toast(t('battle.chestEscaped'), 'warn');
+            break;
+          case 'bossAppeared':
+            toast(t('battle.bossAppeared', { boss: t('enemy.boss.name') }), 'warn');
+            break;
+          case 'bossDefeated':
+            toast(t('battle.bossDefeated', { boss: t('enemy.boss.name') }), 'good');
+            break;
+          case 'maxedChestFish':
+            toast(t('battle.maxedChestFish', { n: e.fish }), 'good');
             break;
           case 'victory':
           case 'defeat': {
             if (resultLoggedRef.current === b) break;
             resultLoggedRef.current = b;
+            const common = { chestCoins: b.chestCoins, baseHp: b.baseHp, maxHp: b.maxBaseHp, stats: { ...b.stats }, duration: b.time };
             if (e.type === 'victory') {
               const r = saveStore.completeStage(stage.id, b.baseHp, b.maxBaseHp);
               setResult({
+                ...common,
                 victory: true,
                 stars: r.stars,
                 coins: r.coins,
-                chestCoins: b.chestCoins,
                 firstClear: r.firstClear,
                 chapterComplete: !!stage.isBoss && found.index === chapter.stages.length - 1,
               });
             } else {
-              setResult({ victory: false, stars: 0, coins: 0, chestCoins: b.chestCoins, firstClear: false, chapterComplete: false });
+              setResult({ ...common, victory: false, stars: 0, coins: 0, firstClear: false, chapterComplete: false });
             }
             break;
           }
@@ -146,14 +195,6 @@ export function BattleScreen({
     },
     [toast, stage, chapter, found.index],
   );
-
-  // Stage intro card: auto-hides, tap to dismiss early
-  useEffect(() => {
-    setShowIntro(true);
-    const t = window.setTimeout(() => setShowIntro(false), 5200);
-    return () => window.clearTimeout(t);
-  }, [introKey]);
-
   const handleEventsRef = useRef(handleEvents);
   handleEventsRef.current = handleEvents;
 
@@ -171,16 +212,25 @@ export function BattleScreen({
     let raf = 0;
     let last = performance.now();
     let alive = true;
+    let stepKey = -1;
     const frame = (now: number) => {
       if (!alive) return;
       const dt = Math.min(0.1, Math.max(0, (now - last) / 1000));
       last = now;
       const b = battleRef.current;
-      b.update(dt * speedRef.current);
-      if (import.meta.env.DEV) (window as unknown as { __cd: unknown }).__cd = { battle: b, renderer };
+      const active = directorRef.current.update(b); // freezes the battle while a lesson is shown
+      if (b.running) b.update(dt * speedRef.current);
+      else b.tickVisual(dt);
+      if (import.meta.env.DEV) (window as unknown as { __cd: unknown }).__cd = { battle: b, renderer, director: directorRef.current };
       const ev = b.drainEvents();
       if (ev.length) handleEventsRef.current(ev);
-      renderer.draw(b, dragRef.current, loadoutRef.current);
+      const focusUids = active ? active.focus.flatMap((f) => (f.kind === 'cat' ? [f.uid] : [])) : undefined;
+      renderer.draw(b, dragRef.current, loadoutRef.current, { focusUids });
+      const k = active?.key ?? 0;
+      if (k !== stepKey) {
+        stepKey = k;
+        setStep(active);
+      }
       const h = hudOf(b);
       const key = JSON.stringify(h);
       if (key !== hudKeyRef.current) {
@@ -203,15 +253,26 @@ export function BattleScreen({
     };
   }, [map]);
 
+  // Summon cost feedback: show "+N" when the price goes up.
+  const prevCost = useRef(hud.summonCost);
+  useEffect(() => {
+    if (hud.summonCost > prevCost.current) setCostBump({ n: hud.summonCost - prevCost.current, key: Date.now() });
+    prevCost.current = hud.summonCost;
+  }, [hud.summonCost]);
+
   // ---- Actions ----
   const restart = () => {
-    battleRef.current = new Battle(stage, map);
+    battleRef.current = newBattle();
+    directorRef.current = new TutorialDirector(stage.id, seenStore);
     dragRef.current = null;
     pressRef.current = null;
+    resultLoggedRef.current = null;
+    prevCost.current = battleRef.current.summonCost;
     setResult(null);
     setToasts([]);
-    setWaveBanner(null);
-    setIntroKey((k) => k + 1);
+    setSkillPop(null);
+    setCostBump(null);
+    showStageBanner();
   };
 
   const bump = (which: 'summon' | 'skill') => {
@@ -219,37 +280,50 @@ export function BattleScreen({
     window.setTimeout(() => setShake(null), 350);
   };
 
+  const gate = (action: TutAction): boolean => {
+    const d = directorRef.current;
+    if (d.allows(action)) return true;
+    if (d.active?.hintKey) toast(t(d.active.hintKey), 'info');
+    return false;
+  };
+
+  const errText = (reason: string) => t(`err.${reason}`, { n: BALANCE.unlocks.skillShopFromStage });
+
   const onSummon = () => {
-    const r = battleRef.current.summon();
+    if (!gate('summon')) return;
+    const b = battleRef.current;
+    const r = b.summon();
     if (!r.ok) {
-      toast(r.reason, 'warn');
+      toast(errText(r.reason), 'warn');
       bump('summon');
-    }
+    } else directorRef.current.onAction('summon', b);
   };
   const onSkill = () => {
-    const r = battleRef.current.buySkill();
+    if (!gate('skill')) return;
+    const b = battleRef.current;
+    const r = b.buySkill();
     if (!r.ok) {
-      toast(r.reason, 'warn');
+      toast(errText(r.reason), 'warn');
       bump('skill');
-    }
+    } else directorRef.current.onAction('skill', b);
   };
   const togglePause = () => {
     const b = battleRef.current;
     if (b.status === 'playing') b.pause();
     else if (b.status === 'paused') b.resume();
   };
-  const toggleSpeed = () => {
-    const s = speedRef.current === 1 ? 2 : 1;
+  const setGameSpeed = (s: number) => {
     speedRef.current = s;
     setSpeed(s);
   };
+  const toggleSpeed = () => setGameSpeed(speedRef.current === 1 ? 2 : 1);
 
-  // ---- Pointer input: tap = cycle target, drag = move / merge ----
+  // ---- Pointer input: tap = cycle target, drag = move / swap / merge ----
   const tileAtWorld = (x: number, y: number): string | null => {
     const b = battleRef.current;
     const half = map.cell / 2;
-    const t = b.tiles.find((t) => Math.abs(t.x - x) <= half && Math.abs(t.y - y) <= half);
-    return t ? t.id : null;
+    const tile = b.tiles.find((tl) => Math.abs(tl.x - x) <= half && Math.abs(tl.y - y) <= half);
+    return tile ? tile.id : null;
   };
 
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -294,11 +368,20 @@ export function BattleScreen({
     }
     if (cancelled) return;
     const b = battleRef.current;
+    const d = directorRef.current;
     if (p.dragging) {
-      const res = b.dropCat(p.uid, drag?.overTileId ?? null);
-      if (res.result === 'cancel' && res.reason) toast(res.reason, 'warn');
+      const target = drag?.overTileId ?? null;
+      const preview = b.previewDrop(p.uid, target);
+      if (preview.result === 'cancel') {
+        if (preview.reason) toast(errText(preview.reason), 'warn');
+        return;
+      }
+      if (!gate(preview.result)) return;
+      const res = b.dropCat(p.uid, target);
+      if (res.result !== 'cancel') d.onAction(res.result, b);
     } else {
-      b.cycleTarget(p.uid);
+      if (!gate('tap')) return;
+      if (b.cycleTarget(p.uid)) d.onAction('tap', b);
     }
   };
 
@@ -307,27 +390,38 @@ export function BattleScreen({
   const offer = hud.status === 'reward' ? b.currentReward : null;
   const next = nextStageId(stage.id);
   const hpPct = hud.baseHp / hud.maxHp;
+  const skillDisabled = !hud.skillUnlocked || hud.fish < hud.skillCost || hud.skillsMaxed;
 
   return (
-    <div className="screen battle">
+    <div className="screen battle" ref={rootRef}>
       {/* Top HUD */}
       <div className="hud">
         <div className={`hud-pill hp ${hpPct <= 0.3 ? 'danger' : ''}`}>
           <HeartIcon size={18} /> {hud.baseHp}
         </div>
         <div className="hud-center">
-          <div className="hud-stage">Stage {stage.id}</div>
-          <div className="hud-wave">{hud.wave === 0 ? 'Get ready' : `Wave ${hud.wave}/${hud.totalWaves}`}</div>
+          <div className="hud-stage">
+            {t('battle.stage', { id: stage.id })} · {t(`stage.${stage.id}`)}
+          </div>
+          <div className="hud-wave">{hud.wave === 0 ? t('battle.getReady') : t('battle.wave', { n: hud.wave, total: hud.totalWaves })}</div>
+          <div className="wave-progress">
+            <div style={{ width: `${(hud.wave / hud.totalWaves) * 100}%` }} />
+          </div>
         </div>
-        <div className="hud-pill fish">
-          <FishIcon size={20} /> {hud.fish}
+        <div className="hud-pill fish" title={t('currency.fish')}>
+          <FishIcon size={20} /> <span key={hud.fish} className="fish-num">{hud.fish}</span>
         </div>
-        <button className="hud-btn" onClick={toggleSpeed} aria-label="Game speed">
+        <button className="hud-btn" onClick={toggleSpeed} aria-label="speed">
           {speed}×
         </button>
-        <button className="hud-btn" onClick={togglePause} aria-label="Pause">
+        <button className="hud-btn" onClick={togglePause} aria-label="pause">
           {hud.status === 'paused' ? '▶' : 'Ⅱ'}
         </button>
+        {debug.enabled && (
+          <button className="hud-btn" onClick={() => setShowDebug((v) => !v)} aria-label="debug">
+            🛠
+          </button>
+        )}
       </div>
 
       {/* Battlefield */}
@@ -341,27 +435,25 @@ export function BattleScreen({
           onPointerCancel={(e) => endPress(e, true)}
           onContextMenu={(e) => e.preventDefault()}
         />
-        {showIntro && (
-        <div key={introKey} className="intro-card" onClick={() => setShowIntro(false)}>
-          <div className="intro-title">
-            {stage.number}. {stage.name}
+        {banner && !step && (
+          <div key={banner.key} className={`wave-banner ${banner.tone}`}>
+            <span>{banner.text}</span>
           </div>
-          {stage.intro.map((l) => (
-            <div key={l} className="intro-line">
-              {l}
-            </div>
-          ))}
-        </div>
         )}
-        {waveBanner && (
-          <div key={waveBanner.key} className="wave-banner">
-            {waveBanner.text}
+        {skillPop && (
+          <div key={skillPop.key} className="skill-pop">
+            <span className="skill-pop-icon">{SKILLS[skillPop.id].icon}</span>
+            <span className="skill-pop-name">
+              {skillPop.isNew
+                ? t('battle.newSkill', { name: t(`skill.${skillPop.id}.name`) })
+                : t('battle.skillUp', { name: t(`skill.${skillPop.id}.name`), n: skillPop.level })}
+            </span>
           </div>
         )}
         <div className="toasts">
-          {toasts.map((t) => (
-            <div key={t.id} className={`toast ${t.tone}`}>
-              {t.text}
+          {toasts.map((x) => (
+            <div key={x.id} className={`toast ${x.tone}`}>
+              {x.text}
             </div>
           ))}
         </div>
@@ -371,50 +463,85 @@ export function BattleScreen({
       <div className="controls">
         <div className="skill-row">
           {hud.skills.length === 0 ? (
-            <span className="muted tiny light">No skills yet — buy one or break a chest!</span>
+            <span className="muted tiny">{hud.skillUnlocked ? t('battle.noSkillsShop') : t('battle.noSkills')}</span>
           ) : (
             hud.skills.map(([id, lv]) => (
               <button
                 key={id}
-                className="skill-chip"
-                onClick={() => toast(`${SKILLS[id].icon} ${SKILLS[id].name} Lv.${lv}: ${SKILLS[id].describe(lv)}`)}
+                className={`skill-chip ${skillPop?.id === id ? 'flash' : ''}`}
+                onClick={() => toast(`${SKILLS[id].icon} ${t(`skill.${id}.name`)} Lv.${lv}: ${t(`skill.${id}.desc`, skillParams(id, lv))}`)}
               >
                 <span>{SKILLS[id].icon}</span>
-                <b>{lv}</b>
+                <b key={lv}>{lv}</b>
               </button>
             ))
           )}
         </div>
         <div className="action-row">
           <button
+            ref={summonRef}
             className={`action-btn summon ${hud.fish < hud.summonCost || hud.boardFull ? 'disabled' : ''} ${shake === 'summon' ? 'shake' : ''}`}
             onClick={onSummon}
           >
-            <span className="action-label">{hud.boardFull ? 'Board full' : 'Summon Cat'}</span>
+            <span className="action-label">{hud.boardFull ? t('battle.boardFull') : t('battle.summon')}</span>
             <span className="action-cost">
-              <FishIcon size={18} /> {hud.summonCost}
+              <FishIcon size={18} /> <span key={hud.summonCost} className="cost-num">{hud.summonCost}</span>
+              {costBump && (
+                <span key={costBump.key} className="cost-bump">
+                  {t('battle.costUp', { n: costBump.n })}
+                </span>
+              )}
             </span>
           </button>
           <button
-            className={`action-btn skill ${hud.fish < hud.skillCost || hud.skillsMaxed ? 'disabled' : ''} ${shake === 'skill' ? 'shake' : ''}`}
+            ref={skillRef}
+            className={`action-btn skill ${skillDisabled ? 'disabled' : ''} ${!hud.skillUnlocked ? 'locked' : ''} ${shake === 'skill' ? 'shake' : ''}`}
             onClick={onSkill}
           >
-            <span className="action-label">{hud.skillsMaxed ? 'Skills maxed' : 'Random Skill'}</span>
+            <span className="action-label">
+              {!hud.skillUnlocked ? '🔒 ' : ''}
+              {hud.skillsMaxed ? t('battle.skillsMaxed') : t('battle.skill')}
+            </span>
             <span className="action-cost">
-              <FishIcon size={18} /> {hud.skillCost}
+              {hud.skillUnlocked ? (
+                <>
+                  <FishIcon size={18} /> {hud.skillCost}
+                </>
+              ) : (
+                <span className="tiny">{t('battle.skillLocked', { n: BALANCE.unlocks.skillShopFromStage })}</span>
+              )}
             </span>
           </button>
         </div>
       </div>
 
       {/* Overlays */}
-      {offer && (
-        <RewardModal
-          key={hud.rewardKey}
-          offer={offer}
-          owned={b.skills}
-          onChoose={(i) => {
-            battleRef.current.chooseReward(i);
+      {step && hud.status === 'playing' && !result && (
+        <TutorialOverlay
+          key={step.key}
+          step={step}
+          battle={b}
+          renderer={rendererRef.current}
+          appRef={rootRef}
+          buttons={{ summon: summonRef, skill: skillRef }}
+          loadout={save.equipped}
+          onContinue={() => directorRef.current.complete(battleRef.current)}
+        />
+      )}
+
+      {offer && <RewardModal key={hud.rewardId} offer={offer} owned={b.skills} onChoose={(i) => battleRef.current.chooseReward(i)} />}
+
+      {showDebug && debug.enabled && (
+        <DebugPanel
+          speed={speed}
+          onSpeed={setGameSpeed}
+          onRestart={() => {
+            setShowDebug(false);
+            restart();
+          }}
+          onClose={() => setShowDebug(false)}
+          extraFish={(n) => {
+            battleRef.current.fish += n;
           }}
         />
       )}
@@ -422,15 +549,15 @@ export function BattleScreen({
       {hud.status === 'paused' && !result && (
         <div className="overlay">
           <div className="panel">
-            <h2>Paused</h2>
+            <h2>{t('pause.title')}</h2>
             <button className="btn btn-primary" onClick={togglePause}>
-              ▶ Resume
+              ▶ {t('pause.resume')}
             </button>
             <button className="btn btn-secondary" onClick={restart}>
-              ↻ Restart stage
+              ↻ {t('pause.restart')}
             </button>
             <button className="btn btn-secondary" onClick={onExit}>
-              ☰ Stage select
+              ☰ {t('pause.stages')}
             </button>
           </div>
         </div>
@@ -443,25 +570,31 @@ export function BattleScreen({
             {result.chapterComplete ? (
               <>
                 <div className="result-emoji">🏆</div>
-                <h2>Chapter Complete!</h2>
-                <p className="small">The Big Cheese King is defeated and the Beginner Forest is safe. Your cats are napping proudly.</p>
+                <h2>{t('result.chapter')}</h2>
+                <p className="small">{t('result.chapterText')}</p>
               </>
             ) : result.victory ? (
               <>
-                <div className="result-emoji">🎉</div>
-                <h2>Victory!</h2>
+                <div className="victory-cats">
+                  {stage.roster.map((c, i) => (
+                    <div key={c} className="dance" style={{ animationDelay: `${i * 0.12}s` }}>
+                      <CatPreview type={c} level={Math.min(5, 1 + i)} loadout={save.equipped} size={52} />
+                    </div>
+                  ))}
+                </div>
+                <h2>{result.baseHp <= 3 ? t('result.close') : t('result.victory')}</h2>
               </>
             ) : (
               <>
                 <div className="result-emoji">🙀</div>
-                <h2>The mice got through…</h2>
-                <p className="small">Try merging earlier, moving cats to cover more road, or using different targeting.</p>
+                <h2>{t('result.defeat')}</h2>
+                <p className="small">{t('result.defeatTip')}</p>
               </>
             )}
             {result.victory && (
               <div className="big-stars">
                 {[1, 2, 3].map((k) => (
-                  <span key={k} className={k <= result.stars ? 'on' : ''} style={{ animationDelay: `${k * 150}ms` }}>
+                  <span key={k} className={k <= result.stars ? 'on' : ''} style={{ animationDelay: `${0.2 + k * 0.25}s` }}>
                     ★
                   </span>
                 ))}
@@ -469,27 +602,28 @@ export function BattleScreen({
             )}
             <div className="result-rewards">
               {result.victory && (
-                <div>
-                  <CoinIcon size={20} /> +{result.coins} {result.firstClear ? 'first clear!' : 'stage reward'}
+                <div className="reward-line">
+                  <CoinIcon size={20} /> {result.firstClear ? t('result.firstClear', { n: result.coins }) : t('result.stageReward', { n: result.coins })}
                 </div>
               )}
               {result.chestCoins > 0 && (
-                <div>
-                  <CoinIcon size={20} /> +{result.chestCoins} from chests
+                <div className="reward-line">
+                  <CoinIcon size={20} /> {t('result.fromChests', { n: result.chestCoins })}
                 </div>
               )}
-              <div className="muted small">Total fish coins: {save.fishCoins}</div>
+              <div className="muted small">{t('result.total', { n: save.fishCoins })}</div>
             </div>
+            {debug.enabled && <StatsTable stats={result.stats} baseHp={result.baseHp} maxHp={result.maxHp} duration={result.duration} />}
             {result.victory && next && (
               <button className="btn btn-primary" onClick={() => onPlay(next)}>
-                Next stage ▶
+                {t('result.next')} ▶
               </button>
             )}
             <button className={`btn ${result.victory ? 'btn-secondary' : 'btn-primary'}`} onClick={restart}>
-              ↻ {result.victory ? 'Replay' : 'Retry'}
+              ↻ {result.victory ? t('result.replay') : t('result.retry')}
             </button>
             <button className="btn btn-secondary" onClick={onExit}>
-              ☰ Stage select
+              ☰ {t('result.stages')}
             </button>
           </div>
         </div>
@@ -499,7 +633,7 @@ export function BattleScreen({
 }
 
 function Confetti() {
-  const pieces = Array.from({ length: 36 }, (_, i) => i);
+  const pieces = Array.from({ length: 40 }, (_, i) => i);
   const colors = ['#ff9f43', '#ffd84a', '#ff8fb8', '#6ac0f0', '#7cd07a'];
   return (
     <div className="confetti" aria-hidden>

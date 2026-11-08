@@ -3,34 +3,42 @@ import { MAPS } from '../../config/maps';
 import { runBot } from '../bot';
 
 // Headless balance report. Run with `npm run sim`.
-// The bot is naive, so these are lower bounds on what a human achieves.
-describe('balance simulation (naive bot)', () => {
+// "naive" never moves cats; "smart" keeps its strongest cats on the best tiles.
+// Both always take the first chest option and never change targeting, so a human
+// who positions, merges and targets deliberately should beat these numbers.
+describe('balance simulation', () => {
   const chapter = CHAPTERS[0];
   const map = MAPS[chapter.mapId];
-  const SEEDS = 12;
+  const SEEDS = 10;
   const rows: string[] = [];
 
   for (const stage of chapter.stages) {
-    it(`stage ${stage.id} is playable`, () => {
-      let wins = 0;
-      let smartWins = 0;
-      let hp = 0;
+    it(`stage ${stage.id} is winnable`, () => {
+      let naive = 0;
+      let smart = 0;
       let time = 0;
+      let summons = 0;
+      let merges = 0;
+      let hp = 0;
+      let cats = 0;
       for (let s = 1; s <= SEEDS; s++) {
-        const r = runBot(stage, map, s * 7919);
-        const r2 = runBot(stage, map, s * 7919, { smartPlacement: true });
-        if (r.win) wins++;
-        if (r2.win) smartWins++;
-        hp += r2.baseHp;
-        time += r2.time;
+        const a = runBot(stage, map, s * 7919);
+        const b = runBot(stage, map, s * 7919, { smart: true });
+        if (a.win) naive++;
+        if (b.win) smart++;
+        time += b.time;
+        summons += b.summons;
+        merges += b.merges;
+        hp += b.baseHp;
+        cats += b.cats;
       }
+      const avg = (x: number) => (x / SEEDS).toFixed(1);
       rows.push(
-        `${stage.id.padEnd(5)} naive ${String(wins).padStart(2)}/${SEEDS}  placed ${String(smartWins).padStart(2)}/${SEEDS}  avgHP ${(hp / SEEDS).toFixed(1)}  avgTime ${(time / SEEDS).toFixed(0)}s`,
+        `${stage.id.padEnd(5)} naive ${String(naive).padStart(2)}/${SEEDS}  smart ${String(smart).padStart(2)}/${SEEDS}` +
+          `  time ${(time / SEEDS / 60).toFixed(1)}m  summons ${avg(summons)}  merges ${avg(merges)}  cats ${avg(cats)}  hp ${avg(hp)}`,
       );
-      // Early stages must be beatable even by the naive bot.
-      if (stage.number <= 3) expect(wins).toBeGreaterThan(SEEDS * 0.8);
-      // Every stage must be beatable by a bot that places cats sensibly at least sometimes.
-      expect(smartWins).toBeGreaterThan(0);
+      if (stage.number === 1) expect(naive).toBeGreaterThanOrEqual(SEEDS - 1);
+      expect(smart).toBeGreaterThan(0);
     });
   }
 

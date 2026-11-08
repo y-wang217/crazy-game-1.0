@@ -122,9 +122,11 @@ describe('summoning', () => {
   });
   it('refuses when broke without charging', () => {
     const b = newBattle();
-    b.fish = 1;
-    expect(b.summon().ok).toBe(false);
-    expect(b.fish).toBe(1);
+    b.fish = 0;
+    const r = b.summon();
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toBe('noFish');
+    expect(b.fish).toBe(0);
     expect(b.cats).toHaveLength(0);
   });
 });
@@ -167,15 +169,60 @@ describe('moving & merging', () => {
     expect(c.type).toBe('kitten');
     expect(b.catByUid(a.uid)).toBeUndefined();
   });
-  it('rejects different type or level', () => {
+  it('swaps with a different type instead of merging', () => {
     const b = setup();
-    const [a, c, d] = b.cats;
+    const [a, c] = b.cats;
     a.type = 'kitten'; c.type = 'tabby'; a.level = c.level = 1;
-    expect(b.dropCat(a.uid, c.tileId).result).toBe('cancel');
+    const ta = a.tileId, tc = c.tileId;
+    const n = b.cats.length;
+    expect(b.dropCat(a.uid, tc).result).toBe('swapped');
+    expect(a.tileId).toBe(tc);
+    expect(c.tileId).toBe(ta);
+    expect(b.catByUid(a.uid)!.x).toBe(b.tileById(tc)!.x);
+    expect(b.cats).toHaveLength(n);
+    expect(a.level).toBe(1);
+    expect(c.level).toBe(1);
+    expect(b.stats.swaps).toBe(1);
+  });
+  it('swaps with the same type at a different level', () => {
+    const b = setup();
+    const [a, d] = b.cats;
+    a.type = 'kitten'; a.level = 1;
     d.type = 'kitten'; d.level = 2;
-    expect(b.dropCat(a.uid, d.tileId).result).toBe('cancel');
+    const ta = a.tileId, td = d.tileId;
+    expect(b.dropCat(a.uid, td).result).toBe('swapped');
+    expect([a.tileId, d.tileId]).toEqual([td, ta]);
     expect(a.level).toBe(1);
     expect(d.level).toBe(2);
+  });
+  it('two max-level identical cats neither merge nor swap', () => {
+    const b = setup();
+    const [a, d] = b.cats;
+    a.type = d.type = 'kitten';
+    a.level = d.level = BALANCE.levels.maxLevel;
+    const ta = a.tileId;
+    const r = b.dropCat(a.uid, d.tileId);
+    expect(r).toEqual({ result: 'cancel', reason: 'maxLevel' });
+    expect(a.tileId).toBe(ta);
+  });
+  it('invalid drops cancel safely', () => {
+    const b = setup();
+    const a = b.cats[0];
+    const ta = a.tileId;
+    expect(b.dropCat(a.uid, null).result).toBe('cancel');
+    expect(b.dropCat(a.uid, ta).result).toBe('cancel');
+    expect(b.dropCat(a.uid, 'nope').result).toBe('cancel');
+    expect(b.dropCat(9999, b.emptyTiles()[0].id).result).toBe('cancel');
+    expect(a.tileId).toBe(ta);
+  });
+  it('previewDrop matches dropCat without side effects', () => {
+    const b = setup();
+    const [a, c] = b.cats;
+    a.type = 'kitten'; c.type = 'kitten'; a.level = c.level = 1;
+    const before = JSON.stringify(b.cats);
+    expect(b.previewDrop(a.uid, c.tileId).result).toBe('merged');
+    expect(b.previewDrop(a.uid, b.emptyTiles()[0].id).result).toBe('moved');
+    expect(JSON.stringify(b.cats)).toBe(before);
   });
   it('rejects merging at max level', () => {
     const max = BALANCE.levels.maxLevel;
@@ -321,6 +368,20 @@ describe('win / lose', () => {
 });
 
 describe('save parsing', () => {
+  it('migrates a v1 save: keeps progress, adds empty seen list', () => {
+    const v1 = { version: 1, fishCoins: 120, unlocked: ['1-1', '1-2', '1-3'], cleared: { '1-1': 3, '1-2': 2 }, owned: ['hat_bow'], equipped: { hat: 'hat_bow', skins: {} } };
+    const s = parseSave(JSON.stringify(v1));
+    expect(s.version).toBe(2);
+    expect(s.fishCoins).toBe(120);
+    expect(s.unlocked).toEqual(['1-1', '1-2', '1-3']);
+    expect(s.cleared).toEqual({ '1-1': 3, '1-2': 2 });
+    expect(s.equipped.hat).toBe('hat_bow');
+    expect(s.seen).toEqual([]);
+  });
+  it('keeps seen intro ids (deduplicated)', () => {
+    const s = parseSave(JSON.stringify({ version: 2, seen: ['cat:kitten', 'cat:kitten', 'tut:summon', 5] }));
+    expect(s.seen).toEqual(['cat:kitten', 'tut:summon']);
+  });
   it('falls back to defaults on garbage', () => {
     expect(parseSave('not json').fishCoins).toBe(0);
     expect(parseSave(null).unlocked).toEqual(['1-1']);
@@ -334,5 +395,107 @@ describe('save parsing', () => {
     expect(s.owned).toEqual(['hat_bow']);
     expect(s.equipped.hat).toBe('hat_bow');
     expect(s.equipped.skins.kitten).toBeUndefined(); // not owned
+  });
+});
+
+describe('economy', () => {
+  it('early summons cost 1, 2, then 3-4, rising gently', () => {
+    expect(summonCost(0)).toBe(1);
+    expect(summonCost(1)).toBe(2);
+    expect(summonCost(2)).toBeGreaterThanOrEqual(3);
+    expect(summonCost(2)).toBeLessThanOrEqual(4);
+    for (let i = 1; i < 40; i++) {
+      expect(summonCost(i)).toBeGreaterThanOrEqual(summonCost(i - 1));
+      expect(summonCost(i) - summonCost(i - 1)).toBeLessThanOrEqual(4); // no exponential jumps
+    }
+  });
+  it('summon costs reset for every new stage', () => {
+    const b = newBattle(1);
+    b.fish = 999;
+    for (let i = 0; i < 5; i++) b.summon();
+    expect(b.summonCost).toBeGreaterThan(1);
+    const next = new Battle(stage(2), map, 1);
+    expect(next.summonCost).toBe(1);
+  });
+  it('starting fish is small but buys the first few summons', () => {
+    for (const s of CHAPTERS[0].stages) {
+      expect(s.startFish).toBeGreaterThanOrEqual(10);
+      expect(s.startFish).toBeLessThanOrEqual(15);
+      expect(summonCost(0) + summonCost(1) + summonCost(2)).toBeLessThanOrEqual(s.startFish);
+    }
+  });
+  it('tracks fish earned and spent', () => {
+    const b = newBattle(1);
+    b.summon();
+    expect(b.stats.fishSpent).toBe(1);
+    let guard = 0;
+    while (b.stats.kills === 0 && guard++ < 5000) b.update(0.05);
+    expect(b.stats.fishEarned).toBeGreaterThan(0);
+  });
+});
+
+describe('feature unlocks', () => {
+  it('Random Skill is locked before its unlock stage', () => {
+    const b = newBattle(1);
+    b.fish = 999;
+    const r = b.buySkill();
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toBe('skillLocked');
+    expect(b.fish).toBe(999);
+    const s = stage(BALANCE.unlocks.skillShopFromStage);
+    const b5 = new Battle(s, map, 1);
+    b5.fish = 999;
+    expect(b5.buySkill().ok).toBe(true);
+  });
+});
+
+describe('tutorial freeze', () => {
+  it('frozen battles do not move, spawn or count down', () => {
+    const b = newBattle(1);
+    untilFoes(b);
+    b.frozen = true;
+    const snap = JSON.stringify({ d: b.foes.map((f) => f.dist), t: b.time, n: b.foes.length, w: b.waveIndex });
+    b.update(5);
+    expect(JSON.stringify({ d: b.foes.map((f) => f.dist), t: b.time, n: b.foes.length, w: b.waveIndex })).toBe(snap);
+    // visual clock still runs so animations play
+    const v = b.vtime;
+    b.tickVisual(0.05);
+    expect(b.vtime).toBeGreaterThan(v);
+    // player can still act while frozen (interactive lessons)
+    b.fish = 50;
+    expect(b.summon().ok).toBe(true);
+    b.frozen = false;
+    b.update(0.5);
+    expect(b.time).toBeGreaterThan(0);
+  });
+  it('prep countdown is frozen too', () => {
+    const b = newBattle(1);
+    b.frozen = true;
+    b.update(30);
+    expect(b.waveIndex).toBe(-1);
+  });
+});
+
+describe('stage start cats', () => {
+  it('stage 2 starts with two identical kittens and a tabby, free of charge', () => {
+    const b = newBattle(2);
+    expect(b.cats.filter((c) => c.type === 'kitten' && c.level === 1)).toHaveLength(2);
+    expect(b.cats.some((c) => c.type === 'tabby')).toBe(true);
+    expect(b.summonCost).toBe(1);
+    expect(b.fish).toBe(stage(2).startFish);
+  });
+});
+
+describe('battle length', () => {
+  it('later stages have more waves', () => {
+    const waves = CHAPTERS[0].stages.map((s) => s.waves.length);
+    expect(waves[0]).toBeGreaterThanOrEqual(5);
+    expect(waves[9]).toBeGreaterThan(waves[3]);
+    expect(waves[3]).toBeGreaterThan(waves[1]);
+  });
+  it('stage 10 has a boss and a gold chest', () => {
+    const groups = stage(10).waves.flatMap((w) => w.groups);
+    expect(groups.some((g) => 'enemy' in g && g.enemy === 'boss')).toBe(true);
+    expect(groups.some((g) => 'chest' in g && g.chest === 'gold')).toBe(true);
   });
 });

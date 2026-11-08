@@ -1,8 +1,8 @@
-# Cat Defense (working title)
+# Cat Defense / 喵喵防衛隊 (working title)
 
-A cute, mobile-first, portrait tower-defense prototype. You summon random cats, drag them around, merge them, set per-cat targeting, grab skills and crack open treasure chests to protect the fish from forest mice.
+A cute, mobile-first, portrait tower-defense game. Summon random cats, drag them around, swap and merge them, set per-cat targeting, grab skills and crack open treasure chests to protect the fish from forest mice.
 
-**V1 scope:** Chapter 1 "Beginner Forest" has 10 stages on a single S-shaped road. There are 5 cat types, 5 enemy types (including a boss), bronze/silver/gold chests, 8 skills, two currencies and a cosmetic shop. Progress is saved in localStorage.
+**Current version: V1.1.** Chapter 1 "Beginner Forest" has 10 stages, 5 cats, 5 enemy types (including a boss), bronze/silver/gold chests, 8 skills, two currencies and a cosmetic shop. The game is fully playable in English and Traditional Chinese, with a step-by-step tutorial and a developer balance panel.
 
 ## Run it
 
@@ -15,69 +15,94 @@ npm run build        # type-check + production build into dist/
 ```
 
 **Phone testing:** while `npm run dev` is running, open the "Network" URL Vite prints on your phone (same Wi-Fi).
-**Desktop:** open DevTools → device toolbar (Ctrl/Cmd+Shift+M) → pick a phone such as iPhone 12/13.
+**Desktop:** DevTools → device toolbar (Ctrl/Cmd+Shift+M) → pick a phone such as iPhone 12/13 or iPhone SE.
 
 ## Controls
 
 | Action | Input |
 | --- | --- |
 | Summon a random cat (random free tile) | **Summon Cat** button |
-| Buy one random skill | **Random Skill** button |
+| Buy one random skill (from Stage 5) | **Random Skill** button |
 | Move a cat (free, unlimited) | Drag it to an empty tile |
-| Merge (same type + same level) | Drag it onto the matching cat |
+| Swap two cats (free, unlimited) | Drag it onto a different cat (different type *or* level) |
+| Merge (same type + same level) | Drag it onto the identical cat |
 | Cycle targeting: First → Nearest → Strongest → Weakest → Treasure | Tap the cat |
 | Pick a chest reward (combat is paused) | Tap one of the 3 cards |
 | Pause / speed | Ⅱ and 1×/2× in the top bar |
 
-A press only becomes a drag after the pointer moves 10 px (`BALANCE.dragThresholdPx`), so a tap never moves a cat by accident.
+While dragging, tiles are tinted to show what the drop will do: green = move, gold = merge, blue = swap. A press only becomes a drag after the pointer moves 10 px, so a tap never moves a cat by accident.
+
+## What's new in V1.1
+
+- **Interactive tutorial** (`src/tutorial/`). Lessons pause the battle completely: no movement, attacks, spawning or wave timers. They spotlight the relevant button, cat, tile or enemy and show an animated hand. Interactive lessons wait for the real action, and any other action is blocked with a hint. Simple lessons wait for Continue; nothing auto-dismisses.
+  - Stage 1: summon → auto-combat → tap a cat to change targeting → the 5 modes.
+  - Stage 2: move → swap → merge. The stage starts with two Kittens and a Tabby, and the merge lesson adds a Kitten if needed, so it can never get stuck.
+  - Stage 4: targeting tips (right after meeting Zippy Mice).
+  - Stage 5: Random Skill unlocks. The first roll is free, then a note explains that duplicates level up.
+- **First-time introductions:** each cat species, enemy type and chest tier is introduced once per player, when it is first actually summoned or seen on the road. Never at stage start, and never twice, even across stages or browser refreshes.
+- **Economy:** stages start with 12 dried fish. Summons cost 1, 2, 3, 5, 7, 9 … and the cost resets every stage. Kill rewards are smaller but steadier.
+- **Swap:** drop a cat on a different cat to swap places directly.
+- **Longer, harder battles:** 6–21 waves per stage. Enemy HP climbs *during* each stage on a curve, so the opening is gentle and the late waves need a real formation.
+- **Feature unlocks:** the Random Skill button is locked (🔒) until Stage 5.
+- **繁體中文 / English:** switch on the home screen; the choice is saved. Every player-facing string is translated.
+- **Feedback:**
+  - summon light-beam and pop, and a "+N" bubble when the summon price rises
+  - bigger merge burst with a "Lv.N!" label
+  - enemy hit wobble and a white HP damage trail
+  - spinning rays and flying coins when a chest opens
+  - a centred "new skill" pop, with cats sparkling as the chip flashes
+  - wave banners with a progress bar
+  - dancing cats and staggered stars on victory, and a "Close call!" title when you win with ≤3 hearts
+
+## Developer balance panel
+
+Open the game with **`?debug`** (or tap the version label on the home screen 5×; `?debug=0` turns it off). A 🛠 button appears in battle with:
+
+- Start fish override, summon cost ×, enemy HP ×, enemy speed ×, enemies per wave ×, wave/spawn interval ×, cat damage ×.
+- Apply & restart.
+- Game speed 0.5×–8×, and +50 fish.
+
+With debug on, the results screen also shows battle stats: duration, base HP left, cats summoned, merges, moves/swaps, target changes, skills (shop/chest), fish earned/spent, enemies defeated/escaped, chests opened/missed.
+
+## Where to tune balance
+
+| What | File |
+| --- | --- |
+| Summon cost table, skill cost, wave timing, HP ramp curve, level scaling, armor rule, skill-shop unlock stage | `src/config/balance.ts` |
+| Each stage: waves (`buildWaves` count/growth/interval/mix/chests), `hpScale`, `waveHpGrowth`, tiles, roster, start cats, rewards | `src/config/chapters.ts` |
+| Cat stats | `src/config/cats.ts` |
+| Enemy and chest stats / rewards | `src/config/enemies.ts` |
+| Skill values | `src/config/skills.ts` |
+| Tutorial lessons per stage | `src/tutorial/steps.ts` |
+| All text (EN / 繁中) | `src/i18n/en.ts`, `src/i18n/zh.ts` |
+
+`npm run sim` plays every stage 10× with a *naive* bot (never moves cats) and a *smart* bot (keeps strong cats on the best tiles). Both always take the first chest option and never change targeting, so a real player should do better. Current results:
+
+| Stage | naive wins | smart wins | avg length |
+| --- | --- | --- | --- |
+| 1 | 10/10 | 10/10 | 1.7 min (+ tutorial) |
+| 2–3 | 9–10/10 | 9–10/10 | 3.3–3.7 min |
+| 4–6 | 8–9/10 | 8–10/10 | 5.5–6.4 min |
+| 7–9 | 4–8/10 | 7–8/10 | 6.0–6.2 min |
+| 10 | 6/10 | 7/10 | 7.7 min (winning runs ≈ 8+) |
 
 ## Project layout
 
 ```
 src/
-  config/            ← all content & balance numbers (edit these first)
-    balance.ts       costs, wave timing, level scaling, armor rule, slow cap, stars
-    cats.ts          5 cats: damage, range, interval, combo/splash/slow params, colours
-    enemies.ts       mice + boss stats, chest HP / coin ranges / skill-tier weights
-    skills.ts        8 skills, max levels, per-level values
-    chapters.ts      chapters → stages: roster, unlocked tiles, waves, rewards
-    maps.ts          grid, S-path waypoints, every possible placement tile
-    cosmetics.ts     shop items (hats + fur skins), visual only
-  game/              ← pure simulation, no DOM (unit-testable)
-    battle.ts        Battle class: state machine, waves, attacks, summon/merge/move, chests
-    combat.ts        damage formula, shield, skill modifiers, effective cat stats
-    targeting.ts     the 5 targeting modes
-    path.ts, rng.ts  path geometry, seeded RNG
-    progression.ts   stars, stage rewards, next stage
-    bot.ts           naive auto-player for headless balance checks
-  render/            ← Canvas 2D drawing only
-    renderer.ts      battlefield, effects, drag highlights, range rings
-    sprites.ts       programmatic placeholder art (cats, mice, chests, hats)
-  save/store.ts      localStorage persistence (coins, unlocks, stars, cosmetics)
-  ui/                ← React screens: Home, Stage select, Battle, Shop, Cat guide
+  config/      content & balance (edit these first)
+  game/        pure simulation, no DOM (battle, combat, targeting, bot)
+  tutorial/    lesson director + per-stage steps (separate from combat)
+  i18n/        t(), language store, en.ts, zh.ts
+  render/      Canvas 2D renderer + programmatic placeholder sprites
+  save/        localStorage persistence (coins, unlocks, stars, cosmetics, seen intros)
+  ui/          React screens, tutorial overlay, debug panel
 ```
 
-**Engine choice:** there is no game engine. A hand-rolled Canvas 2D renderer draws the battlefield, and React draws the menus and HUD. For a single-screen 2D defense game this keeps the bundle around 70 KB gzipped and the simulation 100% testable without a browser. It also avoids learning engine conventions. To use real art, replace the functions in `render/sprites.ts` with `drawImage` calls. Gameplay code doesn't need to change.
+## Save data
 
-## Key rules (as implemented)
-
-- **Damage:** `damage = max(raw − armor, raw × 20%)`. Shields absorb damage before HP. One rule covers everything. Many small hits (tabby) are weak against armor; big hits (black cat, orange cat, merged cats) ignore most of it.
-- **Levels:** 5 max. Each merge gives about ×1.8 damage plus +6% range and +6% attack speed. Merging frees a tile and concentrates power, but it doesn't beat two separate cats on raw DPS, so keeping duplicates stays a real choice.
-- **Targeting:** all modes only look within range. Non-treasure modes prefer mice and only hit chests when no mouse is in range. Treasure prefers chests, otherwise it falls back to First. White cat: her pulse slows everything in range, and her targeting picks a "focus" that gets an extra +15% slow.
-- **Slow:** doesn't stack. The strongest active slow applies, capped at 70%.
-- **Dried fish (battle):** start amount per stage, plus rewards from kills and a wave-clear bonus. Summon cost starts at 20 and rises +3 per summon (cap 60). Skill cost starts at 40 and rises +12 per roll (cap 120).
-- **Fish coins (persistent):** stage clear (more the first time) plus chest coins. Chest coins are saved the moment a chest breaks, so you keep them even if you lose.
-- **Chests:** they walk the road with their own HP. Breaking one pauses combat and offers 3 random skills (bronze/silver: +1 level; gold: +2 levels). Better tiers weight toward "improved" skills. Skills for cats not in the stage roster are never offered.
-- **Stars:** 3★ = no base HP lost, 2★ = at least 50% kept, 1★ = survived.
-
-## Balance report
-
-`npm run sim` plays every stage 12 times with a deliberately naive bot that never repositions, never changes targeting and always picks the first chest option. It prints win rates. Current provisional numbers: stages 1–6 are almost always won, stages 7–10 are around 35–75%. A human using positioning and targeting should do noticeably better. Tune `hpScale` in `chapters.ts` and the numbers in `balance.ts`, then re-run.
+The save stays under the same localStorage key (`catdefense.save.v1`), and existing V1 saves load unchanged. V1.1 adds a `seen` list of completed tutorials and introductions; `parseSave()` fills it with `[]` for old saves (version 1 → 2). Home → "Replay tutorials" clears only that list. The language is stored separately in `catdefense.lang`, and debug settings in `catdefense.debug`.
 
 ## Deploying to Vercel
 
-It's a static Vite app, so no server or env vars are needed. Import the repo in Vercel; it auto-detects Vite (build `npm run build`, output `dist`). Or deploy from the CLI:
-
-```bash
-npx vercel
-```
+It's a static Vite app, so no server or env vars are needed. Vercel auto-detects Vite (build `npm run build`, output `dist`).

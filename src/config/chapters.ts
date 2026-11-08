@@ -1,15 +1,54 @@
 import type { ChapterDef, ChestTier, EnemyId, SpawnGroup, StageDef, WaveDef } from '../game/types';
 
-// ---- Tiny helpers so wave data stays readable ----
-/** count enemies, `interval` seconds apart, starting `delay` seconds into the wave */
-const g = (enemy: EnemyId, count: number, interval: number, delay = 0): SpawnGroup => ({
-  enemy,
-  count,
-  interval,
-  delay,
-});
-const chest = (tier: ChestTier, delay = 0): SpawnGroup => ({ chest: tier, delay });
-const w = (...groups: SpawnGroup[]): WaveDef => ({ groups });
+// ---------------------------------------------------------------------------
+// Wave builder
+// ---------------------------------------------------------------------------
+// Each stage describes its waves with a few numbers instead of hand-writing 15
+// waves. Tweak `count`, `growth`, `interval` and `mix` to rebalance a stage.
+
+type Mix = Partial<Record<Exclude<EnemyId, 'boss'>, number>>;
+
+interface WavePlan {
+  /** Number of waves. */
+  waves: number;
+  /** Enemies in wave 1, and extra enemies per following wave. */
+  count: number;
+  growth: number;
+  /** Seconds between spawns in the first and last wave (interpolated). */
+  interval: [number, number];
+  /** Enemy composition by wave index (weights). */
+  mix: (wave: number) => Mix;
+  /** Chests by wave number (1-based) → tier, spawned a few seconds into that wave. */
+  chests?: Record<number, ChestTier>;
+  /** Extra hand-made groups for specific waves (1-based), e.g. the boss. */
+  extra?: Record<number, SpawnGroup[]>;
+}
+
+function buildWaves(p: WavePlan): WaveDef[] {
+  const out: WaveDef[] = [];
+  for (let w = 0; w < p.waves; w++) {
+    const t = p.waves > 1 ? w / (p.waves - 1) : 0;
+    const total = Math.round(p.count + p.growth * w);
+    const interval = p.interval[0] + (p.interval[1] - p.interval[0]) * t;
+    const span = total * interval;
+    const mix = Object.entries(p.mix(w)).filter(([, v]) => (v ?? 0) > 0) as [EnemyId, number][];
+    const weightSum = mix.reduce((a, [, v]) => a + v, 0);
+    const groups: SpawnGroup[] = [];
+    let assigned = 0;
+    mix.forEach(([enemy, weight], i) => {
+      const n = i === mix.length - 1 ? total - assigned : Math.max(1, Math.round((total * weight) / weightSum));
+      assigned += n;
+      if (n <= 0) return;
+      // Spread each type across the whole wave so types interleave.
+      groups.push({ enemy, count: n, interval: span / n, delay: (i * interval) / Math.max(1, mix.length) });
+    });
+    const chest = p.chests?.[w + 1];
+    if (chest) groups.push({ chest, delay: Math.min(5, span * 0.3) });
+    for (const g of p.extra?.[w + 1] ?? []) groups.push(g);
+    out.push({ groups });
+  }
+  return out;
+}
 
 // ---- Placement tile sets (ids are "col-row", see maps.ts) ----
 const A_CORE = ['3-2', '4-2', '3-3', '4-3'];
@@ -19,196 +58,189 @@ const STAGES: StageDef[] = [
   {
     id: '1-1',
     number: 1,
-    name: 'First Steps',
-    intro: ['Tap SUMMON to call a random cat.', 'Cats attack mice on the road automatically!'],
     roster: ['kitten', 'tabby'],
     tiles: [...A_CORE, ...B_CORE],
-    startFish: 120,
+    startFish: 12,
     baseHp: 10,
     hpScale: 1,
-    waves: [w(g('normal', 6, 1.6)), w(g('normal', 8, 1.3)), w(g('normal', 10, 1.1))],
+    waveHpGrowth: 0.03,
+    waves: buildWaves({ waves: 6, count: 5, growth: 1.2, interval: [1.7, 1.2], mix: () => ({ normal: 1 }) }),
     rewards: { firstClear: 30, replay: 10 },
   },
   {
     id: '1-2',
     number: 2,
-    name: 'Better Together',
-    intro: ['Drag a cat onto an identical cat (same type & level) to MERGE!', 'Drag to an empty tile to move — it\'s free.'],
     roster: ['kitten', 'tabby'],
-    tiles: [...A_CORE, ...B_CORE, '5-5'],
-    startFish: 100,
+    tiles: [...A_CORE, ...B_CORE, '5-5', '5-6'],
+    startFish: 12,
     baseHp: 10,
-    hpScale: 1.1,
-    waves: [
-      w(g('normal', 8, 1.4)),
-      w(g('normal', 10, 1.2)),
-      w(g('normal', 12, 1.0)),
-      w(g('normal', 16, 0.9)),
+    hpScale: 1.2,
+    waveHpGrowth: 0.23,
+    // Tutorial setup: two identical kittens to merge and a tabby to swap with.
+    startCats: [
+      { type: 'kitten', level: 1, tile: '3-2' },
+      { type: 'tabby', level: 1, tile: '4-5' },
+      { type: 'kitten', level: 1, tile: '3-5' },
     ],
+    waves: buildWaves({ waves: 9, count: 7, growth: 1.3, interval: [1.4, 0.95], mix: () => ({ normal: 1 }) }),
     rewards: { firstClear: 35, replay: 12 },
   },
   {
     id: '1-3',
     number: 3,
-    name: 'Snack Time',
-    intro: ['New cat: Chubby Orange — slow, heavy area slams.', 'Treasure chests walk the road. Break them for skills & coins!'],
     roster: ['kitten', 'tabby', 'orange'],
-    tiles: [...A_CORE, ...B_CORE, '5-5', '5-6'],
-    startFish: 100,
+    tiles: [...A_CORE, ...B_CORE, '5-5', '5-6', '2-2'],
+    startFish: 12,
     baseHp: 10,
-    hpScale: 1.2,
-    waves: [
-      w(g('normal', 10, 1.2)),
-      w(g('normal', 10, 1.0), chest('bronze', 4)),
-      w(g('normal', 14, 0.9)),
-      w(g('normal', 16, 0.8), chest('bronze', 6)),
-    ],
+    hpScale: 1.3,
+    waveHpGrowth: 0.22,
+    waves: buildWaves({
+      waves: 10,
+      count: 8,
+      growth: 1.4,
+      interval: [1.3, 0.85],
+      mix: () => ({ normal: 1 }),
+      chests: { 3: 'bronze', 6: 'bronze', 9: 'bronze' },
+    }),
     rewards: { firstClear: 40, replay: 14 },
   },
   {
     id: '1-4',
     number: 4,
-    name: 'Zoom Zoom',
-    intro: ['Zippy Mice are fast! Tap a cat to cycle its targeting.', 'Try "First" to catch runners near the exit.'],
     roster: ['kitten', 'tabby', 'orange'],
-    tiles: ['2-2', '3-2', '4-2', '3-3', '4-3', '2-5', '3-5', '4-5', '5-5', '3-6', '2-8', '3-8'],
-    startFish: 100,
+    tiles: ['2-2', '3-2', '4-2', '3-3', '4-3', '2-5', '3-5', '4-5', '5-5', '3-6', '5-6', '2-8', '3-8', '4-8'],
+    startFish: 12,
     baseHp: 10,
-    hpScale: 1.55,
-    waves: [
-      w(g('normal', 10, 1.1)),
-      w(g('fast', 6, 1.0)),
-      w(g('normal', 10, 1.0), g('fast', 6, 1.2, 3), chest('bronze', 5)),
-      w(g('normal', 14, 0.8)),
-      w(g('normal', 12, 0.9), g('fast', 10, 0.8, 4), chest('bronze', 8)),
-    ],
+    hpScale: 1.4,
+    waveHpGrowth: 0.185,
+    waves: buildWaves({
+      waves: 14,
+      count: 9,
+      growth: 1.4,
+      interval: [1.2, 0.75],
+      mix: (w) => (w < 1 ? { normal: 1 } : w === 1 ? { fast: 1 } : { normal: 3, fast: 1 + w * 0.15 }),
+      chests: { 4: 'bronze', 8: 'bronze', 11: 'bronze' },
+    }),
     rewards: { firstClear: 45, replay: 15 },
   },
   {
     id: '1-5',
     number: 5,
-    name: 'The Quiet One',
-    intro: ['New cat: Black Cat — long-range sniper.', 'Silver chests hold better skills!'],
     roster: ['kitten', 'tabby', 'orange', 'black'],
-    tiles: ['2-2', '3-2', '4-2', '2-3', '3-3', '4-3', '2-5', '3-5', '4-5', '5-5', '3-6', '5-6', '2-8', '3-8'],
-    startFish: 100,
+    tiles: ['2-2', '3-2', '4-2', '2-3', '3-3', '4-3', '2-5', '3-5', '4-5', '5-5', '3-6', '5-6', '2-8', '3-8', '4-8'],
+    startFish: 12,
     baseHp: 10,
-    hpScale: 1.8,
-    waves: [
-      w(g('normal', 12, 1.0)),
-      w(g('fast', 10, 0.8), chest('bronze', 4)),
-      w(g('normal', 14, 0.8), g('fast', 6, 1.0, 5)),
-      w(g('normal', 16, 0.7), chest('silver', 5)),
-      w(g('normal', 14, 0.8), g('fast', 12, 0.6, 6)),
-    ],
+    hpScale: 1.45,
+    waveHpGrowth: 0.18,
+    waves: buildWaves({
+      waves: 14,
+      count: 10,
+      growth: 1.5,
+      interval: [1.15, 0.7],
+      mix: (w) => ({ normal: 3, fast: w > 0 ? 1.5 : 0 }),
+      chests: { 3: 'bronze', 7: 'silver', 11: 'bronze' },
+    }),
     rewards: { firstClear: 50, replay: 16 },
   },
   {
     id: '1-6',
     number: 6,
-    name: 'Acorn Armor',
-    intro: ['Acorn Knights have armor: weak hits barely scratch them.', 'Big hitters (Black, Orange, merged cats) work best.'],
     roster: ['kitten', 'tabby', 'orange', 'black'],
     tiles: [...A_CORE, '2-2', '2-3', ...B_CORE, '5-5', '5-6', '2-8', '3-8', '4-8'],
-    startFish: 110,
+    startFish: 12,
     baseHp: 10,
-    hpScale: 2.05,
-    waves: [
-      w(g('normal', 12, 1.0)),
-      w(g('armored', 4, 2.5)),
-      w(g('normal', 12, 0.9), g('armored', 4, 2.5, 3), chest('bronze', 6)),
-      w(g('fast', 14, 0.6)),
-      w(g('armored', 8, 1.8), g('normal', 10, 1.0, 2), chest('silver', 6)),
-      w(g('normal', 16, 0.7), g('armored', 6, 2.0, 4), g('fast', 8, 0.7, 8)),
-    ],
+    hpScale: 1.55,
+    waveHpGrowth: 0.1,
+    waves: buildWaves({
+      waves: 15,
+      count: 10,
+      growth: 1.5,
+      interval: [1.15, 0.7],
+      mix: (w) => (w === 1 ? { normal: 3, armored: 1 } : { normal: 3, fast: 1, armored: w > 1 ? 0.6 + w * 0.08 : 0 }),
+      chests: { 3: 'bronze', 7: 'silver', 11: 'bronze' },
+    }),
     rewards: { firstClear: 55, replay: 18 },
   },
   {
     id: '1-7',
     number: 7,
-    name: 'Full Squad',
-    intro: ['New cat: Noble White — her beauty slows nearby mice.', 'Place her where your attackers can hit the distracted mice.'],
     roster: ['kitten', 'tabby', 'orange', 'black', 'white'],
     tiles: [...A_CORE, '2-2', '2-3', ...B_CORE, '5-5', '5-6', '2-8', '3-8', '4-8', '3-9'],
-    startFish: 110,
+    startFish: 12,
     baseHp: 10,
-    hpScale: 1.7,
-    waves: [
-      w(g('normal', 14, 0.9)),
-      w(g('fast', 12, 0.7), chest('bronze', 3)),
-      w(g('armored', 6, 2.0), g('normal', 10, 1.0, 2)),
-      w(g('normal', 18, 0.6), g('fast', 8, 0.8, 4), chest('silver', 6)),
-      w(g('armored', 8, 1.6), g('fast', 12, 0.6, 3)),
-      w(g('normal', 20, 0.55), g('armored', 8, 1.6, 4), chest('bronze', 10)),
-    ],
+    hpScale: 1.6,
+    waveHpGrowth: 0.04,
+    waves: buildWaves({
+      waves: 17,
+      count: 11,
+      growth: 1.6,
+      interval: [1.1, 0.65],
+      mix: (w) => ({ normal: 3, fast: 1.2, armored: 0.6 + w * 0.06 }),
+      chests: { 3: 'bronze', 6: 'silver', 10: 'bronze', 13: 'silver' },
+    }),
     rewards: { firstClear: 60, replay: 20 },
   },
   {
     id: '1-8',
     number: 8,
-    name: 'Leaf Guards',
-    intro: ['Leaf Guards carry a shield that must break before they get hurt.', 'Fast combos and chip damage shred shields.'],
     roster: ['kitten', 'tabby', 'orange', 'black', 'white'],
     tiles: [...A_CORE, '2-2', '2-3', '1-2', ...B_CORE, '5-5', '5-6', '0-5', '2-8', '3-8', '4-8', '3-9'],
-    startFish: 110,
+    startFish: 12,
     baseHp: 10,
-    hpScale: 1.75,
-    waves: [
-      w(g('normal', 14, 0.9)),
-      w(g('shielded', 6, 1.6)),
-      w(g('normal', 12, 0.8), g('fast', 10, 0.7, 3), chest('bronze', 5)),
-      w(g('shielded', 8, 1.3), g('armored', 4, 2.0, 4)),
-      w(g('fast', 16, 0.5), chest('silver', 4)),
-      w(g('shielded', 10, 1.1), g('normal', 14, 0.7, 2)),
-      w(g('armored', 8, 1.5), g('shielded', 8, 1.3, 3), g('fast', 10, 0.6, 8), chest('silver', 8)),
-    ],
+    hpScale: 1.7,
+    waveHpGrowth: 0.04,
+    waves: buildWaves({
+      waves: 17,
+      count: 11,
+      growth: 1.7,
+      interval: [1.1, 0.62],
+      mix: (w) => (w === 1 ? { normal: 3, shielded: 1 } : { normal: 3, fast: 1, armored: 0.8, shielded: w > 1 ? 1 + w * 0.05 : 0 }),
+      chests: { 3: 'bronze', 6: 'silver', 10: 'bronze', 13: 'silver' },
+    }),
     rewards: { firstClear: 70, replay: 22 },
   },
   {
     id: '1-9',
     number: 9,
-    name: 'Rush Hour',
-    intro: ['The mice are getting serious.', 'Merge smart, aim smart, and grab those chests!'],
     roster: ['kitten', 'tabby', 'orange', 'black', 'white'],
     tiles: [...A_CORE, '2-2', '2-3', '1-2', '1-3', ...B_CORE, '5-5', '5-6', '0-5', '2-8', '3-8', '4-8', '2-9', '3-9'],
-    startFish: 120,
+    startFish: 12,
     baseHp: 10,
-    hpScale: 1.9,
-    waves: [
-      w(g('normal', 16, 0.8)),
-      w(g('fast', 14, 0.55), chest('bronze', 4)),
-      w(g('armored', 8, 1.5), g('shielded', 6, 1.5, 3)),
-      w(g('normal', 22, 0.5), g('fast', 10, 0.6, 5), chest('silver', 6)),
-      w(g('shielded', 12, 1.0), g('armored', 6, 1.6, 4)),
-      w(g('fast', 20, 0.45), g('normal', 14, 0.6, 3), chest('bronze', 6)),
-      w(g('armored', 10, 1.3), g('shielded', 10, 1.1, 2), g('fast', 12, 0.5, 9), chest('silver', 9)),
-    ],
+    hpScale: 1.75,
+    waveHpGrowth: 0.04,
+    waves: buildWaves({
+      waves: 18,
+      count: 12,
+      growth: 1.8,
+      interval: [1.05, 0.58],
+      mix: (w) => ({ normal: 3, fast: 1.5, armored: 1 + w * 0.05, shielded: 1 + w * 0.05 }),
+      chests: { 3: 'bronze', 6: 'silver', 9: 'bronze', 12: 'silver', 14: 'bronze' },
+    }),
     rewards: { firstClear: 80, replay: 25 },
   },
   {
     id: '1-10',
     number: 10,
-    name: 'The Big Cheese',
-    intro: ['BOSS STAGE! The Big Cheese King is coming.', 'A Gold chest appears — its skills give +2 levels!'],
     roster: ['kitten', 'tabby', 'orange', 'black', 'white'],
     tiles: [
       ...A_CORE, '2-2', '2-3', '1-2', '1-3', '6-2',
       ...B_CORE, '5-5', '5-6', '0-5', '0-6',
       '2-8', '3-8', '4-8', '2-9', '3-9',
     ],
-    startFish: 130,
+    startFish: 12,
     baseHp: 10,
-    hpScale: 2.0,
+    hpScale: 1.8,
+    waveHpGrowth: 0.035,
     isBoss: true,
-    waves: [
-      w(g('normal', 16, 0.8), chest('bronze', 6)),
-      w(g('fast', 14, 0.55), g('normal', 8, 0.8, 4)),
-      w(g('armored', 8, 1.4), g('shielded', 8, 1.3, 3), chest('silver', 5)),
-      w(g('normal', 24, 0.45), g('fast', 12, 0.55, 5)),
-      w(g('shielded', 12, 0.9), g('armored', 8, 1.3, 4), chest('gold', 3)),
-      w(g('fast', 20, 0.4), g('armored', 8, 1.4, 3), g('normal', 12, 0.6, 6)),
-      w(g('boss', 1, 1, 2), g('normal', 14, 1.2, 4), g('shielded', 8, 1.8, 8), chest('silver', 12)),
-    ],
+    waves: buildWaves({
+      waves: 21,
+      count: 12,
+      growth: 1.8,
+      interval: [1.05, 0.6],
+      mix: (w) => (w === 20 ? { normal: 2, shielded: 1 } : { normal: 3, fast: 1.5, armored: 1 + w * 0.05, shielded: 1 + w * 0.05 }),
+      chests: { 3: 'bronze', 7: 'silver', 11: 'gold', 15: 'silver', 19: 'bronze' },
+      extra: { 21: [{ enemy: 'boss', count: 1, interval: 1, delay: 3 }] },
+    }),
     rewards: { firstClear: 150, replay: 40 },
   },
 ];

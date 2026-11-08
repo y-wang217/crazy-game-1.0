@@ -1,11 +1,12 @@
 import { BALANCE } from '../config/balance';
 import { CATS, TARGET_MODE_INFO } from '../config/cats';
 import { findCosmetic } from '../config/cosmetics';
-import { canMerge, type Battle, type CatUnit, type Foe } from '../game/battle';
+import type { Battle, CatUnit, Foe } from '../game/battle';
 import { getCatStats } from '../game/combat';
 import { cellCenter, worldSize } from '../game/path';
 import { Rng } from '../game/rng';
 import type { CatId, CatPalette, ChestTier, CosmeticLoadout, EnemyId, MapDef } from '../game/types';
+import { FONT_STACK, t as tr } from '../i18n';
 import { drawCat, drawChest, drawHeart, drawMouse, drawStar } from './sprites';
 
 export interface DragView {
@@ -14,6 +15,11 @@ export interface DragView {
   x: number;
   y: number;
   overTileId: string | null;
+}
+
+export interface DrawOptions {
+  /** Cats highlighted by the tutorial (glow + range ring). */
+  focusUids?: number[];
 }
 
 export function resolvePalette(type: CatId, loadout: CosmeticLoadout): CatPalette {
@@ -29,6 +35,8 @@ export class Renderer {
   private bg: HTMLCanvasElement | null = null;
   private bgKey = '';
   private dpr = 1;
+  /** Visual-only HP trail per foe (white bar that catches up after a hit). */
+  private trail = new Map<number, { v: number; t: number }>();
   scale = 1;
   readonly worldW: number;
   readonly worldH: number;
@@ -68,6 +76,13 @@ export class Renderer {
     return { x: ((clientX - r.left) / r.width) * this.worldW, y: ((clientY - r.top) / r.height) * this.worldH };
   }
 
+  /** World px → CSS client coordinates (for DOM overlays such as the tutorial). */
+  worldToClient(x: number, y: number): { x: number; y: number; k: number } {
+    const r = this.canvas.getBoundingClientRect();
+    const k = r.width / this.worldW;
+    return { x: r.left + x * k, y: r.top + y * k, k };
+  }
+
   // ------------------------------------------------------------------------
   // Static background (cached per stage + size)
   // ------------------------------------------------------------------------
@@ -89,7 +104,7 @@ export class Renderer {
   // Frame
   // ------------------------------------------------------------------------
 
-  draw(battle: Battle, drag: DragView | null, loadout: CosmeticLoadout): void {
+  draw(battle: Battle, drag: DragView | null, loadout: CosmeticLoadout, opts: DrawOptions = {}): void {
     this.ensureBackground(battle);
     const ctx = this.ctx;
     const k = this.dpr * this.scale;
@@ -97,23 +112,29 @@ export class Renderer {
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     if (this.bg) ctx.drawImage(this.bg, 0, 0);
     ctx.setTransform(k, 0, 0, k, 0, 0);
-    const t = battle.time;
+    const t = battle.vtime;
     const dragCat = drag ? battle.catByUid(drag.uid) ?? null : null;
 
     // Drop-target highlights
     if (dragCat) {
       for (const tile of battle.tiles) {
         if (!tile.unlocked || tile.id === dragCat.tileId) continue;
-        const occ = battle.catAt(tile.id);
-        const ok = !occ || canMerge(dragCat, occ);
-        if (!ok) continue;
+        const kind = battle.previewDrop(dragCat.uid, tile.id).result;
+        if (kind === 'cancel') continue;
         const hover = drag!.overTileId === tile.id;
+        // green = move, gold = merge, blue = swap
+        const [fill, fillHover, stroke] =
+          kind === 'merged'
+            ? ['rgba(255,214,64,0.3)', 'rgba(255,214,64,0.65)', '#e8a800']
+            : kind === 'swapped'
+              ? ['rgba(110,170,240,0.12)', 'rgba(110,170,240,0.5)', '#4a8ad8']
+              : ['rgba(110,210,120,0.22)', 'rgba(110,210,120,0.55)', '#3aa35a'];
         ctx.beginPath();
         ctx.roundRect(tile.x - 22, tile.y - 22, 44, 44, 8);
-        ctx.fillStyle = occ ? (hover ? 'rgba(255,214,64,0.6)' : 'rgba(255,214,64,0.28)') : hover ? 'rgba(110,210,120,0.55)' : 'rgba(110,210,120,0.22)';
+        ctx.fillStyle = hover ? fillHover : fill;
         ctx.fill();
-        ctx.lineWidth = hover ? 3 : 2;
-        ctx.strokeStyle = occ ? '#e8a800' : '#3aa35a';
+        ctx.lineWidth = hover ? 3 : kind === 'swapped' ? 1.2 : 2;
+        ctx.strokeStyle = stroke;
         ctx.stroke();
       }
     }
@@ -135,9 +156,24 @@ export class Renderer {
       }
     }
 
+    // Tutorial focus: pulsing glow + range ring
+    for (const uid of opts.focusUids ?? []) {
+      const cat = battle.catByUid(uid);
+      if (!cat || cat === dragCat) continue;
+      const st = getCatStats(CATS[cat.type], cat.level, battle.mods);
+      this.rangeRing(cat.x, cat.y, st.range, '#ffd84a');
+      const pulse = 0.5 + 0.5 * Math.sin(t * 5);
+      ctx.beginPath();
+      ctx.arc(cat.x, cat.y, 24 + pulse * 4, 0, TAU);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = `rgba(255,216,74,${0.6 + pulse * 0.4})`;
+      ctx.stroke();
+    }
+
     // Foes (sorted by y for overlap)
     const foes = [...battle.foes].sort((a, b) => a.y - b.y);
-    for (const f of foes) this.drawFoe(f, t);
+    for (const f of foes) this.drawFoe(f, t, battle.time);
+    if (this.trail.size > 200) this.trail.clear();
 
     // Cats
     for (const cat of battle.cats) {
@@ -190,7 +226,7 @@ export class Renderer {
     // Pre-wave countdown
     if (battle.waveIndex === -1) {
       const s = Math.ceil(battle.prepRemaining);
-      this.banner(`First wave in ${s}…`, this.worldH * 0.5);
+      if (!battle.frozen) this.banner(tr('battle.firstWaveIn', { n: s }), this.worldH * 0.5);
     }
   }
 
@@ -209,7 +245,7 @@ export class Renderer {
 
   private banner(text: string, y: number) {
     const ctx = this.ctx;
-    ctx.font = '800 18px "Baloo 2", system-ui, sans-serif';
+    ctx.font = `800 18px ${FONT_STACK}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     const w = ctx.measureText(text).width + 28;
@@ -226,8 +262,10 @@ export class Renderer {
     const def = CATS[cat.type];
     const spawnAge = t - cat.spawnAt;
     const mergeAge = t - cat.mergeAt;
+    const moveAge = t - cat.movedAt;
     let s = def.scale * extraScale;
-    if (spawnAge < 0.35) s *= easeOutBack(spawnAge / 0.35);
+    if (spawnAge < 0.45) s *= easeOutBack(spawnAge / 0.45);
+    if (moveAge < 0.25) s *= 1 + 0.12 * Math.sin((moveAge / 0.25) * Math.PI);
     if (mergeAge < 0.5) s *= 1 + 0.3 * Math.sin((mergeAge / 0.5) * Math.PI);
 
     ctx.save();
@@ -276,7 +314,7 @@ export class Renderer {
       ctx.strokeStyle = 'rgba(0,0,0,0.35)';
       ctx.stroke();
       ctx.fillStyle = '#fff';
-      ctx.font = '800 9px system-ui, sans-serif';
+      ctx.font = `800 9px ${FONT_STACK}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(String(lv), -12.5, 15.8);
@@ -288,29 +326,37 @@ export class Renderer {
       ctx.translate(15, -17);
       ctx.scale(pop, pop);
       ctx.beginPath();
-      ctx.arc(0, 0, 6.5, 0, TAU);
+      ctx.arc(0, 0, 7.5, 0, TAU);
       ctx.fillStyle = info.color;
       ctx.fill();
       ctx.lineWidth = 1.5;
       ctx.strokeStyle = '#fff';
       ctx.stroke();
       ctx.fillStyle = '#fff';
-      ctx.font = '900 8px system-ui, sans-serif';
-      ctx.fillText(info.short, 0, 0.5);
+      ctx.font = `900 9px ${FONT_STACK}`;
+      ctx.fillText(tr(`mode.${cat.mode}.short`), 0, 0.8);
       ctx.restore();
     }
     ctx.restore();
   }
 
-  private drawFoe(f: Foe, t: number) {
+  /** t = visual clock (flashes, fades); walkT = simulation clock (walk cycle freezes with the game). */
+  private drawFoe(f: Foe, t: number, walkT: number) {
     const ctx = this.ctx;
-    const hit = t - f.hitAt < 0.08;
+    const hitAge = t - f.hitAt;
+    const hit = hitAge < 0.08;
     ctx.save();
     ctx.translate(f.x, f.y);
+    if (hitAge < 0.12) {
+      // little knock-back wobble
+      const k = 1 - hitAge / 0.12;
+      ctx.translate(-f.dirX * 1.5 * k, 0);
+      ctx.scale(1 + 0.12 * k, 1 - 0.1 * k);
+    }
     const spawnAge = t - f.bornAt;
-    if (spawnAge < 0.25) ctx.globalAlpha = spawnAge / 0.25;
-    if (f.kind === 'chest') drawChest(ctx, f.defId as ChestTier, t + f.uid, hit);
-    else drawMouse(ctx, { id: f.defId as EnemyId, dirX: f.dirX, t: t + f.uid * 0.37, hasShield: f.shield > 0, hit });
+    if (spawnAge < 0.25) ctx.globalAlpha = Math.max(0, spawnAge / 0.25);
+    if (f.kind === 'chest') drawChest(ctx, f.defId as ChestTier, walkT + f.uid, hit);
+    else drawMouse(ctx, { id: f.defId as EnemyId, dirX: f.dirX, t: walkT + f.uid * 0.37, hasShield: f.shield > 0, hit });
 
     // Distracted by the white cat
     if (f.slowT > 0) {
@@ -330,6 +376,16 @@ export class Renderer {
       ctx.roundRect(-w / 2 - 1, by - 1, w + 2, 5, 2.5);
       ctx.fill();
       const hpf = Math.max(0, f.hp / f.maxHp);
+      // White trail shows recent damage, then catches up.
+      const tr0 = this.trail.get(f.uid) ?? { v: hpf, t };
+      const trailV = Math.max(hpf, tr0.v - (t - tr0.t) * 0.9);
+      this.trail.set(f.uid, { v: trailV, t });
+      if (trailV > hpf) {
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.beginPath();
+        ctx.roundRect(-w / 2, by, w * trailV, 3, 1.5);
+        ctx.fill();
+      }
       ctx.fillStyle = f.kind === 'chest' ? '#f2c230' : hpf > 0.5 ? '#6ad04a' : hpf > 0.25 ? '#f2c230' : '#ef5a4a';
       ctx.beginPath();
       ctx.roundRect(-w / 2, by, w * hpf, 3, 1.5);
@@ -346,7 +402,7 @@ export class Renderer {
 
   private drawEffects(battle: Battle) {
     const ctx = this.ctx;
-    const t = battle.time;
+    const t = battle.vtime;
     for (const e of battle.effects) {
       const age = t - e.born;
       if (age < 0) continue;
@@ -356,29 +412,31 @@ export class Renderer {
           ctx.globalAlpha = 1 - k;
           ctx.beginPath();
           ctx.arc(e.x, e.y, e.r0 + (e.r1 - e.r0) * easeOut(k), 0, TAU);
-          ctx.lineWidth = 3.5 * (1 - k) + 1;
+          ctx.lineWidth = (e.width ?? 3.5) * (1 - k) + 1;
           ctx.strokeStyle = e.color;
           ctx.stroke();
           break;
         }
         case 'text': {
           ctx.globalAlpha = k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3;
-          ctx.font = `900 ${e.size}px "Baloo 2", system-ui, sans-serif`;
+          ctx.font = `900 ${e.size}px ${FONT_STACK}`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           const y = e.y - easeOut(k) * 16;
-          ctx.lineWidth = e.stroke ? 4 : 3;
-          ctx.strokeStyle = e.stroke ?? 'rgba(50,30,20,0.75)';
-          ctx.strokeText(e.text, e.x, y);
+          const label = e.mode ? tr(`mode.${e.mode}`) : e.text;
+          const stroke = e.mode ? TARGET_MODE_INFO[e.mode].color : e.stroke;
+          ctx.lineWidth = stroke ? 4 : 3;
+          ctx.strokeStyle = stroke ?? 'rgba(50,30,20,0.75)';
+          ctx.strokeText(label, e.x, y);
           ctx.fillStyle = e.color;
-          ctx.fillText(e.text, e.x, y);
+          ctx.fillText(label, e.x, y);
           break;
         }
         case 'particles': {
           ctx.globalAlpha = 1 - k;
           for (const p of e.parts) {
             const px = e.x + p.vx * age * (1 - k * 0.5);
-            const py = e.y + p.vy * age * (1 - k * 0.5) + 40 * age * age;
+            const py = e.y + p.vy * age * (1 - k * 0.5) + (e.gravity ?? 40) * age * age;
             ctx.fillStyle = p.color;
             ctx.beginPath();
             ctx.arc(px, py, p.size * (1 - k * 0.5), 0, TAU);
@@ -396,6 +454,18 @@ export class Renderer {
           drawStar(ctx, 0, 0, 8, '#fff1a0', 6, 0.5);
           drawStar(ctx, 0, 0, 4.5, '#ffffff', 6, 0.5);
           ctx.restore();
+          break;
+        }
+        case 'beam': {
+          // summon / merge light column
+          ctx.globalAlpha = (1 - k) * 0.85;
+          const g = ctx.createLinearGradient(e.x, e.y - 70, e.x, e.y + 16);
+          g.addColorStop(0, 'rgba(255,255,255,0)');
+          g.addColorStop(0.7, e.color);
+          g.addColorStop(1, 'rgba(255,255,255,0)');
+          ctx.fillStyle = g;
+          const w = 26 * (1 - k * 0.6);
+          ctx.fillRect(e.x - w / 2, e.y - 70, w, 86);
           break;
         }
         case 'hearts': {
@@ -585,7 +655,7 @@ function paintBackground(ctx: CanvasRenderingContext2D, map: MapDef, battle: Bat
   ctx.roundRect(4, start.y - 42, 26, 12, 3);
   ctx.fill();
   ctx.fillStyle = '#fff';
-  ctx.font = '800 8px system-ui, sans-serif';
+  ctx.font = `800 8px ${FONT_STACK}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText('MICE', 17, start.y - 35.5);
