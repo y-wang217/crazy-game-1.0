@@ -19,7 +19,7 @@ function newThing(stage: StageDef, prev: StageDef | undefined): string {
   const newEnemy = [...enemiesOf(stage)].find((e) => !before.has(e) && e !== 'normal');
   if (newEnemy) return t('tag.newEnemy', { name: t(`enemy.${newEnemy}.name`) });
   if (stage.number === 1) return t('tag.basics');
-  if (stage.number === 2) return t('tag.merge');
+  if (stage.number === 2) return t('tag.practice');
   if (stage.number === BALANCE.unlocks.skillShopFromStage) return t('tag.skills');
   return '';
 }

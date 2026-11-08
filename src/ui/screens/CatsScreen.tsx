@@ -67,6 +67,7 @@ export function CatsScreen({ go }: { go: (s: Screen) => void }) {
             ))}
           </li>
           <li>{t('guide.chest')}</li>
+          <li>{t('info.hint')}</li>
         </ul>
       </div>
     </div>

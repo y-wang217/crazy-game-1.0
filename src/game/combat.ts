@@ -1,6 +1,6 @@
 import { BALANCE } from '../config/balance';
-import { SKILL_VALUES } from '../config/skills';
-import type { CatDef, SkillId } from './types';
+import { SKILLS } from '../config/skills';
+import type { CatDef, CatId, SkillId } from './types';
 
 /**
  * Physical damage formula (one rule for everything):
@@ -32,34 +32,53 @@ export function applyDamageToPools(
   return { hp: h, shield: s, dealt: dmg };
 }
 
+/** Multipliers / bonuses for one cat type (or for all cats). */
+export interface CatMods {
+  dmg: number;
+  speed: number;
+  range: number;
+  combo: number;
+  splash: number;
+  splashRatio: number;
+  slow: number;
+  slowDur: number;
+}
+
 export interface SkillMods {
-  damageMult: number;
-  attackSpeedMult: number;
-  rangeMult: number;
-  splashMult: number;
-  slamDamageMult: number;
-  comboExtra: number;
+  /** Applies to every cat. */
+  all: CatMods;
+  /** Applies only to that cat type (stacks multiplicatively with `all`). */
+  cat: Record<CatId, CatMods>;
   armorReduce: number;
-  slowBonus: number;
-  slowDurationBonus: number;
   fishMult: number;
 }
 
+const neutralCat = (): CatMods => ({ dmg: 1, speed: 1, range: 1, combo: 0, splash: 1, splashRatio: 0, slow: 0, slowDur: 0 });
+
 export function computeSkillMods(skills: Partial<Record<SkillId, number>>): SkillMods {
-  const lv = (id: SkillId) => skills[id] ?? 0;
-  const V = SKILL_VALUES;
-  return {
-    damageMult: 1 + V.sharpClaws.damagePerLevel * lv('sharpClaws'),
-    attackSpeedMult: 1 + V.catnipRush.speedPerLevel * lv('catnipRush'),
-    rangeMult: 1 + V.keenEyes.rangePerLevel * lv('keenEyes'),
-    splashMult: 1 + V.bellySlam.splashPerLevel * lv('bellySlam'),
-    slamDamageMult: 1 + V.bellySlam.damagePerLevel * lv('bellySlam'),
-    comboExtra: V.flurryPaws.hitsPerLevel * lv('flurryPaws'),
-    armorReduce: V.armorBreak.armorPerLevel * lv('armorBreak'),
-    slowBonus: V.dazzlingGrace.slowPerLevel * lv('dazzlingGrace'),
-    slowDurationBonus: V.dazzlingGrace.durationPerLevel * lv('dazzlingGrace'),
-    fishMult: 1 + V.fishyFortune.fishPerLevel * lv('fishyFortune'),
+  const mods: SkillMods = {
+    all: neutralCat(),
+    cat: { kitten: neutralCat(), tabby: neutralCat(), orange: neutralCat(), black: neutralCat(), white: neutralCat() },
+    armorReduce: 0,
+    fishMult: 1,
   };
+  for (const [id, lv] of Object.entries(skills) as [SkillId, number][]) {
+    if (!lv) continue;
+    const def = SKILLS[id];
+    const m = def.cat ? mods.cat[def.cat] : mods.all;
+    const p = def.per;
+    if (p.dmg) m.dmg += p.dmg * lv;
+    if (p.speed) m.speed += p.speed * lv;
+    if (p.range) m.range += p.range * lv;
+    if (p.combo) m.combo += p.combo * lv;
+    if (p.splash) m.splash += p.splash * lv;
+    if (p.splashRatio) m.splashRatio += p.splashRatio * lv;
+    if (p.slow) m.slow += p.slow * lv;
+    if (p.slowDur) m.slowDur += p.slowDur * lv;
+    if (p.armor) mods.armorReduce += p.armor * lv;
+    if (p.fish) mods.fishMult += p.fish * lv;
+  }
+  return mods;
 }
 
 export const NO_MODS: SkillMods = computeSkillMods({});
@@ -81,23 +100,21 @@ export function getCatStats(def: CatDef, level: number, mods: SkillMods = NO_MOD
   const L = BALANCE.levels;
   const li = Math.max(0, Math.min(L.damageMult.length - 1, level - 1));
   const up = level - 1;
-  let damage = def.damage * L.damageMult[li] * mods.damageMult;
-  if (def.attack === 'slam') damage *= mods.slamDamageMult;
-  const range = def.range * (1 + L.rangePerLevel * up) * mods.rangeMult;
-  const interval = def.interval / ((1 + L.speedPerLevel * up) * mods.attackSpeedMult);
-  const slowStrength = Math.min(
-    BALANCE.slowCap,
-    (def.slowStrength ?? 0) + L.slowPerLevel * up + (def.attack === 'aura' ? mods.slowBonus : 0),
-  );
+  const a = mods.all;
+  const c = mods.cat[def.id];
+  const damage = def.damage * L.damageMult[li] * a.dmg * c.dmg;
+  const range = def.range * (1 + L.rangePerLevel * up) * a.range * c.range;
+  const interval = def.interval / ((1 + L.speedPerLevel * up) * a.speed * c.speed);
+  const slowStrength = Math.min(BALANCE.slowCap, (def.slowStrength ?? 0) + L.slowPerLevel * up + c.slow);
   return {
     damage,
     range,
     interval,
-    comboHits: (def.comboHits ?? 1) + (def.attack === 'combo' ? mods.comboExtra : 0),
-    splashRadius: (def.splashRadius ?? 0) * mods.splashMult,
-    splashRatio: def.splashRatio ?? 0,
+    comboHits: (def.comboHits ?? 1) + c.combo,
+    splashRadius: (def.splashRadius ?? 0) * c.splash,
+    splashRatio: Math.min(1, (def.splashRatio ?? 0) + (def.splashRatio ? c.splashRatio : 0)),
     slowStrength,
-    slowDuration: (def.slowDuration ?? 0) + (def.attack === 'aura' ? mods.slowDurationBonus : 0),
+    slowDuration: (def.slowDuration ?? 0) + c.slowDur,
     focusBonus: def.focusBonus ?? 0,
   };
 }

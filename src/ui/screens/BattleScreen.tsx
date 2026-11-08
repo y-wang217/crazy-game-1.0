@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BALANCE } from '../../config/balance';
+import { CATS } from '../../config/cats';
 import { findStage } from '../../config/chapters';
 import { MAPS } from '../../config/maps';
 import { SKILLS, SKILL_ORDER, skillParams } from '../../config/skills';
@@ -10,6 +11,7 @@ import { t, useLang } from '../../i18n';
 import { Renderer, type DragView } from '../../render/renderer';
 import { saveStore, useSave } from '../../save/store';
 import { TutorialDirector, type ActiveStep, type TutAction } from '../../tutorial/director';
+import { CatInfoPanel } from '../components/CatInfoPanel';
 import { CatPreview } from '../components/CatPreview';
 import { DebugPanel, StatsTable } from '../components/DebugPanel';
 import { CoinIcon, FishIcon, HeartIcon } from '../components/Icons';
@@ -106,7 +108,19 @@ export function BattleScreen({
   if (!directorRef.current) directorRef.current = new TutorialDirector(stage.id, seenStore);
   const speedRef = useRef(1);
   const dragRef = useRef<DragView | null>(null);
-  const pressRef = useRef<{ uid: number; pointerId: number; sx: number; sy: number; dragging: boolean } | null>(null);
+  const pressRef = useRef<{
+    uid: number;
+    pointerId: number;
+    sx: number;
+    sy: number;
+    dragging: boolean;
+    long: boolean;
+    timer: number | null;
+  } | null>(null);
+  /** Cat whose details panel is open (battle is paused meanwhile). */
+  const [inspectUid, setInspectUid] = useState<number | null>(null);
+  const inspectRef = useRef<number | null>(null);
+  inspectRef.current = inspectUid;
   const resultLoggedRef = useRef<Battle | null>(null);
 
   const [hud, setHud] = useState<Hud>(() => hudOf(battleRef.current));
@@ -219,7 +233,7 @@ export function BattleScreen({
       last = now;
       const b = battleRef.current;
       const active = directorRef.current.update(b); // freezes the battle while a lesson is shown
-      if (b.running) b.update(dt * speedRef.current);
+      if (b.running && inspectRef.current === null) b.update(dt * speedRef.current);
       else b.tickVisual(dt);
       if (import.meta.env.DEV) (window as unknown as { __cd: unknown }).__cd = { battle: b, renderer, director: directorRef.current };
       const ev = b.drainEvents();
@@ -264,6 +278,7 @@ export function BattleScreen({
   const restart = () => {
     battleRef.current = newBattle();
     directorRef.current = new TutorialDirector(stage.id, seenStore);
+    setInspectUid(null);
     dragRef.current = null;
     pressRef.current = null;
     resultLoggedRef.current = null;
@@ -326,10 +341,27 @@ export function BattleScreen({
     return tile ? tile.id : null;
   };
 
+  const LONG_PRESS_MS = 500;
+
+  const openInspect = (uid: number) => {
+    const b = battleRef.current;
+    if (directorRef.current.active) return; // no detail panels in the middle of a lesson
+    if (b.status !== 'playing' && b.status !== 'paused') return;
+    if (!b.catByUid(uid)) return;
+    setInspectUid(uid);
+  };
+
+  const clearPressTimer = () => {
+    const p = pressRef.current;
+    if (p?.timer) window.clearTimeout(p.timer);
+    if (p) p.timer = null;
+  };
+
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const b = battleRef.current;
     const r = rendererRef.current;
-    if (!r || pressRef.current) return;
+    if (!r || pressRef.current || inspectRef.current !== null) return;
+    if (e.button === 2) return; // right-click is handled by onContextMenu
     if (b.status !== 'playing' && b.status !== 'paused') return;
     const w = r.toWorld(e.clientX, e.clientY);
     const tileId = tileAtWorld(w.x, w.y);
@@ -341,14 +373,30 @@ export function BattleScreen({
     } catch {
       /* ignore */
     }
-    pressRef.current = { uid: cat.uid, pointerId: e.pointerId, sx: e.clientX, sy: e.clientY, dragging: false };
+    const press = { uid: cat.uid, pointerId: e.pointerId, sx: e.clientX, sy: e.clientY, dragging: false, long: false, timer: null as number | null };
+    // Long press → details (only if the pointer hasn't started dragging).
+    press.timer = window.setTimeout(() => {
+      if (pressRef.current !== press || press.dragging) return;
+      press.long = true;
+      press.timer = null;
+      try {
+        navigator.vibrate?.(12);
+      } catch {
+        /* ignore */
+      }
+      openInspect(press.uid);
+    }, LONG_PRESS_MS);
+    pressRef.current = press;
   };
 
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const p = pressRef.current;
     const r = rendererRef.current;
-    if (!p || !r || p.pointerId !== e.pointerId) return;
-    if (!p.dragging && Math.hypot(e.clientX - p.sx, e.clientY - p.sy) > BALANCE.dragThresholdPx) p.dragging = true;
+    if (!p || !r || p.pointerId !== e.pointerId || p.long) return;
+    if (!p.dragging && Math.hypot(e.clientX - p.sx, e.clientY - p.sy) > BALANCE.dragThresholdPx) {
+      p.dragging = true;
+      clearPressTimer();
+    }
     if (p.dragging) {
       const w = r.toWorld(e.clientX, e.clientY);
       dragRef.current = { uid: p.uid, x: w.x, y: w.y, overTileId: tileAtWorld(w.x, w.y) };
@@ -358,6 +406,7 @@ export function BattleScreen({
   const endPress = (e: React.PointerEvent<HTMLCanvasElement>, cancelled: boolean) => {
     const p = pressRef.current;
     if (!p || p.pointerId !== e.pointerId) return;
+    clearPressTimer();
     pressRef.current = null;
     const drag = dragRef.current;
     dragRef.current = null;
@@ -366,7 +415,7 @@ export function BattleScreen({
     } catch {
       /* ignore */
     }
-    if (cancelled) return;
+    if (cancelled || p.long) return; // a long press only opens details
     const b = battleRef.current;
     const d = directorRef.current;
     if (p.dragging) {
@@ -383,6 +432,18 @@ export function BattleScreen({
       if (!gate('tap')) return;
       if (b.cycleTarget(p.uid)) d.onAction('tap', b);
     }
+  };
+
+  /** Desktop: right-click a cat for details. (Also swallows the mobile long-press menu.) */
+  const onContextMenu = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    if (pressRef.current) return; // touch long-press already handled by the timer
+    const r = rendererRef.current;
+    if (!r) return;
+    const w = r.toWorld(e.clientX, e.clientY);
+    const tileId = tileAtWorld(w.x, w.y);
+    const cat = tileId ? battleRef.current.catAt(tileId) : undefined;
+    if (cat) openInspect(cat.uid);
   };
 
   // ---- Render ----
@@ -433,7 +494,7 @@ export function BattleScreen({
           onPointerMove={onPointerMove}
           onPointerUp={(e) => endPress(e, false)}
           onPointerCancel={(e) => endPress(e, true)}
-          onContextMenu={(e) => e.preventDefault()}
+          onContextMenu={onContextMenu}
         />
         {banner && !step && (
           <div key={banner.key} className={`wave-banner ${banner.tone}`}>
@@ -447,6 +508,16 @@ export function BattleScreen({
               {skillPop.isNew
                 ? t('battle.newSkill', { name: t(`skill.${skillPop.id}.name`) })
                 : t('battle.skillUp', { name: t(`skill.${skillPop.id}.name`), n: skillPop.level })}
+            </span>
+            <span className="skill-pop-for">
+              {SKILLS[skillPop.id].cat ? (
+                <>
+                  <CatPreview type={SKILLS[skillPop.id].cat!} loadout={save.equipped} size={30} animate={false} />
+                  {t('battle.skillFor', { cat: t(`cat.${SKILLS[skillPop.id].cat}.name`) })}
+                </>
+              ) : (
+                t('battle.allCats')
+              )}
             </span>
           </div>
         )}
@@ -468,7 +539,8 @@ export function BattleScreen({
             hud.skills.map(([id, lv]) => (
               <button
                 key={id}
-                className={`skill-chip ${skillPop?.id === id ? 'flash' : ''}`}
+                className={`skill-chip ${skillPop?.id === id ? 'flash' : ''} ${SKILLS[id].cat ? 'cat' : ''}`}
+                style={SKILLS[id].cat ? { borderColor: CATS[SKILLS[id].cat!].palette.outline } : undefined}
                 onClick={() => toast(`${SKILLS[id].icon} ${t(`skill.${id}.name`)} Lv.${lv}: ${t(`skill.${id}.desc`, skillParams(id, lv))}`)}
               >
                 <span>{SKILLS[id].icon}</span>
@@ -526,6 +598,15 @@ export function BattleScreen({
           buttons={{ summon: summonRef, skill: skillRef }}
           loadout={save.equipped}
           onContinue={() => directorRef.current.complete(battleRef.current)}
+        />
+      )}
+
+      {inspectUid !== null && battleRef.current.catByUid(inspectUid) && (
+        <CatInfoPanel
+          cat={battleRef.current.catByUid(inspectUid)!}
+          battle={battleRef.current}
+          loadout={save.equipped}
+          onClose={() => setInspectUid(null)}
         />
       )}
 

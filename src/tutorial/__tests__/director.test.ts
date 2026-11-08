@@ -1,9 +1,9 @@
 import { CHAPTERS } from '../../config/chapters';
 import { MAPS } from '../../config/maps';
 import { Battle } from '../../game/battle';
-import { TutorialDirector, type SeenStore } from '../director';
+import { TutorialDirector, type ActiveStep, type SeenStore } from '../director';
 
-const map = MAPS.forest;
+const map = MAPS[CHAPTERS[0].mapId];
 const stage = (n: number) => CHAPTERS[0].stages[n - 1];
 
 function memSeen(initial: string[] = []): SeenStore & { ids: Set<string> } {
@@ -18,152 +18,167 @@ function frame(d: TutorialDirector, b: Battle, dt = 0.1) {
   return s;
 }
 
+/** Perform whatever the active lesson asks for, the way a player would. */
+function perform(s: ActiveStep, d: TutorialDirector, b: Battle) {
+  if (!s.expect) return d.complete(b);
+  if (s.expect === 'summon') {
+    b.summon();
+    return d.onAction('summon', b);
+  }
+  if (s.expect === 'tap') {
+    b.cycleTarget(b.cats[0].uid);
+    return d.onAction('tap', b);
+  }
+  const p = s.pointer as { from: { uid: number }; to: { uid?: number; id?: string } };
+  const to = p.to.id ?? b.catByUid(p.to.uid!)!.tileId;
+  const r = b.dropCat(p.from.uid, to);
+  expect(r.result).toBe(s.expect);
+  d.onAction(r.result as 'moved', b);
+}
+
+const STAGE1_LESSONS = [
+  'tut:welcome',
+  'tut:summon',
+  'tut:autoAttack',
+  'tut:target',
+  'tut:modes',
+  'tut:summonMore',
+  'tut:move',
+  'tut:swap',
+  'tut:merge',
+  'tut:mergeInfo',
+  'tut:ready',
+];
+
 describe('tutorial director', () => {
-  it('stage 1: welcome → summon (interactive) → cat intro → lessons, battle frozen meanwhile', () => {
+  it('stage 1 teaches summon, targeting, move, swap and merge — in order, one at a time', () => {
     const seen = memSeen();
     const b = new Battle(stage(1), map, 3);
     const d = new TutorialDirector('1-1', seen);
+    const shown: string[] = [];
+    for (let i = 0; i < 200; i++) {
+      const s = frame(d, b);
+      if (!s) break;
+      expect(b.frozen).toBe(true);
+      expect(b.time).toBe(0); // nothing advances during lessons
+      if (shown[shown.length - 1] !== s.id) shown.push(s.id);
+      perform(s, d, b);
+    }
+    const lessons = shown.filter((id) => id.startsWith('tut:'));
+    expect(lessons).toEqual(STAGE1_LESSONS);
+    // Cat intros happen exactly once per species met.
+    const intros = shown.filter((id) => id.startsWith('cat:'));
+    expect(new Set(intros).size).toBe(intros.length);
+    expect(intros.length).toBeGreaterThanOrEqual(1);
+    // After the lessons the battle runs.
+    expect(b.frozen).toBe(false);
+    frame(d, b);
+    expect(b.time).toBeGreaterThan(0);
+    // The merge lesson really merged something.
+    expect(b.stats.merges).toBe(1);
+    expect(b.cats.some((c) => c.level === 2)).toBe(true);
+  });
 
-    let s = frame(d, b);
-    expect(s?.id).toBe('tut:welcome');
-    expect(b.frozen).toBe(true);
-    expect(d.allows('summon')).toBe(false); // passive: only Continue
-    b.update(10);
-    expect(b.time).toBe(0); // frozen: nothing advanced
-    d.complete(b);
-
-    s = frame(d, b);
-    expect(s?.id).toBe('tut:summon');
-    expect(s?.expect).toBe('summon');
-    expect(d.allows('summon')).toBe(true);
+  it('interactive lessons reject the wrong action', () => {
+    const seen = memSeen(['tut:welcome', 'tut:summon', 'tut:autoAttack', 'tut:target', 'tut:modes', 'tut:summonMore', 'cat:kitten', 'cat:tabby']);
+    const b = new Battle(stage(1), map, 4);
+    b.fish = 99;
+    b.summon();
+    b.summon();
+    b.summon();
+    const d = new TutorialDirector('1-1', seen);
+    const s = d.update(b)!;
+    expect(s.id).toBe('tut:move');
+    expect(d.allows('moved')).toBe(true);
+    expect(d.allows('swapped')).toBe(false);
+    expect(d.allows('merged')).toBe(false);
     expect(d.allows('tap')).toBe(false);
-    expect(b.time).toBe(0);
+    expect(d.allows('summon')).toBe(false);
+  });
+
+  it('"summon more" waits until three cats are on the board', () => {
+    const seen = memSeen(['tut:welcome', 'tut:summon', 'tut:autoAttack', 'tut:target', 'tut:modes', 'cat:kitten', 'cat:tabby']);
+    const b = new Battle(stage(1), map, 5);
+    b.summon();
+    const d = new TutorialDirector('1-1', seen);
+    expect(d.update(b)?.id).toBe('tut:summonMore');
+    expect(b.summon().ok).toBe(true);
+    d.onAction('summon', b);
+    expect(d.active?.id).toBe('tut:summonMore'); // only 2 cats
     expect(b.summon().ok).toBe(true);
     d.onAction('summon', b);
     expect(d.active).toBeNull();
-
-    // First summon of a species → its introduction, once.
-    s = frame(d, b);
-    expect(s?.panel.kind).toBe('cat');
-    const catId = s!.id;
-    expect(catId).toMatch(/^cat:(kitten|tabby)$/);
-    d.complete(b);
-    expect(seen.has(catId)).toBe(true);
-
-    s = frame(d, b);
-    expect(s?.id).toBe('tut:autoAttack');
-    d.complete(b);
-
-    s = frame(d, b);
-    expect(s?.id).toBe('tut:target');
-    expect(s?.pointer?.type).toBe('tap');
-    // wrong action is rejected; tapping completes it
-    expect(d.allows('moved')).toBe(false);
-    b.cycleTarget(b.cats[0].uid);
-    d.onAction('tap', b);
-
-    s = frame(d, b);
-    expect(s?.id).toBe('tut:modes');
-    d.complete(b);
-    s = frame(d, b);
-    expect(s?.id).toBe('tut:ready');
-    d.complete(b);
-
-    // Lessons done → battle runs.
-    s = frame(d, b);
-    expect(s).toBeNull();
-    expect(b.frozen).toBe(false);
-    expect(b.time).toBeGreaterThan(0);
   });
 
-  it('the first mouse gets an introduction, and the battle pauses for it', () => {
+  it('swap and merge lessons create the cats they need instead of relying on luck', () => {
+    const seen = memSeen([...STAGE1_LESSONS.slice(0, 7), 'cat:kitten', 'cat:tabby']);
+    const b = new Battle(stage(1), map, 6);
+    b.placeCat('kitten', 1, b.emptyTiles()[0].id); // only one cat: no swap or merge possible
+    const d = new TutorialDirector('1-1', seen);
+    let s = d.update(b)!;
+    expect(s.id).toBe('tut:swap');
+    perform(s, d, b);
+    s = d.update(b)!;
+    expect(s.id).toBe('tut:merge');
+    perform(s, d, b);
+    expect(b.cats.some((c) => c.level === 2)).toBe(true);
+  });
+
+  it('a cat placed by a lesson setup is introduced before the lesson', () => {
+    const seen = memSeen([...STAGE1_LESSONS.slice(0, 7), 'cat:kitten']); // never met Tabby
+    const b = new Battle(stage(1), map, 6);
+    b.placeCat('kitten', 1, b.emptyTiles()[0].id);
+    const d = new TutorialDirector('1-1', seen);
+    const s = d.update(b)!;
+    expect(s.id).toBe('cat:tabby');
+    d.complete(b);
+    expect(d.update(b)?.id).toBe('tut:swap');
+  });
+
+  it('stage 2 does not repeat lessons for players who finished stage 1', () => {
+    const seen = memSeen([...STAGE1_LESSONS, 'cat:kitten', 'cat:tabby', 'enemy:normal']);
+    const b = new Battle(stage(2), map, 4);
+    const d = new TutorialDirector('1-2', seen);
+    b.fish = 99;
+    for (let i = 0; i < 5; i++) b.summon();
+    for (let i = 0; i < 300; i++) {
+      expect(frame(d, b)).toBeNull();
+    }
+    expect(b.time).toBeGreaterThan(20);
+  });
+
+  it('returning V1.1 players (stage 1 done, no move lessons yet) get them in stage 2', () => {
     const seen = memSeen(['tut:welcome', 'tut:summon', 'tut:autoAttack', 'tut:target', 'tut:modes', 'tut:ready', 'cat:kitten', 'cat:tabby']);
+    const b = new Battle(stage(2), map, 4);
+    b.fish = 99;
+    b.summon();
+    b.summon();
+    const d = new TutorialDirector('1-2', seen);
+    expect(d.update(b)?.id).toBe('tut:move');
+  });
+
+  it('players who already learned moving skip the new "summon more" warm-up', () => {
+    const seen = memSeen(['tut:welcome', 'tut:summon', 'tut:autoAttack', 'tut:target', 'tut:modes', 'tut:move', 'tut:swap', 'tut:merge', 'tut:mergeInfo', 'cat:kitten', 'cat:tabby']);
+    const b = new Battle(stage(1), map, 4);
+    const d = new TutorialDirector('1-1', seen);
+    expect(d.update(b)?.id).toBe('tut:ready');
+    expect(seen.has('tut:summonMore')).toBe(true);
+  });
+
+  it('the first mouse gets an introduction once it is visible, and the battle pauses for it', () => {
+    const seen = memSeen([...STAGE1_LESSONS, 'cat:kitten', 'cat:tabby']);
     const b = new Battle(stage(1), map, 3);
     const d = new TutorialDirector('1-1', seen);
     let s = null;
     for (let i = 0; i < 500 && !s; i++) s = frame(d, b);
     expect(s?.id).toBe('enemy:normal');
-    expect(s?.focus[0].kind).toBe('foe');
+    expect(b.foes[0].dist).toBeGreaterThanOrEqual(45);
     const dist = b.foes.map((f) => f.dist);
     frame(d, b, 1);
     expect(b.foes.map((f) => f.dist)).toEqual(dist);
     d.complete(b);
     frame(d, b, 1);
     expect(b.foes[0].dist).toBeGreaterThan(dist[0]);
-  });
-
-  it('cat introductions never repeat across stages', () => {
-    const seen = memSeen();
-    const b1 = new Battle(stage(1), map, 3);
-    const d1 = new TutorialDirector('1-1', seen);
-    b1.fish = 999;
-    // Clear everything stage 1 shows, summoning plenty of cats.
-    for (let i = 0; i < 400; i++) {
-      const s = d1.update(b1);
-      if (s && !s.expect) d1.complete(b1);
-      else if (s?.expect === 'summon') {
-        b1.summon();
-        d1.onAction('summon', b1);
-      } else if (s?.expect === 'tap') {
-        b1.cycleTarget(b1.cats[0].uid);
-        d1.onAction('tap', b1);
-      } else if (b1.emptyTiles().length) b1.summon();
-      if (b1.running) b1.update(0.1);
-    }
-    expect(seen.has('cat:kitten')).toBe(true);
-    expect(seen.has('cat:tabby')).toBe(true);
-
-    // Stage 2 starts with kittens and a tabby: no cat intros, straight to the move lesson.
-    const b2 = new Battle(stage(2), map, 4);
-    const d2 = new TutorialDirector('1-2', seen);
-    const s = d2.update(b2);
-    expect(s?.id).toBe('tut:move');
-  });
-
-  it('stage 2: move, swap and merge lessons require those exact actions', () => {
-    const seen = memSeen(['cat:kitten', 'cat:tabby']);
-    const b = new Battle(stage(2), map, 4);
-    const d = new TutorialDirector('1-2', seen);
-
-    let s = d.update(b)!;
-    expect(s.id).toBe('tut:move');
-    expect(s.pointer?.type).toBe('drag');
-    expect(d.allows('swapped')).toBe(false);
-    expect(d.allows('merged')).toBe(false);
-    const ptr = s.pointer as { from: { uid: number }; to: { id: string } };
-    expect(b.dropCat(ptr.from.uid, ptr.to.id).result).toBe('moved');
-    d.onAction('moved', b);
-
-    s = d.update(b)!;
-    expect(s.id).toBe('tut:swap');
-    const sp = s.pointer as { from: { uid: number }; to: { uid: number } };
-    const target = b.catByUid(sp.to.uid)!;
-    expect(b.dropCat(sp.from.uid, target.tileId).result).toBe('swapped');
-    d.onAction('swapped', b);
-
-    s = d.update(b)!;
-    expect(s.id).toBe('tut:merge');
-    const mp = s.pointer as { from: { uid: number }; to: { uid: number } };
-    const into = b.catByUid(mp.to.uid)!;
-    expect(b.dropCat(mp.from.uid, into.tileId).result).toBe('merged');
-    expect(into.level).toBe(2);
-    d.onAction('merged', b);
-
-    s = d.update(b)!;
-    expect(s.id).toBe('tut:mergeInfo');
-    d.complete(b);
-    expect(d.update(b)).toBeNull();
-  });
-
-  it('merge lesson guarantees a compatible pair even if the player merged early', () => {
-    const seen = memSeen(['cat:kitten', 'cat:tabby', 'tut:move', 'tut:swap']);
-    const b = new Battle(stage(2), map, 4);
-    const ks = b.cats.filter((c) => c.type === 'kitten');
-    b.dropCat(ks[0].uid, ks[1].tileId); // no Lv.1 pair left
-    const d = new TutorialDirector('1-2', seen);
-    const s = d.update(b)!;
-    expect(s.id).toBe('tut:merge');
-    expect(b.cats.filter((c) => c.type === 'kitten' && c.level === 1).length).toBeGreaterThanOrEqual(2);
   });
 
   it('stage 5 skill lesson waits for wave 2 and pays for the first skill', () => {

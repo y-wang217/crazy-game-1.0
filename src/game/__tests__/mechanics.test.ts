@@ -10,7 +10,7 @@ import { selectTarget, type TargetCandidate } from '../targeting';
 import type { StageDef } from '../types';
 import { parseSave } from '../../save/store';
 
-const map = MAPS.forest;
+const map = MAPS[CHAPTERS[0].mapId];
 const stage = (n: number): StageDef => CHAPTERS[0].stages[n - 1];
 const newBattle = (n = 1, seed = 42) => new Battle(stage(n), map, seed);
 
@@ -45,18 +45,19 @@ describe('damage formula', () => {
 });
 
 describe('cat stats & skills', () => {
-  it('higher levels are stronger but merging is not a free 2x+', () => {
+  it('merging never loses damage, but is not wildly better than two cats', () => {
     const l1 = getCatStats(CATS.kitten, 1);
     const l2 = getCatStats(CATS.kitten, 2);
     const dps1 = l1.damage / l1.interval;
     const dps2 = l2.damage / l2.interval;
-    expect(dps2).toBeGreaterThan(dps1 * 1.5);
-    expect(dps2).toBeLessThan(dps1 * 2.2);
+    expect(dps2).toBeGreaterThanOrEqual(dps1 * 2);
+    expect(dps2).toBeLessThan(dps1 * 2.4);
   });
   it('skill mods apply', () => {
     const mods = computeSkillMods({ sharpClaws: 2, flurryPaws: 1 });
-    expect(getCatStats(CATS.kitten, 1, mods).damage).toBeCloseTo(12 * 1.3);
+    expect(getCatStats(CATS.kitten, 1, mods).damage).toBeCloseTo(CATS.kitten.damage * 1.2);
     expect(getCatStats(CATS.tabby, 1, mods).comboHits).toBe(4);
+    expect(getCatStats(CATS.kitten, 1, mods).comboHits).toBe(1);
   });
   it('white cat slow is capped', () => {
     const mods = computeSkillMods({ dazzlingGrace: 3 });
@@ -258,7 +259,7 @@ describe('skills', () => {
     for (const [id, lv] of Object.entries(b.skills)) {
       const def = SKILLS[id as keyof typeof SKILLS];
       expect(lv).toBeLessThanOrEqual(def.maxLevel);
-      if (def.requiresCat) expect(stage(7).roster).toContain(def.requiresCat);
+      if (def.cat) expect(stage(7).roster).toContain(def.cat);
     }
   });
   it('does not offer skills for cats outside the roster', () => {
@@ -399,14 +400,11 @@ describe('save parsing', () => {
 });
 
 describe('economy', () => {
-  it('early summons cost 1, 2, then 3-4, rising gently', () => {
-    expect(summonCost(0)).toBe(1);
-    expect(summonCost(1)).toBe(2);
-    expect(summonCost(2)).toBeGreaterThanOrEqual(3);
-    expect(summonCost(2)).toBeLessThanOrEqual(4);
-    for (let i = 1; i < 40; i++) {
+  it('summons cost 1, 2, 3, 4, 5 … (+1 each), never jumping', () => {
+    expect([0, 1, 2, 3, 4, 9].map((n) => summonCost(n))).toEqual([1, 2, 3, 4, 5, 10]);
+    for (let i = 1; i < 80; i++) {
       expect(summonCost(i)).toBeGreaterThanOrEqual(summonCost(i - 1));
-      expect(summonCost(i) - summonCost(i - 1)).toBeLessThanOrEqual(4); // no exponential jumps
+      expect(summonCost(i) - summonCost(i - 1)).toBeLessThanOrEqual(1);
     }
   });
   it('summon costs reset for every new stage', () => {
@@ -477,10 +475,9 @@ describe('tutorial freeze', () => {
 });
 
 describe('stage start cats', () => {
-  it('stage 2 starts with two identical kittens and a tabby, free of charge', () => {
+  it('stage 2 is plain practice: no free starting cats', () => {
     const b = newBattle(2);
-    expect(b.cats.filter((c) => c.type === 'kitten' && c.level === 1)).toHaveLength(2);
-    expect(b.cats.some((c) => c.type === 'tabby')).toBe(true);
+    expect(b.cats).toHaveLength(0);
     expect(b.summonCost).toBe(1);
     expect(b.fish).toBe(stage(2).startFish);
   });

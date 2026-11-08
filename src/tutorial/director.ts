@@ -31,6 +31,11 @@ export interface StepView {
   hintKey?: string;
   focus: Focus[];
   pointer?: Pointer;
+  /**
+   * Optional completion condition for interactive steps that need the action
+   * more than once (e.g. "summon two more cats"). Checked every frame.
+   */
+  doneWhen?: (b: Battle) => boolean;
 }
 
 export interface ActiveStep extends StepView {
@@ -61,6 +66,7 @@ export class TutorialDirector {
 
   /** Call once per frame. Returns the active step (if any). */
   update(b: Battle): ActiveStep | null {
+    if (this.active?.doneWhen?.(b)) this.complete(b);
     if (this.active) {
       b.frozen = true;
       return this.active;
@@ -86,7 +92,11 @@ export class TutorialDirector {
 
   /** Report a successful player action. Completes an interactive step that expected it. */
   onAction(action: TutAction, b: Battle): void {
-    if (this.active?.expect === action) this.complete(b);
+    const a = this.active;
+    if (!a || a.expect !== action) return;
+    if (a.doneWhen) {
+      if (a.doneWhen(b)) this.complete(b);
+    } else this.complete(b);
   }
 
   /** Finish the current step (Continue button, or the expected action). */
@@ -119,10 +129,18 @@ export class TutorialDirector {
 
   // ---- Scripted per-stage lessons (run in order; each only once ever) ----
   private findScripted(b: Battle): Omit<ActiveStep, 'key'> | null {
-    const step = this.steps.find((s) => !this.seen.has(s.id));
+    let step = this.steps.find((s) => !this.seen.has(s.id));
+    // Lessons a returning player has effectively covered are marked done silently.
+    while (step?.skip?.(this.seen)) {
+      this.seen.mark(step.id);
+      step = this.steps.find((s) => !this.seen.has(s.id));
+    }
     if (!step) return null;
     if (step.when && !step.when(b, this.seen)) return null;
     step.setup?.(b);
+    // A setup may place a cat the player has never met: introduce it first.
+    const intro = this.findIntro(b);
+    if (intro) return intro;
     const view = step.build(b);
     if (!view) return null;
     return { id: step.id, ...view };

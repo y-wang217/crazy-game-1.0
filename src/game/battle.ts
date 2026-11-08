@@ -2,7 +2,7 @@ import { BALANCE, skillRollCost, summonCost } from '../config/balance';
 import { CATS, TARGET_MODES } from '../config/cats';
 import { NEUTRAL_TUNING, type Tuning } from '../config/debug';
 import { CHESTS, ENEMIES } from '../config/enemies';
-import { SKILLS, SKILL_ORDER } from '../config/skills';
+import { SKILLS, SKILL_ORDER, SKILL_WEIGHTS } from '../config/skills';
 import { applyDamageToPools, computeDamage, computeSkillMods, getCatStats, type SkillMods } from './combat';
 import { PathGeom, cellCenter } from './path';
 import { Rng } from './rng';
@@ -37,6 +37,8 @@ export interface CatUnit {
   attackAt: number;
   modeAt: number;
   movedAt: number;
+  /** Last time a skill upgrade affected this cat (visual). */
+  buffAt: number;
   aimX: number;
   aimY: number;
 }
@@ -298,9 +300,25 @@ export class Battle {
     return SKILL_ORDER.filter((id) => {
       const def = SKILLS[id];
       if ((this.skills[id] ?? 0) >= def.maxLevel) return false;
-      if (def.requiresCat && !this.stage.roster.includes(def.requiresCat)) return false;
+      if (def.cat && !this.stage.roster.includes(def.cat)) return false;
       return true;
     });
+  }
+
+  /** Is this skill useful for the current formation? (general, or its cat is on the board) */
+  isRelevantSkill(id: SkillId): boolean {
+    const cat = SKILLS[id].cat;
+    return !cat || this.cats.some((c) => c.type === cat);
+  }
+
+  /** Offer weight: favour skills for cats on the board, keep some variety. */
+  skillWeight(id: SkillId): number {
+    const cat = SKILLS[id].cat;
+    const W = SKILL_WEIGHTS;
+    if (!cat) return W.general;
+    const n = this.cats.filter((c) => c.type === cat).length;
+    if (n === 0) return W.catInRosterOnly;
+    return W.catOnBoard + W.perExtraCat * Math.min(W.perExtraCatCap, n - 1);
   }
   get currentReward(): RewardOffer | null {
     return this.rewardQueue[0] ?? null;
@@ -366,6 +384,7 @@ export class Battle {
       attackAt: -99,
       modeAt: -99,
       movedAt: -99,
+      buffAt: -99,
       aimX: tile.x + 1,
       aimY: tile.y,
     };
@@ -383,7 +402,7 @@ export class Battle {
     this.spend(cost);
     this.skillRolls++;
     this.stats.skillsBought++;
-    const id = this.rng.pick(pool);
+    const id = pool[this.rng.weighted(pool.map((x) => this.skillWeight(x)))];
     this.grantSkill(id, 1, 'shop');
     return { ok: true, skillId: id };
   }
@@ -416,8 +435,8 @@ export class Battle {
     this.cats = this.cats.filter((c) => c.uid !== cat.uid);
     this.stats.merges++;
     this.burst(target.x, target.y, ['#ffe066', '#ffffff', '#ffb3d1', '#a8e6ff'], 28, 125);
-    this.addEffect({ kind: 'ring', x: target.x, y: target.y, r0: 8, r1: 38, color: '#ffe066', born: this.vtime, dur: 0.5, width: 5 });
-    this.addEffect({ kind: 'beam', x: target.x, y: target.y, born: this.vtime, dur: 0.6, color: '#fff6a0' });
+    this.addEffect({ kind: 'ring', x: target.x, y: target.y, r0: 8, r1: 38, color: '#ffe066', born: this.vtime, dur: 0.38, width: 5 });
+    this.addEffect({ kind: 'beam', x: target.x, y: target.y, born: this.vtime, dur: 0.45, color: '#fff6a0' });
     this.addText(target.x, target.y - 28, `Lv.${target.level}!`, '#ff9f1c', 17, 1.0);
     return preview;
   }
@@ -773,16 +792,24 @@ export class Battle {
     }
   }
 
-  /** Up to 3 distinct skills, weighted by chest tier. */
+  /**
+   * Up to 3 distinct skills. Weighted by chest tier (basic vs improved) and by
+   * relevance to the current formation; the first `chestRelevantMin` picks are
+   * drawn only from relevant skills when enough exist.
+   */
   rollChestChoices(tier: ChestTier): SkillChoice[] {
     const def = CHESTS[tier];
     const pool = this.availableSkills();
     const out: SkillChoice[] = [];
+    const weightOf = (id: SkillId) =>
+      (SKILLS[id].tier === 'basic' ? def.tierWeights.basic : def.tierWeights.improved) * this.skillWeight(id);
     while (out.length < 3 && pool.length) {
-      const weights = pool.map((id) => (SKILLS[id].tier === 'basic' ? def.tierWeights.basic : def.tierWeights.improved));
-      const i = this.rng.weighted(weights);
-      out.push({ skillId: pool[i], levels: def.levelsPerPick });
-      pool.splice(i, 1);
+      const needRelevant = out.length < SKILL_WEIGHTS.chestRelevantMin;
+      const relevant = pool.filter((id) => this.isRelevantSkill(id));
+      const from = needRelevant && relevant.length ? relevant : pool;
+      const pick = from[this.rng.weighted(from.map(weightOf))];
+      out.push({ skillId: pick, levels: def.levelsPerPick });
+      pool.splice(pool.indexOf(pick), 1);
     }
     return out;
   }
@@ -793,9 +820,13 @@ export class Battle {
     this.skills[id] = next;
     this.mods = computeSkillMods(this.skills);
     this.events.push({ type: 'skill', skillId: id, level: next, isNew: cur === 0, source });
-    // Every cat sparkles briefly so the upgrade feels tangible.
+    // The cats that benefit sparkle, so the upgrade feels tangible.
+    const cat = SKILLS[id].cat;
     for (const c of this.cats) {
-      this.addEffect({ kind: 'ring', x: c.x, y: c.y, r0: 4, r1: 24, color: '#c89aff', born: this.vtime, dur: 0.45 });
+      if (cat && c.type !== cat) continue;
+      c.buffAt = this.vtime;
+      this.addEffect({ kind: 'ring', x: c.x, y: c.y, r0: 4, r1: 28, color: cat ? '#ffd84a' : '#c89aff', born: this.vtime, dur: 0.5, width: 4 });
+      this.addEffect({ kind: 'text', x: c.x, y: c.y - 30, text: SKILLS[id].icon + '↑', color: '#ffffff', size: 13, born: this.vtime, dur: 0.9 });
     }
   }
 

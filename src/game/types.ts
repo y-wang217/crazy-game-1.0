@@ -6,14 +6,31 @@ export type TargetMode = 'first' | 'nearest' | 'strongest' | 'weakest' | 'treasu
 export type EnemyId = 'normal' | 'fast' | 'armored' | 'shielded' | 'boss';
 export type ChestTier = 'bronze' | 'silver' | 'gold';
 export type SkillId =
+  // general
   | 'sharpClaws'
   | 'catnipRush'
-  | 'keenEyes'
-  | 'bellySlam'
-  | 'flurryPaws'
   | 'armorBreak'
+  | 'fishyFortune'
+  // kitten
+  | 'bravePaws'
+  | 'explorerEyes'
+  | 'zoomies'
+  // tabby
+  | 'flurryPaws'
+  | 'quickJabs'
+  | 'championPunch'
+  // orange
+  | 'bigBelly'
+  | 'bellySlam'
+  | 'aftershock'
+  // black
+  | 'steadyAim'
+  | 'deadeye'
+  | 'longScope'
+  // white
   | 'dazzlingGrace'
-  | 'fishyFortune';
+  | 'lingeringCharm'
+  | 'radiantBeauty';
 
 export interface CatPalette {
   body: string;
@@ -80,14 +97,29 @@ export interface ChestDef {
   radius: number;
 }
 
+/** Per-level skill effect (fractions are additive per level, e.g. dmg 0.25 = +25%/level). */
+export interface SkillEffect {
+  dmg?: number;
+  speed?: number;
+  range?: number;
+  combo?: number;
+  splash?: number;
+  splashRatio?: number;
+  slow?: number;
+  slowDur?: number;
+  armor?: number;
+  fish?: number;
+}
+
 export interface SkillDef {
   id: SkillId;
-  name: string;
   icon: string;
   tier: 'basic' | 'improved';
   maxLevel: number;
-  /** Only offered if this cat is in the stage roster. */
-  requiresCat?: CatId;
+  /** Effect per level. */
+  per: SkillEffect;
+  /** If set, only this cat type benefits (and it is only offered if the cat is in the roster). */
+  cat?: CatId;
 }
 
 export interface TileDef {

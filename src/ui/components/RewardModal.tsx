@@ -4,7 +4,9 @@ import { SKILLS, skillParams } from '../../config/skills';
 import { t, useLang } from '../../i18n';
 import type { RewardOffer } from '../../game/battle';
 import type { SkillId } from '../../game/types';
+import { CatPreview } from './CatPreview';
 import { CoinIcon } from './Icons';
+import { useSave } from '../../save/store';
 
 /** Chest-opening animation followed by a 3-choice skill pick. Combat is paused meanwhile. */
 export function RewardModal({
@@ -17,6 +19,7 @@ export function RewardModal({
   onChoose: (i: number) => void;
 }) {
   useLang();
+  const save = useSave();
   const [phase, setPhase] = useState<'opening' | 'choose'>('opening');
   const [picked, setPicked] = useState(false);
 
@@ -68,6 +71,10 @@ export function RewardModal({
                   <span className="reward-icon">{def.icon}</span>
                   <span className="reward-name">{t(`skill.${c.skillId}.name`)}</span>
                   <span className="reward-level">{cur === 0 ? t('reward.new') : t('reward.levelUp', { a: cur, b: next })}</span>
+                  <span className={`reward-for ${def.cat ? 'cat' : ''}`}>
+                    {def.cat && <CatPreview type={def.cat} loadout={save.equipped} size={24} animate={false} />}
+                    {def.cat ? t('battle.skillFor', { cat: t(`cat.${def.cat}.name`) }) : t('battle.allCats')}
+                  </span>
                   <span className="reward-desc">{t(`skill.${c.skillId}.desc`, skillParams(c.skillId, next))}</span>
                   {c.levels > 1 && <span className="reward-bonus">{t('reward.bonus', { n: c.levels })}</span>}
                 </button>

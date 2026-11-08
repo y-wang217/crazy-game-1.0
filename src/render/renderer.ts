@@ -264,14 +264,16 @@ export class Renderer {
     const mergeAge = t - cat.mergeAt;
     const moveAge = t - cat.movedAt;
     let s = def.scale * extraScale;
-    if (spawnAge < 0.45) s *= easeOutBack(spawnAge / 0.45);
+    if (spawnAge < 0.3) s *= easeOutBack(spawnAge / 0.3);
     if (moveAge < 0.25) s *= 1 + 0.12 * Math.sin((moveAge / 0.25) * Math.PI);
-    if (mergeAge < 0.5) s *= 1 + 0.3 * Math.sin((mergeAge / 0.5) * Math.PI);
+    if (mergeAge < 0.35) s *= 1 + 0.32 * Math.sin((mergeAge / 0.35) * Math.PI);
+    const buffAge = t - cat.buffAt;
+    if (buffAge < 0.4) s *= 1 + 0.12 * Math.sin((buffAge / 0.4) * Math.PI);
 
     ctx.save();
     ctx.translate(x, y);
-    if (mergeAge < 0.6) {
-      ctx.globalAlpha *= 1 - mergeAge / 0.6;
+    if (mergeAge < 0.45) {
+      ctx.globalAlpha *= 1 - mergeAge / 0.45;
       const g = ctx.createRadialGradient(0, 0, 2, 0, 0, 30);
       g.addColorStop(0, 'rgba(255,240,140,0.9)');
       g.addColorStop(1, 'rgba(255,240,140,0)');
@@ -648,7 +650,8 @@ function paintBackground(ctx: CanvasRenderingContext2D, map: MapDef, battle: Bat
   ctx.beginPath();
   ctx.ellipse(ex - 6, start.y, 10, 15, 0, -Math.PI / 2, Math.PI / 2);
   ctx.fill();
-  // little sign
+  // little sign (only where there is room above the road)
+  if (start.y > 45) {
   ctx.fillStyle = '#b08050';
   ctx.fillRect(14, start.y - 34, 3, 14);
   ctx.beginPath();
@@ -659,6 +662,7 @@ function paintBackground(ctx: CanvasRenderingContext2D, map: MapDef, battle: Bat
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText('MICE', 17, start.y - 35.5);
+  }
 
   // Cat house (base)
   const b = cellCenter(map, bc, br);

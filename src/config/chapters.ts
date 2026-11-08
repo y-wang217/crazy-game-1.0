@@ -50,16 +50,16 @@ function buildWaves(p: WavePlan): WaveDef[] {
   return out;
 }
 
-// ---- Placement tile sets (ids are "col-row", see maps.ts) ----
-const A_CORE = ['3-2', '4-2', '3-3', '4-3'];
-const B_CORE = ['2-5', '3-5', '4-5', '2-6', '3-6', '4-6'];
+// ---- Placement tile sets (ids are "col-row" on the compact map, see maps.ts) ----
+// The core eight tiles sit between the road passes, so each covers two stretches of road.
+const CORE = ['1-1', '2-1', '1-2', '2-2', '2-4', '3-4', '2-5', '3-5'];
 
 const STAGES: StageDef[] = [
   {
     id: '1-1',
     number: 1,
     roster: ['kitten', 'tabby'],
-    tiles: [...A_CORE, ...B_CORE],
+    tiles: [...CORE],
     startFish: 12,
     baseHp: 10,
     hpScale: 1,
@@ -71,17 +71,11 @@ const STAGES: StageDef[] = [
     id: '1-2',
     number: 2,
     roster: ['kitten', 'tabby'],
-    tiles: [...A_CORE, ...B_CORE, '5-5', '5-6'],
+    tiles: [...CORE, '4-1', '4-2'],
     startFish: 12,
     baseHp: 10,
-    hpScale: 1.2,
+    hpScale: 1.4,
     waveHpGrowth: 0.23,
-    // Tutorial setup: two identical kittens to merge and a tabby to swap with.
-    startCats: [
-      { type: 'kitten', level: 1, tile: '3-2' },
-      { type: 'tabby', level: 1, tile: '4-5' },
-      { type: 'kitten', level: 1, tile: '3-5' },
-    ],
     waves: buildWaves({ waves: 9, count: 7, growth: 1.3, interval: [1.4, 0.95], mix: () => ({ normal: 1 }) }),
     rewards: { firstClear: 35, replay: 12 },
   },
@@ -89,11 +83,11 @@ const STAGES: StageDef[] = [
     id: '1-3',
     number: 3,
     roster: ['kitten', 'tabby', 'orange'],
-    tiles: [...A_CORE, ...B_CORE, '5-5', '5-6', '2-2'],
+    tiles: [...CORE, '4-1', '4-2', '0-4', '0-5'],
     startFish: 12,
     baseHp: 10,
-    hpScale: 1.3,
-    waveHpGrowth: 0.22,
+    hpScale: 1.6,
+    waveHpGrowth: 0.25,
     waves: buildWaves({
       waves: 10,
       count: 8,
@@ -108,10 +102,10 @@ const STAGES: StageDef[] = [
     id: '1-4',
     number: 4,
     roster: ['kitten', 'tabby', 'orange'],
-    tiles: ['2-2', '3-2', '4-2', '3-3', '4-3', '2-5', '3-5', '4-5', '5-5', '3-6', '5-6', '2-8', '3-8', '4-8'],
+    tiles: [...CORE, '4-2', '0-4', '1-7', '2-7'],
     startFish: 12,
     baseHp: 10,
-    hpScale: 1.4,
+    hpScale: 1.75,
     waveHpGrowth: 0.185,
     waves: buildWaves({
       waves: 14,
@@ -127,10 +121,10 @@ const STAGES: StageDef[] = [
     id: '1-5',
     number: 5,
     roster: ['kitten', 'tabby', 'orange', 'black'],
-    tiles: ['2-2', '3-2', '4-2', '2-3', '3-3', '4-3', '2-5', '3-5', '4-5', '5-5', '3-6', '5-6', '2-8', '3-8', '4-8'],
+    tiles: [...CORE, '4-1', '4-2', '0-4', '1-7', '2-7'],
     startFish: 12,
     baseHp: 10,
-    hpScale: 1.45,
+    hpScale: 1.85,
     waveHpGrowth: 0.18,
     waves: buildWaves({
       waves: 14,
@@ -146,10 +140,10 @@ const STAGES: StageDef[] = [
     id: '1-6',
     number: 6,
     roster: ['kitten', 'tabby', 'orange', 'black'],
-    tiles: [...A_CORE, '2-2', '2-3', ...B_CORE, '5-5', '5-6', '2-8', '3-8', '4-8'],
+    tiles: [...CORE, '4-1', '4-2', '0-4', '0-5', '1-7', '2-7'],
     startFish: 12,
     baseHp: 10,
-    hpScale: 1.55,
+    hpScale: 1.95,
     waveHpGrowth: 0.1,
     waves: buildWaves({
       waves: 15,
@@ -165,10 +159,10 @@ const STAGES: StageDef[] = [
     id: '1-7',
     number: 7,
     roster: ['kitten', 'tabby', 'orange', 'black', 'white'],
-    tiles: [...A_CORE, '2-2', '2-3', ...B_CORE, '5-5', '5-6', '2-8', '3-8', '4-8', '3-9'],
+    tiles: [...CORE, '4-1', '4-2', '0-4', '0-5', '1-7', '2-7', '4-6'],
     startFish: 12,
     baseHp: 10,
-    hpScale: 1.6,
+    hpScale: 1.7,
     waveHpGrowth: 0.04,
     waves: buildWaves({
       waves: 17,
@@ -184,7 +178,7 @@ const STAGES: StageDef[] = [
     id: '1-8',
     number: 8,
     roster: ['kitten', 'tabby', 'orange', 'black', 'white'],
-    tiles: [...A_CORE, '2-2', '2-3', '1-2', ...B_CORE, '5-5', '5-6', '0-5', '2-8', '3-8', '4-8', '3-9'],
+    tiles: [...CORE, '4-1', '4-2', '0-4', '0-5', '1-7', '2-7', '4-6', '0-2'],
     startFish: 12,
     baseHp: 10,
     hpScale: 1.7,
@@ -203,10 +197,10 @@ const STAGES: StageDef[] = [
     id: '1-9',
     number: 9,
     roster: ['kitten', 'tabby', 'orange', 'black', 'white'],
-    tiles: [...A_CORE, '2-2', '2-3', '1-2', '1-3', ...B_CORE, '5-5', '5-6', '0-5', '2-8', '3-8', '4-8', '2-9', '3-9'],
+    tiles: [...CORE, '4-1', '4-2', '0-4', '0-5', '1-7', '2-7', '4-6', '0-2', '4-4'],
     startFish: 12,
     baseHp: 10,
-    hpScale: 1.75,
+    hpScale: 1.55,
     waveHpGrowth: 0.04,
     waves: buildWaves({
       waves: 18,
@@ -222,14 +216,10 @@ const STAGES: StageDef[] = [
     id: '1-10',
     number: 10,
     roster: ['kitten', 'tabby', 'orange', 'black', 'white'],
-    tiles: [
-      ...A_CORE, '2-2', '2-3', '1-2', '1-3', '6-2',
-      ...B_CORE, '5-5', '5-6', '0-5', '0-6',
-      '2-8', '3-8', '4-8', '2-9', '3-9',
-    ],
+    tiles: [...CORE, '4-1', '4-2', '0-4', '0-5', '1-7', '2-7', '4-6', '0-2', '4-4', '0-1', '4-7'],
     startFish: 12,
     baseHp: 10,
-    hpScale: 1.8,
+    hpScale: 1.6,
     waveHpGrowth: 0.035,
     isBoss: true,
     waves: buildWaves({
@@ -250,7 +240,7 @@ export const CHAPTERS: ChapterDef[] = [
     id: 'ch1',
     number: 1,
     name: 'Beginner Forest',
-    mapId: 'forest',
+    mapId: 'forest_compact',
     stages: STAGES,
   },
 ];

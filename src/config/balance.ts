@@ -5,13 +5,12 @@ export const BALANCE = {
   // ---- Economy (dried fish, in-battle) ----
   summon: {
     /**
-     * Cost of the 1st, 2nd, 3rd… summon in a stage. Resets every stage.
-     * Cheap early summons let you build a formation quickly; it then climbs gently.
+     * Summon cost = base + perSummon × (summons so far this stage), capped at maxCost.
+     * Default: 1, 2, 3, 4, 5 … (+1 per summon). Resets every stage.
      */
-    costTable: [1, 2, 3, 5, 7, 9, 11, 13, 15, 18, 21, 24, 27, 30],
-    /** After the table runs out, each further summon costs this much more. */
-    stepAfterTable: 3,
-    maxCost: 60,
+    base: 1,
+    perSummon: 1,
+    maxCost: 40,
   },
   skillRoll: {
     baseCost: 20,
@@ -25,17 +24,17 @@ export const BALANCE = {
    */
   rewardScaleExponent: 0.3,
   /** Dried fish bonus when a wave is fully cleared. */
-  waveClearBonus: 4,
+  waveClearBonus: 3,
   /** Dried fish given instead of a chest reward when every skill is maxed. */
   maxedChestFish: 15,
 
   // ---- Waves ----
   /** Seconds before wave 1 starts (time to summon). */
-  firstWaveDelay: 6,
+  firstWaveDelay: 4,
   /** Max seconds between end of a wave's spawns and the next wave (skipped early if field is clear). */
-  waveGap: 7,
+  waveGap: 4.5,
   /** Short breather when the field is cleared before the next wave. */
-  clearedWaveGap: 2.5,
+  clearedWaveGap: 1.2,
   /**
    * Enemy HP ramp inside a stage: toughness = hpScale × (1 + growth × waveIndex^curve).
    * curve > 1 keeps early waves gentle and makes late waves demand a stronger formation.
@@ -53,8 +52,11 @@ export const BALANCE = {
   // ---- Cat levels ----
   levels: {
     maxLevel: 5,
-    /** Damage multiplier per level (index 0 = Lv.1). */
-    damageMult: [1, 1.8, 3.2, 5.6, 9.6],
+    /**
+     * Damage multiplier per level (index 0 = Lv.1). ×2 per merge means merging never
+     * loses damage (plus the speed/range bonus and a freed tile).
+     */
+    damageMult: [1, 2, 4, 8, 16],
     /** Extra range per level above 1 (fraction). */
     rangePerLevel: 0.06,
     /** Extra attack speed per level above 1 (fraction). */
@@ -84,9 +86,8 @@ export const BALANCE = {
 /** Cost of the next summon given how many cats were summoned this stage. */
 export function summonCost(summonsSoFar: number, mult = 1): number {
   const s = BALANCE.summon;
-  const t = s.costTable;
-  const raw = summonsSoFar < t.length ? t[summonsSoFar] : t[t.length - 1] + s.stepAfterTable * (summonsSoFar - t.length + 1);
-  return Math.max(1, Math.round(Math.min(s.maxCost, raw) * mult));
+  const raw = Math.min(s.maxCost, s.base + s.perSummon * summonsSoFar);
+  return Math.max(1, Math.round(raw * mult));
 }
 
 export function skillRollCost(rollsSoFar: number): number {

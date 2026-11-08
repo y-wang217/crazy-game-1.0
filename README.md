@@ -2,7 +2,7 @@
 
 A cute, mobile-first, portrait tower-defense game. Summon random cats, drag them around, swap and merge them, set per-cat targeting, grab skills and crack open treasure chests to protect the fish from forest mice.
 
-**Current version: V1.1.** Chapter 1 "Beginner Forest" has 10 stages, 5 cats, 5 enemy types (including a boss), bronze/silver/gold chests, 8 skills, two currencies and a cosmetic shop. The game is fully playable in English and Traditional Chinese, with a step-by-step tutorial and a developer balance panel.
+**Current version: V1.2.** Chapter 1 "Beginner Forest" has 10 stages on a compact board, 5 cats, 5 enemy types (including a boss), bronze/silver/gold chests, 19 skills (mostly cat-specific), two currencies and a cosmetic shop. The game is fully playable in English and Traditional Chinese, with a step-by-step tutorial and a developer balance panel.
 
 ## Run it
 
@@ -27,10 +27,27 @@ npm run build        # type-check + production build into dist/
 | Swap two cats (free, unlimited) | Drag it onto a different cat (different type *or* level) |
 | Merge (same type + same level) | Drag it onto the identical cat |
 | Cycle targeting: First → Nearest → Strongest → Weakest → Treasure | Tap the cat |
+| Cat details (effective stats, active skills); pauses the battle | Long-press the cat (~0.5 s) · desktop: right-click · close with ✕, backdrop or Esc |
 | Pick a chest reward (combat is paused) | Tap one of the 3 cards |
 | Pause / speed | Ⅱ and 1×/2× in the top bar |
 
 While dragging, tiles are tinted to show what the drop will do: green = move, gold = merge, blue = swap. A press only becomes a drag after the pointer moves 10 px, so a tap never moves a cat by accident.
+
+## What's new in V1.2
+
+- **One tutorial battle.** Stage 1 now teaches every basic control in sequence: summon, auto-attack, tap to retarget, summon a small team, move, swap and merge. The swap and merge lessons place any cats they need, so they can't get stuck. Stage 2 is pure practice; its lessons only appear for players who finished Stage 1 before V1.2. Cat, enemy and chest introductions still appear only once, ever.
+- **Gentle summon costs:** 1, 2, 3, 4, 5 … (+1 per summon, reset every stage). Lv.1 cats hit about 25% softer, but every merge doubles damage. The loop is now many weak cats → merge and reposition → fewer strong cats → summon again. In the bot runs, summons per stage roughly doubled (15–60) and merges roughly tripled (10–50).
+- **Long-press cat details.** Hold a cat to see its level, effective damage, attack speed, range, DPS, splash/slow stats, targeting mode and active skills, with base values crossed out when an upgrade changed them. Tap and drag behave exactly as before.
+- **Compact beginner map.** Chapter 1 now uses a 5×8 board instead of 7×11, about half the footprint. Cats, tiles, mice and chests render about 40% larger on a phone. It's the same S-route with three passes; the old map is kept for future chapters.
+- **Character skills.** There are 3 skills per cat plus 4 general ones:
+  - **Kitten:** Brave Paws, Explorer Eyes, Zoomies
+  - **Tabby Warrior:** Flurry Paws, Quick Jabs, Champion Punch
+  - **Chubby Orange:** Big Belly, Belly Slam, Aftershock
+  - **Black Cat:** Steady Aim, Deadeye, Long Scope
+  - **Noble White:** Dazzling Grace, Lingering Charm, Radiant Beauty
+
+  Offers favour cats you actually have on the board. At least 2 of every 3 chest choices are useful for your current formation, and chest cards say who each skill is for.
+- **Faster pacing.** Shorter wave gaps (4.5 s, or 1.2 s once the field is clear), a quicker first wave, snappier summon and merge animations. Upgraded cats bounce and show the skill icon, and the skill pop shows which cat it boosts.
 
 ## What's new in V1.1
 
@@ -68,23 +85,24 @@ With debug on, the results screen also shows battle stats: duration, base HP lef
 
 | What | File |
 | --- | --- |
-| Summon cost table, skill cost, wave timing, HP ramp curve, level scaling, armor rule, skill-shop unlock stage | `src/config/balance.ts` |
-| Each stage: waves (`buildWaves` count/growth/interval/mix/chests), `hpScale`, `waveHpGrowth`, tiles, roster, start cats, rewards | `src/config/chapters.ts` |
-| Cat stats | `src/config/cats.ts` |
-| Enemy and chest stats / rewards | `src/config/enemies.ts` |
-| Skill values | `src/config/skills.ts` |
+| **Summon cost** (`summon.base`, `summon.perSummon`, `summon.maxCost`), skill cost, wave timing, HP ramp curve, **level multipliers** (`levels.damageMult`), armor rule, skill-shop unlock stage | `src/config/balance.ts` |
+| Each stage: waves (`buildWaves` count/growth/interval/mix/chests), `hpScale`, `waveHpGrowth`, **unlocked tiles**, roster, rewards; which map the chapter uses (`mapId`) | `src/config/chapters.ts` |
+| **Map dimensions**: `FOREST_COMPACT_MAP` (cols, rows, path waypoints, every possible tile) and the old larger `FOREST_MAP` | `src/config/maps.ts` |
+| **Cat stats** (Lv.1 damage, range, interval, combo, splash, slow) | `src/config/cats.ts` |
+| Enemy and chest stats / rewards / chest skill-tier weights | `src/config/enemies.ts` |
+| **Skills** (per-level effects, max levels) and **skill probabilities** (`SKILL_WEIGHTS`: general vs on-board vs roster-only cats, chest relevance guarantee) | `src/config/skills.ts` |
 | Tutorial lessons per stage | `src/tutorial/steps.ts` |
 | All text (EN / 繁中) | `src/i18n/en.ts`, `src/i18n/zh.ts` |
 
 `npm run sim` plays every stage 10× with a *naive* bot (never moves cats) and a *smart* bot (keeps strong cats on the best tiles). Both always take the first chest option and never change targeting, so a real player should do better. Current results:
 
-| Stage | naive wins | smart wins | avg length |
-| --- | --- | --- | --- |
-| 1 | 10/10 | 10/10 | 1.7 min (+ tutorial) |
-| 2–3 | 9–10/10 | 9–10/10 | 3.3–3.7 min |
-| 4–6 | 8–9/10 | 8–10/10 | 5.5–6.4 min |
-| 7–9 | 4–8/10 | 7–8/10 | 6.0–6.2 min |
-| 10 | 6/10 | 7/10 | 7.7 min (winning runs ≈ 8+) |
+| Stage | naive wins | smart wins | avg length | summons / merges (smart) |
+| --- | --- | --- | --- | --- |
+| 1 | 10/10 | 10/10 | 1.3 min (+ tutorial) | 15 / 10 |
+| 2–3 | 6–10/10 | 10/10 | 2.8–3.3 min | 27–31 / 20–22 |
+| 4–6 | 7–8/10 | 8–10/10 | 4.8–5.6 min | 45–54 / 36–42 |
+| 7–9 | 4–7/10 | 7/10 | 4.8–5.2 min | 40–52 / 30–39 |
+| 10 | 2/10 | 7/10 | 6.8 min | 63 / 50 |
 
 ## Project layout
 

@@ -1,8 +1,9 @@
 import type { CatDef, CatId, TargetMode } from '../game/types';
 
-// Base stats are Lv.1 values. Level scaling lives in balance.ts.
-// Rough Lv.1 single-target DPS: kitten 16, tabby 16.7 (weak vs armor),
-// orange 15 (+splash), black 20 (long range, overkill-prone), white 0 (slow).
+// Base stats are Lv.1 values. Level scaling lives in balance.ts (×2 damage per merge).
+// Lv.1 cats are deliberately modest because summons are cheap; merging is where power comes from.
+// Rough Lv.1 single-target DPS: kitten 12, tabby 13 (weak vs armor),
+// orange 11 (+splash), black 15 (long range, overkill-prone), white 0 (slow).
 export const CATS: Record<CatId, CatDef> = {
   kitten: {
     id: 'kitten',
@@ -11,7 +12,7 @@ export const CATS: Record<CatId, CatDef> = {
     personality: 'Curious, brave and always eager to help.',
     role: 'Balanced all-rounder',
     attack: 'projectile',
-    damage: 12,
+    damage: 9,
     range: 88,
     interval: 0.75,
     projectileSpeed: 380,
@@ -32,7 +33,7 @@ export const CATS: Record<CatId, CatDef> = {
     personality: 'Competitive, confident, always ready to scrap.',
     role: 'Rapid combo striker',
     attack: 'combo',
-    damage: 5,
+    damage: 4,
     comboHits: 3,
     range: 66,
     interval: 0.9,
@@ -53,7 +54,7 @@ export const CATS: Record<CatId, CatDef> = {
     personality: 'Loves food and naps. Hits like a falling sofa.',
     role: 'Slow area slam',
     attack: 'slam',
-    damage: 30,
+    damage: 22,
     splashRadius: 46,
     splashRatio: 0.7,
     range: 72,
@@ -75,7 +76,7 @@ export const CATS: Record<CatId, CatDef> = {
     personality: 'Quiet, patient, and terrifyingly focused.',
     role: 'Long-range sniper',
     attack: 'snipe',
-    damage: 46,
+    damage: 34,
     range: 150,
     interval: 2.3,
     projectileSpeed: 700,

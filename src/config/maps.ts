@@ -47,6 +47,45 @@ export const FOREST_MAP: MapDef = {
   },
 };
 
+/**
+ * Compact Beginner Forest (Chapter 1): 5 x 8 grid, 50px cells (250 x 400 world px).
+ * About half the old footprint, so on a phone every cell, cat and mouse renders
+ * ~40% larger. Same S-route concept with three passes:
+ *   row 0 (left→right), down col 3, row 3 (right→left),
+ *   down col 1, row 6 (left→right), down col 3 into the cat house.
+ */
+export const FOREST_COMPACT_MAP: MapDef = {
+  id: 'forest_compact',
+  name: 'Beginner Forest',
+  cols: 5,
+  rows: 8,
+  cell: 50,
+  path: [
+    [-0.9, 0],
+    [3, 0],
+    [3, 3],
+    [1, 3],
+    [1, 6],
+    [3, 6],
+    [3, 6.75],
+  ],
+  base: [3, 7],
+  tiles: [
+    // Between the 1st and 2nd passes
+    t(0, 1), t(1, 1), t(2, 1), t(4, 1),
+    t(0, 2), t(1, 2), t(2, 2), t(4, 2),
+    t(0, 3), t(4, 3),
+    // Between the 2nd and 3rd passes
+    t(0, 4), t(2, 4), t(3, 4), t(4, 4),
+    t(0, 5), t(2, 5), t(3, 5), t(4, 5),
+    // Beside the final stretch
+    t(0, 6), t(4, 6),
+    t(0, 7), t(1, 7), t(2, 7), t(4, 7),
+  ],
+  theme: FOREST_MAP.theme,
+};
+
 export const MAPS: Record<string, MapDef> = {
   forest: FOREST_MAP,
+  forest_compact: FOREST_COMPACT_MAP,
 };

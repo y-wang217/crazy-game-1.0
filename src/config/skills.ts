@@ -1,111 +1,101 @@
-import type { SkillDef, SkillId } from '../game/types';
+import type { CatId, SkillDef, SkillEffect, SkillId } from '../game/types';
 
-// Numeric effect per level for each skill. Kept here so balancing is one place.
-export const SKILL_VALUES = {
-  sharpClaws: { damagePerLevel: 0.15 },
-  catnipRush: { speedPerLevel: 0.12 },
-  keenEyes: { rangePerLevel: 0.08 },
-  bellySlam: { splashPerLevel: 0.2, damagePerLevel: 0.15 },
-  flurryPaws: { hitsPerLevel: 1 },
-  armorBreak: { armorPerLevel: 2 },
-  dazzlingGrace: { slowPerLevel: 0.08, durationPerLevel: 0.4 },
-  fishyFortune: { fishPerLevel: 0.2 },
-} as const;
+// ---------------------------------------------------------------------------
+// Skills are data: `per` is the effect gained PER LEVEL (additive).
+//   dmg / speed / range / splash / splashRatio / slow / fish → fractions (0.25 = +25%)
+//   combo / armor → flat amounts;  slowDur → seconds
+// Skills with `cat` only affect that cat; skills without it affect every cat.
+// Names & descriptions live in the i18n files (`skill.<id>.name/.desc`).
+// ---------------------------------------------------------------------------
+
+const S = (
+  id: SkillId,
+  icon: string,
+  tier: SkillDef['tier'],
+  maxLevel: number,
+  per: SkillEffect,
+  cat?: CatId,
+): SkillDef => ({ id, icon, tier, maxLevel, per, cat });
 
 export const SKILLS: Record<SkillId, SkillDef> = {
-  sharpClaws: {
-    id: 'sharpClaws',
-    name: 'Sharp Claws',
-    icon: '🗡️',
-    tier: 'improved',
-    maxLevel: 5,
-  },
-  catnipRush: {
-    id: 'catnipRush',
-    name: 'Catnip Rush',
-    icon: '🌿',
-    tier: 'improved',
-    maxLevel: 5,
-  },
-  keenEyes: {
-    id: 'keenEyes',
-    name: 'Keen Eyes',
-    icon: '👀',
-    tier: 'basic',
-    maxLevel: 4,
-  },
-  bellySlam: {
-    id: 'bellySlam',
-    name: 'Belly Slam',
-    icon: '💥',
-    tier: 'improved',
-    maxLevel: 4,
-    requiresCat: 'orange',
-  },
-  flurryPaws: {
-    id: 'flurryPaws',
-    name: 'Flurry Paws',
-    icon: '👊',
-    tier: 'basic',
-    maxLevel: 3,
-    requiresCat: 'tabby',
-  },
-  armorBreak: {
-    id: 'armorBreak',
-    name: 'Armor Break',
-    icon: '🔨',
-    tier: 'improved',
-    maxLevel: 3,
-  },
-  dazzlingGrace: {
-    id: 'dazzlingGrace',
-    name: 'Dazzling Grace',
-    icon: '💖',
-    tier: 'basic',
-    maxLevel: 3,
-    requiresCat: 'white',
-  },
-  fishyFortune: {
-    id: 'fishyFortune',
-    name: 'Fishy Fortune',
-    icon: '🐟',
-    tier: 'basic',
-    maxLevel: 3,
-  },
+  // ---- General (all cats / battle-wide) ----
+  sharpClaws: S('sharpClaws', '🗡️', 'improved', 5, { dmg: 0.1 }),
+  catnipRush: S('catnipRush', '🌿', 'improved', 5, { speed: 0.08 }),
+  armorBreak: S('armorBreak', '🔨', 'improved', 3, { armor: 2 }),
+  fishyFortune: S('fishyFortune', '🐟', 'basic', 3, { fish: 0.2 }),
+
+  // ---- Kitten: balanced attacker ----
+  bravePaws: S('bravePaws', '🐾', 'improved', 4, { dmg: 0.25 }, 'kitten'),
+  explorerEyes: S('explorerEyes', '👀', 'basic', 3, { range: 0.12 }, 'kitten'),
+  zoomies: S('zoomies', '💨', 'basic', 4, { speed: 0.15 }, 'kitten'),
+
+  // ---- Tabby Warrior: combo fighter ----
+  flurryPaws: S('flurryPaws', '👊', 'improved', 3, { combo: 1 }, 'tabby'),
+  quickJabs: S('quickJabs', '⚡', 'basic', 4, { speed: 0.15 }, 'tabby'),
+  championPunch: S('championPunch', '🥊', 'basic', 4, { dmg: 0.22 }, 'tabby'),
+
+  // ---- Chubby Orange: heavy splash ----
+  bigBelly: S('bigBelly', '🌀', 'basic', 4, { splash: 0.2 }, 'orange'),
+  bellySlam: S('bellySlam', '💥', 'improved', 4, { dmg: 0.25 }, 'orange'),
+  aftershock: S('aftershock', '🌊', 'basic', 3, { splashRatio: 0.1 }, 'orange'),
+
+  // ---- Black Cat: sniper ----
+  steadyAim: S('steadyAim', '🎯', 'basic', 4, { speed: 0.15 }, 'black'),
+  deadeye: S('deadeye', '💫', 'improved', 4, { dmg: 0.25 }, 'black'),
+  longScope: S('longScope', '🔍', 'basic', 3, { range: 0.1 }, 'black'),
+
+  // ---- Noble White: distraction support ----
+  dazzlingGrace: S('dazzlingGrace', '💖', 'improved', 3, { slow: 0.07 }, 'white'),
+  lingeringCharm: S('lingeringCharm', '⏳', 'basic', 3, { slowDur: 0.5 }, 'white'),
+  radiantBeauty: S('radiantBeauty', '✨', 'basic', 3, { range: 0.12 }, 'white'),
 };
 
 export const SKILL_ORDER: SkillId[] = [
   'sharpClaws',
   'catnipRush',
-  'keenEyes',
   'armorBreak',
-  'bellySlam',
-  'flurryPaws',
-  'dazzlingGrace',
   'fishyFortune',
+  'bravePaws',
+  'explorerEyes',
+  'zoomies',
+  'flurryPaws',
+  'quickJabs',
+  'championPunch',
+  'bigBelly',
+  'bellySlam',
+  'aftershock',
+  'steadyAim',
+  'deadeye',
+  'longScope',
+  'dazzlingGrace',
+  'lingeringCharm',
+  'radiantBeauty',
 ];
+
+/**
+ * How likely a skill is to be offered (random purchase and chest choices).
+ * Skills for cats you actually have on the board are strongly preferred; skills
+ * for roster cats you don't have yet are rare; general skills sit in between.
+ */
+export const SKILL_WEIGHTS = {
+  general: 1,
+  catOnBoard: 2.5,
+  /** Extra weight per additional cat of that type on the board (capped). */
+  perExtraCat: 0.25,
+  perExtraCatCap: 4,
+  catInRosterOnly: 0.3,
+  /** Chest offers: at least this many choices are general or for cats on the board (when possible). */
+  chestRelevantMin: 2,
+} as const;
 
 const pct = (x: number) => Math.round(x * 100);
 
-/** Numbers for a skill's localized description at a given level (`skill.<id>.desc`). */
+/** Numbers for a skill's localized description at a given level (`skill.<id>.desc` uses {a}). */
 export function skillParams(id: SkillId, level: number): Record<string, number | string> {
-  const V = SKILL_VALUES;
-  switch (id) {
-    case 'sharpClaws':
-      return { a: pct(V.sharpClaws.damagePerLevel * level) };
-    case 'catnipRush':
-      return { a: pct(V.catnipRush.speedPerLevel * level) };
-    case 'keenEyes':
-      return { a: pct(V.keenEyes.rangePerLevel * level) };
-    case 'bellySlam':
-      return { a: pct(V.bellySlam.splashPerLevel * level), b: pct(V.bellySlam.damagePerLevel * level) };
-    case 'flurryPaws':
-      return { a: V.flurryPaws.hitsPerLevel * level };
-    case 'armorBreak':
-      return { a: V.armorBreak.armorPerLevel * level };
-    case 'dazzlingGrace':
-      return { a: pct(V.dazzlingGrace.slowPerLevel * level), b: (V.dazzlingGrace.durationPerLevel * level).toFixed(1) };
-    case 'fishyFortune':
-      return { a: pct(V.fishyFortune.fishPerLevel * level) };
-  }
+  const per = SKILLS[id].per;
+  const [key, v] = Object.entries(per)[0] as [keyof SkillEffect, number];
+  const total = v * level;
+  if (key === 'combo' || key === 'armor') return { a: total };
+  if (key === 'slowDur') return { a: total.toFixed(1) };
+  return { a: pct(total) };
 }
