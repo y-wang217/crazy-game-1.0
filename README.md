@@ -37,6 +37,40 @@ npm run build        # type-check + production build into dist/
 
 While dragging, tiles are tinted to show what the drop will do: green = move, gold = merge, blue = swap. A press only becomes a drag after the pointer moves 10 px, so a tap never moves a cat by accident.
 
+## What's new in V1.6.1 — Android Back gesture safety & battle recovery
+
+Android's edge Back gesture (and refreshes, app switches and closed tabs) used to throw away the battle in progress. There are now three layers of protection. **Recovery is the one that matters**, because no web page can fully block Android's system Back gesture.
+
+1. **Touch handling.**
+   - The board, HUD and controls use `touch-action: none` and `overscroll-behavior: none`, and drags use Pointer Events with pointer capture. So the screen never scrolls, zooms or pull-to-refreshes during a drag, and a system-cancelled gesture (`pointercancel`) just cancels the drag.
+   - Overlays, detail panels, results and menus keep normal vertical scrolling (`pan-y`, contained overscroll).
+   - The board keeps a 14 px gutter at each screen edge, so the outermost cats sit further from the edge Back-gesture zone. It only takes effect when the board fills the width: on a 360–412 px Android phone the outer cats' centres are about 44–52 px from the edge.
+   - System gestures are not intercepted.
+2. **Safe Back.**
+   - A battle adds one guard entry to the browser history. Back opens **「確定離開戰鬥？」 / "Leave Battle?"**, with **繼續遊戲 / Continue Playing** and **返回主頁 / Return Home**, and the battle pauses and is saved.
+   - Continue restores the single guard entry, so the history never grows. A second Back while the sheet is open leaves normally (no trap), and recovery still applies.
+   - `beforeunload` only asks for confirmation if the checkpoint could *not* be saved (storage blocked or full).
+3. **Battle recovery** (`src/save/battleRecovery.ts`, `Battle.snapshot()` / `Battle.restore()`):
+   - **What's saved:** the complete battle state as versioned JSON (about 10–30 KB) in `catdefense.battle.v1`. That covers stage, wave and spawn progress, the between-wave timers, hearts and fish, summon and skill cost progression, and every cat (level, tile, star rank, cooldown, wind-up, combo, ultimate queue, buffs). It also covers mice and chests (HP, shields, position, poison, marks, shred, slow), projectiles in flight, skills, ultimate charge, Mallow's team buff, a pending chest reward, focus target, team, stars, RNG state and game speed. Effects and other animation-only state are not saved.
+   - **When it's saved:** after every player action, at wave and chest events, immediately after chest coins are paid (so an older checkpoint can't pay them twice), every 2 s of combat or prep countdown, and whenever the page is hidden (`visibilitychange`, `pagehide`, `beforeunload`).
+   - **On reopening the game:** **「繼續上次戰鬥？」** offers **繼續上次戰鬥 / Resume Previous Battle** or **放棄戰鬥 / Discard Battle** (with a confirm). A resumed battle comes back **paused** (the Tactical Pause screen, or the menu during preparation) and continues exactly as it would have. A test runs the original and the restored battle side by side for 40 s, with actions, and they stay identical.
+   - **No duplicates:**
+     - Each attempt has a run id. On victory or defeat the checkpoint is deleted and the id goes into a finished-runs ledger (`catdefense.battle.done`, last 40), so an old copy of a won battle is never offered or rewarded again.
+     - Finished, corrupted, outdated or mismatched records are discarded, never misread. A strict validator checks version, stage, waves, cat tiles, unique ids, finite numbers and status.
+     - If the same battle is resumed in a second tab, the first tab stops and says so.
+   - **When the checkpoint is cleared:** only after a completed battle, or a deliberate leave (menu → Stage select / Home, Leave Battle → Return Home, Restart, Discard).
+   - **Browser checks (Chromium with Android device emulation and real CDP touch events, Pixel 7 zh-HK and Galaxy S9+ en):**
+     - Drags and merges in the outermost columns work.
+     - A drag that slides off the edge cancels cleanly.
+     - Vertical swipes on the board, from the very edge and on the controls never scroll the page.
+     - Back opens the sheet, freezes the battle and saves it, and 4 Back/Continue cycles add no history entries.
+     - An app switch pauses and saves.
+     - Refresh, and close-tab → reopen, both restore the exact state: cats, cooldowns, buffs, mice HP, poison, projectiles, skills, cost and speed.
+     - Victory pays once, and a pre-victory copy put back into storage is rejected.
+     - Return Home and Discard leave nothing behind.
+     - The collection screen still scrolls with a finger.
+   - **Not tested on real Android hardware** — please try it on a phone (see the checklist in the release notes).
+
 ## What's new in V1.6 — Combat pacing, Tactical Pause, clearer tutorials
 
 - **Combat is 10% slower.** `BALANCE.speed.baseline` 1.2 → 1.08 (the old 1.2× pace minus 10%). The 0.5× / 0.75× / 1× / 1.5× / 2× options all scale from it. Enemy HP, armor, cat damage, wave counts, composition and bosses are unchanged. Because only the real-time pace changed, sim (game-time) balance is identical. The earlier "10% difficulty reduction" was not applied.
@@ -283,7 +317,7 @@ src/
 
 ## Save data
 
-The save stays under the same localStorage key (`catdefense.save.v1`), and existing V1 saves load unchanged. V1.1 adds a `seen` list of completed tutorials and introductions; `parseSave()` fills it with `[]` for old saves (version 1 → 2). Home → "Replay tutorials" clears only that list. The language is stored separately in `catdefense.lang`, and debug settings in `catdefense.debug`.
+The save stays under the same localStorage key (`catdefense.save.v1`), and existing V1 saves load unchanged. V1.1 adds a `seen` list of completed tutorials and introductions; `parseSave()` fills it with `[]` for old saves (version 1 → 2). Home → "Replay tutorials" clears only that list. The language is stored separately in `catdefense.lang`, and debug settings in `catdefense.debug`. An unfinished battle is checkpointed separately in `catdefense.battle.v1`, with its own version plus `Battle`'s `SNAPSHOT_VERSION`, so a bad battle record can never touch progression. Finished run ids are kept in `catdefense.battle.done`.
 
 ## Deploying to Vercel
 

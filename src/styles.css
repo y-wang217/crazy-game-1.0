@@ -3635,3 +3635,72 @@ h2 {
 .tpause-btn .game-icon path {
   fill: var(--accent);
 }
+
+/* ---------------- Mobile gesture safety (Android Back / pull-to-refresh) ----------------
+   The battle chrome never scrolls or zooms: drags on the board, HUD and controls stay inside
+   the game (Pointer Events + touch-action: none). Overlays, panels and cards are their own
+   scroll containers and keep vertical scrolling (pan-y) with contained overscroll, so a
+   fling at the end of a list never turns into pull-to-refresh or history navigation.
+   CSS cannot block the Android system Back gesture itself — battle recovery covers that. */
+html,
+body {
+  overscroll-behavior: none;
+}
+.battle {
+  overscroll-behavior: none;
+}
+.battle .hud,
+.battle .field,
+.battle .controls {
+  touch-action: none;
+  -webkit-touch-callout: none;
+}
+.battle .field {
+  user-select: none;
+  -webkit-user-select: none;
+}
+.overlay,
+.result-panel,
+.tut-card,
+.screen {
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+}
+.recover-panel {
+  text-align: center;
+}
+.recover-card {
+  background: var(--surface);
+  border-radius: 14px;
+  padding: 10px 12px;
+  box-shadow: 0 3px 0 var(--shadow-ink);
+}
+.recover-stage {
+  font-weight: 800;
+}
+.recover-meta {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 4px;
+  font-size: 0.88rem;
+  color: var(--text-soft);
+  font-weight: 700;
+}
+.recover-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.recover-warn {
+  margin: 0;
+  font-weight: 700;
+  color: var(--danger, #c8463c);
+}
+.recover-overlay {
+  z-index: 50;
+}
+.leave-overlay {
+  z-index: 45;
+}

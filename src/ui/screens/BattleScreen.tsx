@@ -25,6 +25,8 @@ import { CatHead } from '../components/CatPreview';
 import { TutorialOverlay } from '../components/TutorialOverlay';
 import { debugStore, useDebug } from '../debugStore';
 import { feature } from '../../config/features';
+import { computeStars } from '../../game/progression';
+import { newRunId, recovery, RECOVERY_VERSION, type RecoveryRecord } from '../../save/battleRecovery';
 import { loadSpeed, saveSpeed } from '../speedPref';
 
 interface Toast {
@@ -99,13 +101,24 @@ let toastId = 1;
 /** Seen-id of the Chapter 1 → 2 story transition. */
 export const CUTSCENE_ID = 'story:ch1-ch2';
 
+/** Horizontal px kept free on each side of the board (away from edge Back gestures). */
+const EDGE_GUTTER = 14;
+/** Periodic checkpoint while combat (or the prep countdown) is running, in ms. */
+const CHECKPOINT_MS = 2000;
+/** Browser-history guard entries currently owned by battle screens (StrictMode-safe). */
+let guardOwners = 0;
+const isGuard = () => !!(window.history.state as { cdBattleGuard?: boolean } | null)?.cdBattleGuard;
+
 export function BattleScreen({
   stageId,
+  resume,
   onExit,
   onPlay,
   onHome,
 }: {
   stageId: string;
+  /** A saved battle to continue (battle recovery); restored paused. */
+  resume?: RecoveryRecord | null;
   onExit: () => void;
   onPlay: (id: string) => void;
   onHome: () => void;
@@ -125,7 +138,28 @@ export function BattleScreen({
   const summonRef = useRef<HTMLButtonElement>(null);
   const skillRef = useRef<HTMLButtonElement>(null);
   const rendererRef = useRef<Renderer | null>(null);
-  const newBattle = () => {
+  // ---- Battle recovery bookkeeping ----
+  /** This attempt's id (restored battles keep theirs; Restart makes a new one). */
+  const runIdRef = useRef<string>(resume?.runId ?? newRunId());
+  /** This browser tab (if another tab resumes the same run, this one stops). */
+  const tabId = useRef(newRunId()).current;
+  const lastSaveRef = useRef(0);
+  const dirtyRef = useRef(true);
+  const saveOkRef = useRef(true);
+  const staleRef = useRef(false);
+  const [stale, setStale] = useState(false);
+  const restoredRef = useRef(false);
+  /** Resuming a saved battle takes it over: the first checkpoint claims it for this tab. */
+  const claimRef = useRef(!!resume);
+  const newBattle = (fromSave = false) => {
+    if (fromSave && resume) {
+      const r = Battle.restore(stage, map, resume.snapshot, true);
+      if (r) {
+        restoredRef.current = true;
+        return r;
+      }
+      runIdRef.current = newRunId(); // unusable save: start fresh
+    }
     const sv = saveStore.get();
     return new Battle(stage, map, {
       tuning: debugStore.get().enabled ? debugStore.get().tuning : undefined,
@@ -135,11 +169,11 @@ export function BattleScreen({
     });
   };
   const battleRef = useRef<Battle>(null as unknown as Battle);
-  if (!battleRef.current) battleRef.current = newBattle();
+  if (!battleRef.current) battleRef.current = newBattle(true);
   const directorRef = useRef<TutorialDirector>(null as unknown as TutorialDirector);
   if (!directorRef.current) directorRef.current = new TutorialDirector(stage.id, seenStore);
   /** Speed multiplier relative to the baseline (BALANCE.speed.baseline). */
-  const speedRef = useRef<number>(loadSpeed());
+  const speedRef = useRef<number>(resume && BALANCE.speed.options.includes(resume.speed) ? resume.speed : loadSpeed());
   const speedBtnRef = useRef<HTMLButtonElement>(null);
   const startBtnRef = useRef<HTMLButtonElement>(null);
   const tpauseBtnRef = useRef<HTMLButtonElement>(null);
@@ -180,6 +214,48 @@ export function BattleScreen({
     window.setTimeout(() => setToasts((ts) => ts.filter((x) => x.id !== id)), 2000);
   }, []);
 
+  /**
+   * Save the battle so it can be recovered (refresh, Back gesture, closed tab, app switch).
+   * Cheap (~10–30 KB JSON); runs on every player action, wave/chest events, every few seconds
+   * of combat and whenever the page is hidden. Never after the battle has ended.
+   */
+  const checkpoint = useCallback(() => {
+    const b = battleRef.current;
+    if (staleRef.current || b.sandbox || resultLoggedRef.current === b) return;
+    if (b.status === 'victory' || b.status === 'defeat') return;
+    const cur = claimRef.current ? null : recovery.storedOwner();
+    claimRef.current = false;
+    if (cur && cur.runId === runIdRef.current && cur.owner !== tabId) {
+      // Another tab resumed this same battle: stop here so it can't be played (or rewarded) twice.
+      staleRef.current = true;
+      b.pause();
+      setStale(true);
+      return;
+    }
+    dirtyRef.current = false;
+    lastSaveRef.current = performance.now();
+    saveOkRef.current = recovery.save({
+      version: RECOVERY_VERSION,
+      runId: runIdRef.current,
+      owner: tabId,
+      stageId: stage.id,
+      savedAt: Date.now(),
+      speed: speedRef.current,
+      wave: Math.max(0, b.waveIndex + 1),
+      totalWaves: b.totalWaves,
+      baseHp: b.baseHp,
+      maxHp: b.maxBaseHp,
+      preparing: b.preparing,
+      snapshot: b.snapshot(),
+    });
+  }, [stage.id, tabId]);
+  const checkpointRef = useRef(checkpoint);
+  checkpointRef.current = checkpoint;
+  /** Something changed: save on the next frame. */
+  const dirty = () => {
+    dirtyRef.current = true;
+  };
+
   const showStageBanner = useCallback(() => {
     setBanner({ text: t('battle.stageBanner', { id: stage.id, name: t(`stage.${stage.id}`) }), tone: 'stage', key: Date.now() });
   }, [stage.id]);
@@ -192,13 +268,17 @@ export function BattleScreen({
       for (const e of events) {
         switch (e.type) {
           case 'coins':
+            if (staleRef.current) break;
             saveStore.addCoins(e.amount); // chest coins are kept even if the stage is lost
+            // Checkpoint right away: an older save (chest still alive) could otherwise pay twice.
+            checkpointRef.current();
             toast(t('battle.chestCoins', { n: e.amount }), 'good');
             break;
           case 'skill':
             setSkillPop({ id: e.skillId, level: e.level, isNew: e.isNew, key: Date.now() });
             break;
           case 'wave':
+            dirtyRef.current = true;
             setBanner(
               e.wave === e.total
                 ? { text: t('battle.finalWave'), tone: 'final', key: Date.now() }
@@ -230,6 +310,10 @@ export function BattleScreen({
           case 'defeat': {
             if (resultLoggedRef.current === b) break;
             resultLoggedRef.current = b;
+            // The run is over: remember it (so no copy of it can be rewarded again) and drop the checkpoint.
+            const already = staleRef.current || recovery.isFinished(runIdRef.current);
+            recovery.markFinished(runIdRef.current);
+            recovery.clear(runIdRef.current);
             const common = {
               chapterId: chapter.id,
               chapterNumber: chapter.number,
@@ -240,7 +324,9 @@ export function BattleScreen({
               duration: b.time,
             };
             if (e.type === 'victory') {
-              const r = saveStore.completeStage(stage.id, b.baseHp, b.maxBaseHp);
+              const r = already
+                ? { stars: computeStars(b.baseHp, b.maxBaseHp), coins: 0, firstClear: false }
+                : saveStore.completeStage(stage.id, b.baseHp, b.maxBaseHp);
               setResult({
                 ...common,
                 victory: true,
@@ -275,7 +361,9 @@ export function BattleScreen({
     const field = fieldRef.current!;
     const renderer = new Renderer(canvas, map);
     rendererRef.current = renderer;
-    const fit = () => renderer.resize(field.clientWidth, field.clientHeight);
+    // Keep a gutter at the left/right screen edges so no cat has to be grabbed inside the
+    // Android/iOS edge Back-gesture zone (only matters when the board is width-limited).
+    const fit = () => renderer.resize(field.clientWidth - 2 * EDGE_GUTTER, field.clientHeight);
     fit();
     const ro = new ResizeObserver(fit);
     ro.observe(field);
@@ -302,6 +390,8 @@ export function BattleScreen({
       if (import.meta.env.DEV) (window as unknown as { __cd: unknown }).__cd = { battle: b, renderer, director: directorRef.current };
       const ev = b.drainEvents();
       if (ev.length) handleEventsRef.current(ev);
+      if (dirtyRef.current || ((b.running || (b.preparing && b.status === 'playing')) && now - lastSaveRef.current > CHECKPOINT_MS))
+        checkpointRef.current();
       const focusUids = active ? active.focus.flatMap((f) => (f.kind === 'cat' ? [f.uid] : [])) : undefined;
       renderer.draw(b, dragRef.current, loadoutRef.current, { focusUids });
       if (directorRef.current.successCount !== successSeen) {
@@ -324,17 +414,91 @@ export function BattleScreen({
     raf = requestAnimationFrame(frame);
 
     const onVis = () => {
-      // Leaving the app: freeze the battle and show the menu when the player returns.
-      if (document.hidden && battleRef.current.pause()) setMenuOpen(true);
+      // Leaving the app: freeze the battle, save it, and show the menu when the player returns.
+      if (!document.hidden) return;
+      if (battleRef.current.pause()) setMenuOpen(true);
+      checkpointRef.current();
+    };
+    // The page may be discarded after this (tab closed, OS reclaims memory): save now.
+    const onHide = () => checkpointRef.current();
+    // Limited fallback only: ask the browser to confirm leaving if the checkpoint could NOT be
+    // saved (storage blocked/full). Normally recovery makes this prompt unnecessary.
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      checkpointRef.current();
+      const b = battleRef.current;
+      const live = (b.status === 'playing' || b.status === 'paused' || b.status === 'reward') && !b.sandbox;
+      if (live && !saveOkRef.current) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
     };
     document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('pagehide', onHide);
+    window.addEventListener('beforeunload', onBeforeUnload);
     return () => {
       alive = false;
       cancelAnimationFrame(raf);
       ro.disconnect();
       document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('pagehide', onHide);
+      window.removeEventListener('beforeunload', onBeforeUnload);
     };
   }, [map]);
+
+  // A recovered battle: say so once (it starts paused; Resume when ready).
+  useEffect(() => {
+    if (!restoredRef.current) return;
+    restoredRef.current = false; // once (StrictMode runs effects twice in development)
+    toast(t('recover.restored'), 'good');
+  }, [toast]);
+
+  // ---- Back gesture / browser Back: ask before leaving an active battle ----
+  // One guard history entry while the battle screen is open. Back consumes it and opens the
+  // "Leave battle?" sheet; "Continue" puts the single entry back. A second Back while the sheet
+  // is open leaves normally (no trap) — and the checkpoint still allows recovery.
+  const [leaveAsk, setLeaveAsk] = useState(false);
+  const leaveResumeRef = useRef(false);
+  const resultRef = useRef<Result | null>(null);
+  useEffect(() => {
+    guardOwners++;
+    if (!isGuard()) window.history.pushState({ cdBattleGuard: true }, '');
+    const onPop = () => {
+      if (isGuard()) return;
+      if (resultRef.current) {
+        onExitRef.current(); // battle already over: Back = back to stage select
+        return;
+      }
+      const b = battleRef.current;
+      leaveResumeRef.current = b.pause();
+      checkpointRef.current();
+      setInspectUid(null);
+      setLeaveAsk(true);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      guardOwners--;
+      // Leaving the battle screen through the UI: drop our guard entry (after any StrictMode remount).
+      window.setTimeout(() => {
+        if (guardOwners === 0 && isGuard()) window.history.back();
+      }, 0);
+    };
+  }, []);
+  const continueBattle = () => {
+    setLeaveAsk(false);
+    if (!isGuard()) window.history.pushState({ cdBattleGuard: true }, '');
+    if (leaveResumeRef.current) battleRef.current.resume();
+    leaveResumeRef.current = false;
+    dirty();
+  };
+  /** Deliberately leaving an unfinished battle: it is abandoned (no recovery offer). */
+  const abandon = (then: () => void) => {
+    staleRef.current = true; // no further checkpoints from this screen
+    recovery.clear(runIdRef.current);
+    then();
+  };
+  const onExitRef = useRef(onExit);
+  onExitRef.current = onExit;
 
   // Summon cost feedback: show "+N" when the price goes up.
   const prevCost = useRef(hud.summonCost);
@@ -345,6 +509,9 @@ export function BattleScreen({
 
   // ---- Actions ----
   const restart = () => {
+    runIdRef.current = newRunId(); // a new attempt (overwrites the old checkpoint)
+    staleRef.current = false;
+    dirtyRef.current = true;
     battleRef.current = newBattle();
     directorRef.current = new TutorialDirector(stage.id, seenStore);
     setInspectUid(null);
@@ -375,6 +542,7 @@ export function BattleScreen({
   const errText = (reason: string) => t(`err.${reason}`, { n: BALANCE.unlocks.skillShopFromStage });
 
   const onSummon = () => {
+    dirty();
     if (!gate('summon')) return;
     const b = battleRef.current;
     const r = b.summon();
@@ -385,6 +553,7 @@ export function BattleScreen({
     } else directorRef.current.onAction('summon', b);
   };
   const onSkill = () => {
+    dirty();
     if (!gate('skill')) return;
     const b = battleRef.current;
     const r = b.buySkill();
@@ -398,12 +567,14 @@ export function BattleScreen({
    * move / swap / merge / targeting / details / sell all keep working. Summon and skills wait.
    */
   const onTacticalPause = () => {
+    dirty();
     const b = battleRef.current;
     if (b.preparing || result) return;
     if (!gate('pause')) return;
     if (b.pause(true)) directorRef.current.onAction('pause', b);
   };
   const onResume = () => {
+    dirty();
     const b = battleRef.current;
     if (b.status !== 'paused') return;
     if (!gate('resume')) return;
@@ -411,6 +582,7 @@ export function BattleScreen({
     directorRef.current.onAction('resume', b);
   };
   const openMenu = () => {
+    dirty();
     const b = battleRef.current;
     if (result) return;
     b.pause();
@@ -418,10 +590,12 @@ export function BattleScreen({
   };
   /** Menu "Resume": close the menu and continue the battle. */
   const menuResume = () => {
+    dirty();
     setMenuOpen(false);
     battleRef.current.resume();
   };
   const setGameSpeed = (s: number) => {
+    dirty();
     speedRef.current = s;
     setSpeed(s);
     saveSpeed(s);
@@ -435,6 +609,7 @@ export function BattleScreen({
     directorRef.current.onAction('speed', battleRef.current);
   };
   const onStartBattle = () => {
+    dirty();
     if (directorRef.current.active) return;
     battleRef.current.startBattle(); // idempotent: only the first call starts combat
   };
@@ -560,6 +735,7 @@ export function BattleScreen({
       /* ignore */
     }
     if (cancelled || p.long) return; // a long press only opens details
+    dirty();
     const b = battleRef.current;
     const d = directorRef.current;
     if (p.dragging) {
@@ -591,6 +767,7 @@ export function BattleScreen({
   };
 
   // ---- Render ----
+  resultRef.current = result;
   const b = battleRef.current;
   const offer = hud.status === 'reward' ? b.currentReward : null;
   const next = nextStageId(stage.id);
@@ -829,6 +1006,7 @@ export function BattleScreen({
           canSell={(battleRef.current.status === 'playing' || battleRef.current.status === 'paused') && !directorRef.current.active}
           onSell={() => {
             const r = battleRef.current.sellCat(inspectUid);
+            dirty();
             if (r.ok) {
               setInspectUid(null);
               toast(t('sell.done', { n: r.refund ?? 0 }), 'good');
@@ -844,7 +1022,10 @@ export function BattleScreen({
           owned={b.skills}
           cats={b.cats}
           roster={b.roster}
-          onChoose={(i) => battleRef.current.chooseReward(i)}
+          onChoose={(i) => {
+            battleRef.current.chooseReward(i);
+            dirty();
+          }}
         />
       )}
       {result && cutscene && (
@@ -876,7 +1057,7 @@ export function BattleScreen({
         />
       )}
 
-      {menuOpen && hud.status === 'paused' && !result && (
+      {(menuOpen || hud.preparing) && hud.status === 'paused' && !result && !leaveAsk && !stale && (
         <div className="overlay">
           <div className="panel">
             <h2>{t('pause.title')}</h2>
@@ -886,10 +1067,39 @@ export function BattleScreen({
             <button className="btn btn-secondary" onClick={restart}>
               <GameIcon name="replay" size={18} /> {t('pause.restart')}
             </button>
-            <button className="btn btn-secondary" onClick={onExit}>
+            <button className="btn btn-secondary" onClick={() => abandon(onExit)}>
               <GameIcon name="list" size={18} /> {t('pause.stages')}
             </button>
-            <button className="btn btn-secondary" onClick={onHome}>
+            <button className="btn btn-secondary" onClick={() => abandon(onHome)}>
+              <GameIcon name="home" size={18} /> {t('pause.home')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Back gesture / browser Back during a battle */}
+      {leaveAsk && !result && (
+        <div className="overlay leave-overlay" role="dialog" aria-modal="true" aria-labelledby="leave-title">
+          <div className="panel">
+            <h2 id="leave-title">{t('leave.title')}</h2>
+            <p className="muted">{t('leave.body')}</p>
+            <button className="btn btn-primary" onClick={continueBattle}>
+              <GameIcon name="play" size={18} /> {t('leave.stay')}
+            </button>
+            <button className="btn btn-secondary" onClick={() => abandon(onHome)}>
+              <GameIcon name="home" size={18} /> {t('leave.home')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* The same battle was resumed in another tab */}
+      {stale && !result && (
+        <div className="overlay" role="dialog" aria-modal="true">
+          <div className="panel">
+            <h2>{t('recover.staleTitle')}</h2>
+            <p className="muted">{t('recover.staleBody')}</p>
+            <button className="btn btn-primary" onClick={onHome}>
               <GameIcon name="home" size={18} /> {t('pause.home')}
             </button>
           </div>

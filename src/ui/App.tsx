@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { ChapterGrant } from '../game/collection';
 import type { CatId } from '../game/types';
+import { recovery, type RecoveryRecord } from '../save/battleRecovery';
 import { saveStore, useSave } from '../save/store';
+import { RecoveryPrompt } from './components/RecoveryPrompt';
 import { ChapterReward } from './components/ChapterReward';
 import { BattleScreen } from './screens/BattleScreen';
 import { CatProfileScreen } from './screens/CatProfileScreen';
@@ -15,7 +17,7 @@ import { TeamScreen } from './screens/TeamScreen';
 export type Screen =
   | { name: 'home' }
   | { name: 'stages' }
-  | { name: 'battle'; stageId: string; run: number }
+  | { name: 'battle'; stageId: string; run: number; resume?: RecoveryRecord }
   | { name: 'shop' }
   | { name: 'cats' }
   | { name: 'catProfile'; cat: CatId }
@@ -28,6 +30,8 @@ export function App() {
   const [grants, setGrants] = useState<ChapterGrant[]>([]);
   const go = (s: Screen) => setScreen(s);
   const play = (stageId: string) => setScreen({ name: 'battle', stageId, run: Date.now() });
+  // An unfinished battle saved before the page was closed / refreshed / navigated away.
+  const [offer, setOffer] = useState<RecoveryRecord | null>(() => recovery.load());
 
   // Chapter-completion cats: granted once each — also retroactively for chapters cleared
   // before this feature existed. (Inside a battle, the victory screen presents them itself.)
@@ -51,12 +55,26 @@ export function App() {
         <BattleScreen
           key={`${screen.stageId}:${screen.run}`}
           stageId={screen.stageId}
+          resume={screen.resume}
           onExit={() => go({ name: 'stages' })}
           onPlay={play}
           onHome={() => go({ name: 'home' })}
         />
       )}
-      {grants.length > 0 && screen.name !== 'battle' && (
+      {offer && screen.name !== 'battle' && (
+        <RecoveryPrompt
+          record={offer}
+          onResume={() => {
+            setOffer(null);
+            setScreen({ name: 'battle', stageId: offer.stageId, run: Date.now(), resume: offer });
+          }}
+          onDiscard={() => {
+            recovery.clear(offer.runId);
+            setOffer(null);
+          }}
+        />
+      )}
+      {grants.length > 0 && screen.name !== 'battle' && !offer && (
         <ChapterReward key={grants[0].chapterId} grant={grants[0]} loadout={save.equipped} onClose={() => setGrants((g) => g.slice(1))} />
       )}
     </div>

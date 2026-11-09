@@ -9,7 +9,7 @@ import { GameIcon } from '../components/GameIcon';
 import { CoinIcon } from '../components/Icons';
 import { debugStore, useDebug } from '../debugStore';
 
-export const APP_VERSION = '1.6';
+export const APP_VERSION = '1.6.1';
 
 export function HomeScreen({ go }: { go: (s: Screen) => void }) {
   const lang = useLang();

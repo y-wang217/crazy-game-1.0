@@ -4,6 +4,15 @@ export class Rng {
   constructor(seed: number) {
     this.s = seed >>> 0;
   }
+  /** Internal state, for saving a battle and continuing the exact same random sequence. */
+  get state(): number {
+    return this.s;
+  }
+  static fromState(s: number): Rng {
+    const r = new Rng(0);
+    r.s = s;
+    return r;
+  }
   next(): number {
     let t = (this.s += 0x6d2b79f5);
     t = Math.imul(t ^ (t >>> 15), t | 1);

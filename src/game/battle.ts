@@ -8,16 +8,7 @@ import { applyDamageToPools, computeDamage, computeSkillMods, getCatStats, type 
 import { PathGeom, cellCenter } from './path';
 import { Rng } from './rng';
 import { nextTargetMode, selectTarget, type TargetCandidate } from './targeting';
-import type {
-  CatId,
-  ChestTier,
-  EnemyId,
-  MapDef,
-  SkillId,
-  SpawnGroup,
-  StageDef,
-  TargetMode,
-} from './types';
+import type { CatId, ChestTier, EnemyId, MapDef, SkillId, SpawnGroup, StageDef, TargetMode } from './types';
 
 // ---------------------------------------------------------------------------
 // Entities
@@ -259,6 +250,122 @@ export function canMerge(a: Pick<CatUnit, 'uid' | 'type' | 'level'>, b: Pick<Cat
 }
 
 const STEP = 1 / 60;
+
+/** Bump when the snapshot layout changes; older snapshots are then discarded, never misread. */
+export const SNAPSHOT_VERSION = 1;
+
+export interface BattleSnapshot {
+  v: typeof SNAPSHOT_VERSION;
+  stageId: string;
+  waves: number;
+  opts: { tuning: Tuning; roster: CatId[]; stars: Partial<Record<CatId, number>>; ultCooldownMult: number };
+  state: Record<string, unknown>;
+}
+
+/** Battle fields saved in a snapshot (all plain data). Visual-only state is left out. */
+const SNAPSHOT_FIELDS = [
+  'nextUid',
+  'nextOfferId',
+  'status',
+  'time',
+  'vtime',
+  'fish',
+  'baseHp',
+  'cats',
+  'foes',
+  'projectiles',
+  'skills',
+  'summons',
+  'skillRolls',
+  'chestCoins',
+  'stats',
+  'waveIndex',
+  'preparing',
+  'prepLeft',
+  'waveTimer',
+  'gapTimer',
+  'clearTimer',
+  'spawnQueue',
+  'spawnPtr',
+  'waveSpawnDone',
+  'waveBonusGiven',
+  'rewardQueue',
+  'focusUid',
+  'ultCharge',
+  'teamBuff',
+  'mallowSpecialReadyAt',
+] as const;
+
+const structuredCloneJson = <T>(v: T): T => (v === undefined ? v : (JSON.parse(JSON.stringify(v)) as T));
+const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+const isArr = Array.isArray;
+
+/** Strict sanity check of a stored snapshot against the current stage and map. */
+export function validateSnapshot(snap: unknown, stage: StageDef, map: MapDef): snap is BattleSnapshot {
+  const s = snap as BattleSnapshot | null;
+  if (!s || typeof s !== 'object' || s.v !== SNAPSHOT_VERSION || s.stageId !== stage.id || s.waves !== stage.waves.length) return false;
+  const o = s.opts;
+  if (!o || !isArr(o.roster) || !o.roster.length || !o.roster.every((c) => c in CATS) || typeof o.stars !== 'object' || !isNum(o.ultCooldownMult))
+    return false;
+  const st = s.state as Record<string, unknown>;
+  if (!st || typeof st !== 'object') return false;
+  for (const k of SNAPSHOT_FIELDS) if (!(k in st)) return false;
+  for (const k of [
+    'nextUid',
+    'nextOfferId',
+    'time',
+    'vtime',
+    'fish',
+    'baseHp',
+    'summons',
+    'skillRolls',
+    'chestCoins',
+    'waveIndex',
+    'prepLeft',
+    'waveTimer',
+    'gapTimer',
+    'clearTimer',
+    'spawnPtr',
+    'mallowSpecialReadyAt',
+    'rng',
+  ])
+    if (!isNum(st[k])) return false;
+  if (!['playing', 'paused', 'reward'].includes(st.status as string)) return false; // finished battles are never restored
+  const wave = st.waveIndex as number;
+  if (wave < -1 || wave >= stage.waves.length || (st.baseHp as number) <= 0 || (st.fish as number) < 0) return false;
+  if (!isArr(st.spawnQueue) || (st.spawnPtr as number) > st.spawnQueue.length) return false;
+  if (!isArr(st.waveSpawnDone) || st.waveSpawnDone.length !== stage.waves.length || !isArr(st.waveBonusGiven)) return false;
+  if (!isArr(st.unlocked) || !isArr(st.cats) || !isArr(st.foes) || !isArr(st.projectiles) || !isArr(st.rewardQueue)) return false;
+  // Cats: known species, valid level, on distinct unlocked tiles that exist on this map.
+  const tileIds = new Set(map.tiles.map((t) => t.id));
+  const unlocked = new Set(st.unlocked as string[]);
+  if (![...unlocked].every((id) => tileIds.has(id))) return false;
+  const used = new Set<string>();
+  const uids = new Set<number>();
+  for (const c of st.cats as CatUnit[]) {
+    if (!c || !(c.type in CATS) || !isNum(c.level) || c.level < 1 || c.level > BALANCE.levels.maxLevel) return false;
+    if (!unlocked.has(c.tileId) || used.has(c.tileId) || !isNum(c.x) || !isNum(c.y) || !isNum(c.cooldown) || uids.has(c.uid)) return false;
+    used.add(c.tileId);
+    uids.add(c.uid);
+  }
+  for (const f of st.foes as Foe[]) {
+    if (
+      !f ||
+      !(f.defId in ENEMIES || f.defId in CHESTS) ||
+      !isNum(f.hp) ||
+      !isNum(f.dist) ||
+      !isNum(f.x) ||
+      !isNum(f.y) ||
+      !isNum(f.speed) ||
+      uids.has(f.uid)
+    )
+      return false;
+    uids.add(f.uid);
+  }
+  for (const p of st.projectiles as Projectile[]) if (!p || !isNum(p.x) || !isNum(p.y) || !isNum(p.damage)) return false;
+  if ((st.nextUid as number) <= Math.max(0, ...uids)) return false;
+  return true;
+}
 const MAX_EFFECTS = 280;
 
 // ---------------------------------------------------------------------------
@@ -375,6 +482,62 @@ export class Battle {
     this.waveSpawnDone = stage.waves.map(() => false);
     this.waveBonusGiven = stage.waves.map(() => false);
     for (const sc of stage.startCats ?? []) this.placeCat(sc.type, sc.level, sc.tile);
+  }
+
+  // ---------------- Save / restore (battle recovery) ----------------
+
+  /**
+   * Everything needed to rebuild this battle exactly (versioned, JSON-safe). Leaves out
+   * purely visual state (effects, pending UI events). Used to recover a battle after the
+   * page is closed, refreshed or navigated away from.
+   */
+  snapshot(): BattleSnapshot {
+    const state: Record<string, unknown> = {};
+    for (const k of SNAPSHOT_FIELDS) state[k] = (this as unknown as Record<string, unknown>)[k];
+    state.rng = this.rng.state;
+    state.unlocked = this.tiles.filter((t) => t.unlocked).map((t) => t.id);
+    return JSON.parse(
+      JSON.stringify({
+        v: SNAPSHOT_VERSION,
+        stageId: this.stage.id,
+        waves: this.stage.waves.length,
+        opts: { tuning: this.tuning, roster: this.roster, stars: this.stars, ultCooldownMult: this.ultCooldown / ULTIMATE.cooldown },
+        state,
+      }),
+    ) as BattleSnapshot;
+  }
+
+  /**
+   * Rebuild a battle from snapshot(). Returns null if the snapshot is malformed or doesn't
+   * fit this stage/map (corrupted storage, or a game update changed the stage) — callers
+   * then discard it instead of starting a broken battle. With `paused`, an in-progress
+   * battle comes back paused so the player can look before resuming.
+   */
+  static restore(stage: StageDef, map: MapDef, snap: unknown, paused = true): Battle | null {
+    try {
+      if (!validateSnapshot(snap, stage, map)) return null;
+      const b = new Battle(stage, map, {
+        seed: 1,
+        tuning: snap.opts.tuning,
+        roster: snap.opts.roster,
+        stars: snap.opts.stars,
+        ultCooldownMult: snap.opts.ultCooldownMult,
+      });
+      const st = snap.state as Record<string, unknown>;
+      const self = b as unknown as Record<string, unknown>;
+      for (const k of SNAPSHOT_FIELDS) self[k] = structuredCloneJson(st[k]);
+      b.rng = Rng.fromState(st.rng as number);
+      const unlocked = new Set(st.unlocked as string[]);
+      for (const t of b.tiles) t.unlocked = unlocked.has(t.id);
+      b.mods = computeSkillMods(b.skills);
+      b.frozen = false;
+      b.effects = [];
+      b.events = [];
+      if (paused && b.status === 'playing') b.status = 'paused';
+      return b;
+    } catch {
+      return null;
+    }
   }
 
   // ---------------- Queries ----------------
@@ -793,7 +956,7 @@ export class Battle {
         q.push({ time: delay, group: g });
       } else {
         const count = Math.max(1, Math.round(g.count * T.enemyCountMult));
-        const interval = g.interval * T.waveIntervalMult / Math.max(0.25, T.enemyCountMult);
+        const interval = (g.interval * T.waveIntervalMult) / Math.max(0.25, T.enemyCountMult);
         for (let k = 0; k < count; k++) q.push({ time: delay + k * interval, group: g });
       }
     }
@@ -1016,7 +1179,12 @@ export class Battle {
           break;
         case 'poison':
           this.launch(cat, target, dmg, def.projectileSpeed ?? 300, 'venom', {
-            poison: { dps: st.poisonDps * this.tuning.catDamageMult, dur: st.poisonDuration, maxStacks: special ? ABILITIES.devil.special.maxStacks : 1, srcUid: cat.uid },
+            poison: {
+              dps: st.poisonDps * this.tuning.catDamageMult,
+              dur: st.poisonDuration,
+              maxStacks: special ? ABILITIES.devil.special.maxStacks : 1,
+              srcUid: cat.uid,
+            },
           });
           break;
         default:
@@ -1100,7 +1268,17 @@ export class Battle {
         const A = ABILITIES.black.ultimate;
         const target = selectTarget(cat.x, cat.y, st.range * A.rangeMult, 'strongest', this.foes);
         if (!target) return false;
-        this.addEffect({ kind: 'telegraph', x1: cat.x, y1: cat.y, x2: target.x, y2: target.y, width: 2, color: '#ff6a6a', born: this.vtime, dur: 0.5 });
+        this.addEffect({
+          kind: 'telegraph',
+          x1: cat.x,
+          y1: cat.y,
+          x2: target.x,
+          y2: target.y,
+          width: 2,
+          color: '#ff6a6a',
+          born: this.vtime,
+          dur: 0.5,
+        });
         cat.queue.push({ at: t + 0.5, kind: 'bigShot', targetUid: target.uid });
         return true;
       }
@@ -1137,7 +1315,17 @@ export class Battle {
         const dy = target.y - cat.y;
         const d = Math.hypot(dx, dy) || 1;
         const len = st.range * A.lengthMult;
-        this.addEffect({ kind: 'telegraph', x1: cat.x, y1: cat.y, x2: cat.x + (dx / d) * len, y2: cat.y + (dy / d) * len, width: A.width, color: '#bfe0ff', born: this.vtime, dur: A.telegraph });
+        this.addEffect({
+          kind: 'telegraph',
+          x1: cat.x,
+          y1: cat.y,
+          x2: cat.x + (dx / d) * len,
+          y2: cat.y + (dy / d) * len,
+          width: A.width,
+          color: '#bfe0ff',
+          born: this.vtime,
+          dur: A.telegraph,
+        });
         cat.queue.push({ at: t + A.telegraph, kind: 'slash', dx, dy, mult: A.dmgMult, length: len, width: A.width });
         return true;
       }
@@ -1286,11 +1474,31 @@ export class Battle {
     }
     this.stats.slamHits += hitList.length;
     const star = this.starOf(cat.type);
-    this.addEffect({ kind: 'ring', x, y, r0: 8, r1: st.splashRadius, color: star >= 4 ? '#ffb35a' : '#e0883a', born: this.vtime, dur: 0.5, width: ultimate ? 10 : 7 });
+    this.addEffect({
+      kind: 'ring',
+      x,
+      y,
+      r0: 8,
+      r1: st.splashRadius,
+      color: star >= 4 ? '#ffb35a' : '#e0883a',
+      born: this.vtime,
+      dur: 0.5,
+      width: ultimate ? 10 : 7,
+    });
     this.addEffect({ kind: 'ring', x, y, r0: 4, r1: st.splashRadius * 0.6, color: '#fff2c0', born: this.vtime, dur: 0.35, width: 5 });
     this.burst(x, y, ['#c8a070', '#e8d0a8', '#a07850', ...(star >= 2 ? ['#ffd36a'] : [])], ultimate ? 30 : 18 + star * 2, ultimate ? 170 : 120);
     // (No board/screen shake: the impact stays local — shockwave, dust and hit reactions.)
-    this.addEffect({ kind: 'ring', x, y, r0: st.splashRadius * 0.85, r1: st.splashRadius * 1.05, color: '#c8a070', born: this.vtime + 0.05, dur: 0.3, width: 3 });
+    this.addEffect({
+      kind: 'ring',
+      x,
+      y,
+      r0: st.splashRadius * 0.85,
+      r1: st.splashRadius * 1.05,
+      color: '#c8a070',
+      born: this.vtime + 0.05,
+      dur: 0.3,
+      width: 3,
+    });
     if (!hitList.length) this.addText(x, y - 14, '…', '#ffffff', 14, 0.6);
     cat.aimX = x;
     cat.aimY = y;
@@ -1340,7 +1548,17 @@ export class Battle {
       f.charmedAt = this.vtime;
       this.addEffect({ kind: 'hearts', x: f.x, y: f.y - f.radius, born: this.vtime, dur: 0.9 });
     }
-    this.addEffect({ kind: 'ring', x: cat.x, y: cat.y, r0: 10, r1: st.range, color: long ? '#ffb0d8' : '#ff8fc0', born: this.vtime, dur: 0.8, width: long ? 7 : 5 });
+    this.addEffect({
+      kind: 'ring',
+      x: cat.x,
+      y: cat.y,
+      r0: 10,
+      r1: st.range,
+      color: long ? '#ffb0d8' : '#ff8fc0',
+      born: this.vtime,
+      dur: 0.8,
+      width: long ? 7 : 5,
+    });
     this.addEffect({ kind: 'sparkle', x: cat.x, y: cat.y - 12, born: this.vtime, dur: 0.8 });
   }
 
@@ -1529,7 +1747,8 @@ export class Battle {
               });
             }
           }
-          if (p.style === 'magic') this.burst(p.tx, p.ty, ['#c89aff', '#ffd36a', ...((p.star ?? 1) >= 4 ? ['#ffffff'] : [])], 4 + (p.star ?? 1) * 2, 60);
+          if (p.style === 'magic')
+            this.burst(p.tx, p.ty, ['#c89aff', '#ffd36a', ...((p.star ?? 1) >= 4 ? ['#ffffff'] : [])], 4 + (p.star ?? 1) * 2, 60);
           if (p.style === 'venom') this.burst(p.tx, p.ty, ['#b58ad6', '#9fd0a8'], 3 + (p.star ?? 1), 40);
         } else this.burst(p.tx, p.ty, ['#dddddd'], 3, 30);
       } else {
@@ -1626,8 +1845,7 @@ export class Battle {
     const def = CHESTS[tier];
     const pool = this.availableSkills();
     const out: SkillChoice[] = [];
-    const weightOf = (id: SkillId) =>
-      (SKILLS[id].tier === 'basic' ? def.tierWeights.basic : def.tierWeights.improved) * this.skillWeight(id);
+    const weightOf = (id: SkillId) => (SKILLS[id].tier === 'basic' ? def.tierWeights.basic : def.tierWeights.improved) * this.skillWeight(id);
     while (out.length < 3 && pool.length) {
       const needRelevant = out.length < SKILL_WEIGHTS.chestRelevantMin;
       const relevant = pool.filter((id) => this.isRelevantSkill(id));
