@@ -2,7 +2,7 @@ import type { CatId, CosmeticDef, CosmeticLoadout, SkinBonus } from '../game/typ
 
 // Shop items. Hats and REGULAR skins (普通造型) are purely visual. SPECIAL skins (特殊造型)
 // also give that one cat species a small, exact combat bonus, read by the battle through
-// skinBonusesFor(). Every skin sold before V1.7 is regular — purchases were never converted
+// skinBonusesFor(). Every skin sold before V1.4 is regular — purchases were never converted
 // into stat items. Every price and bonus below is a tuning knob.
 
 export const SKIN_RULES = {
@@ -198,7 +198,7 @@ function special(
   return { id, name, slot: 'skin', kind: 'special', cat, price, description, bonus, glint, palette };
 }
 
-/** Regular or special (hats and pre-V1.7 skins are regular). */
+/** Regular or special (hats and pre-V1.4 skins are regular). */
 export function skinKind(c: CosmeticDef): 'regular' | 'special' {
   return c.kind === 'special' ? 'special' : 'regular';
 }

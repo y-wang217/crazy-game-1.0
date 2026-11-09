@@ -265,7 +265,7 @@ export interface BattleSnapshot {
     roster: CatId[];
     stars: Partial<Record<CatId, number>>;
     ultCooldownMult: number;
-    /** Added in V1.7 (absent in older snapshots = no skin bonuses). */
+    /** Added in V1.4 (absent in older snapshots = no skin bonuses). */
     skinBonus?: Partial<Record<CatId, SkinBonus>>;
   };
   state: Record<string, unknown>;

@@ -283,7 +283,7 @@ export interface CosmeticDef {
   slot: 'hat' | 'skin';
   /**
    * Skins only. 'regular' (普通造型) = looks only, no stats — every hat and every skin sold
-   * before V1.7 is regular and stays that way. 'special' (特殊造型) = looks + `bonus`.
+   * before V1.4 is regular and stays that way. 'special' (特殊造型) = looks + `bonus`.
    */
   kind?: 'regular' | 'special';
   /** Special skins: the exact combat bonus for that cat species. */

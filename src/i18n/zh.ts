@@ -755,7 +755,7 @@ export const zh: Record<string, string> = {
   'leave.body': '戰鬥進度已儲存，下次開啟遊戲時可以繼續。',
   'leave.stay': '繼續遊戲',
   'leave.home': '返回主頁',
-  // 造型商店（V1.7）
+  // 造型商店（V1.4）
   'shop.tabRegular': '普通造型',
   'shop.tabSpecial': '特殊造型',
   'shop.introBtn': '造型介紹',

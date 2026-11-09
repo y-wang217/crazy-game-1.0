@@ -754,7 +754,7 @@ export const en: Record<string, string> = {
   'leave.body': 'Your battle is saved. You can resume it next time you open the game.',
   'leave.stay': 'Continue Playing',
   'leave.home': 'Return Home',
-  // Skin Shop (V1.7)
+  // Skin Shop (V1.4)
   'shop.tabRegular': 'Regular',
   'shop.tabSpecial': 'Special',
   'shop.introBtn': 'About skins',
