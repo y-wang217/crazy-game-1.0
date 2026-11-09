@@ -815,4 +815,11 @@ export const zh: Record<string, string> = {
   'cosmetic.skin_pounce_storm.desc': '渾身閃着速度的電光。',
   'cosmetic.skin_devil_neon.name': '霓虹小惡魔',
   'cosmetic.skin_devil_neon.desc': '黑暗中會發光，毒藥也是。',
+  // 開發中通知（字眼必須保持一致）
+  'ea.title': '🐾 喵喵防衛隊（暫定）・開發中！',
+  'ea.thanks': '多謝你嚟試玩《喵喵防衛隊（暫定）》！',
+  'ea.body': '遊戲目前仍處於開發階段，功能、關卡及貓咪角色可能會不定期大幅更新，遊戲進度亦有機會受到影響。',
+  'ea.version': '目前版本：{v}',
+  'ea.closing': '多謝你陪住貓咪一齊成長！',
+  'ea.ok': '明白，開始遊戲！',
 };

@@ -36,10 +36,11 @@ describe('i18n', () => {
       keys.push(`chapter.${ch.id}`);
       for (const s of ch.stages) keys.push(`stage.${s.id}`);
     }
-    for (const steps of Object.values(STAGE_STEPS)) for (const s of steps) {
-      const name = s.id.replace('tut:', '');
-      keys.push(`tut.${name}.title`, `tut.${name}.body`);
-    }
+    for (const steps of Object.values(STAGE_STEPS))
+      for (const s of steps) {
+        const name = s.id.replace('tut:', '');
+        keys.push(`tut.${name}.title`, `tut.${name}.body`);
+      }
     for (const k of keys) {
       expect([k, k in en]).toEqual([k, true]);
       expect([k, k in zh]).toEqual([k, true]);
@@ -82,5 +83,28 @@ describe('zh-HK', () => {
     expect(zh['currency.fish']).toBe('魚乾');
     expect(zh['currency.coins']).toBe('魚幣');
     expect(zh['battle.focusSet']).toContain('集中攻擊');
+  });
+});
+
+describe('Early Access notice', () => {
+  it('keeps the exact wording and takes the version from the central constant', async () => {
+    const { zh } = await import('../zh');
+    const { en } = await import('../en');
+    const { APP_VERSION, versionLabel } = await import('../../config/version');
+    expect(zh['ea.title']).toBe('🐾 喵喵防衛隊（暫定）・開發中！');
+    expect(zh['ea.thanks']).toBe('多謝你嚟試玩《喵喵防衛隊（暫定）》！');
+    expect(zh['ea.body']).toBe('遊戲目前仍處於開發階段，功能、關卡及貓咪角色可能會不定期大幅更新，遊戲進度亦有機會受到影響。');
+    expect(zh['ea.closing']).toBe('多謝你陪住貓咪一齊成長！');
+    expect(zh['ea.ok']).toBe('明白，開始遊戲！');
+    expect(en['ea.title']).toBe('🐾 Cat Defense (Working Title) — In Development!');
+    expect(en['ea.thanks']).toBe('Thank you for trying Cat Defense (Working Title)!');
+    expect(en['ea.body']).toBe(
+      'The game is still under active development. Features, stages, and cat characters may receive major updates from time to time, and your saved progress may occasionally be affected.',
+    );
+    expect(en['ea.closing']).toBe('Thank you for growing alongside our cats!');
+    expect(en['ea.ok']).toBe("Got it! Let's Play!");
+    expect(versionLabel()).toBe(`V${APP_VERSION}`);
+    expect(zh['ea.version'].replace('{v}', versionLabel())).toBe(`目前版本：V${APP_VERSION}`);
+    expect(en['ea.version'].replace('{v}', versionLabel())).toBe(`Current Version: V${APP_VERSION}`);
   });
 });

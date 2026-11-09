@@ -3958,3 +3958,150 @@ body {
   font-size: 0.85rem;
   padding: 6px 9px;
 }
+
+/* ---------------- Early Access notice (always Moonlit Gothic) ---------------- */
+.ea-notice {
+  /* Scoped Moonlit Gothic tokens: the notice looks the same in either theme. */
+  --panel: #45415c;
+  --surface: #4d4866;
+  --surface-2: #3a3651;
+  --text: #f5e9d5;
+  --text-soft: #c7b9a3;
+  --accent: #d9ad72;
+  --accent-dark: #a47a44;
+  --accent-ink: #2a2440;
+  --shadow-ink: rgba(8, 6, 18, 0.45);
+  --emblem-bg: #45415c;
+  --emblem-sky: #2a2846;
+  --emblem-ear: #6a5b8a;
+  --emblem-ear-in: #a68bc4;
+  --emblem-paw: #d9ad72;
+  --moon: #f5e9d5;
+  --moon-shade: #ddd0b8;
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  padding-top: max(16px, env(safe-area-inset-top));
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+  background: radial-gradient(circle at 50% 20%, #34305a 0%, #1d1c2e 70%);
+  color: var(--text);
+  overflow-y: auto;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+  animation: fadeIn 0.3s;
+}
+.ea-sky {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.ea-sky span {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #f5e9d5;
+  opacity: 0.25;
+  animation: eaTwinkle 2.6s ease-in-out infinite;
+}
+@keyframes eaTwinkle {
+  50% {
+    opacity: 0.9;
+    transform: scale(1.6);
+  }
+}
+.ea-card {
+  position: relative;
+  width: min(100%, 360px);
+  margin: auto 0;
+  background: var(--panel);
+  border: 2px solid #5e5878;
+  border-radius: 24px;
+  padding: 14px 18px 16px;
+  box-shadow: 0 6px 0 var(--shadow-ink), 0 0 40px rgba(166, 139, 196, 0.25);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  animation: pop 0.35s;
+}
+.ea-lang {
+  display: flex;
+  gap: 4px;
+  background: var(--surface-2);
+  border-radius: 999px;
+  padding: 3px;
+  align-self: flex-end;
+}
+.ea-lang button {
+  border: none;
+  background: none;
+  color: var(--text-soft);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+.ea-lang button.on {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.ea-emblem {
+  margin-top: -6px;
+  transform: scale(0.8);
+  margin-bottom: -10px;
+}
+.ea-title {
+  margin: 0;
+  font-size: 1.2rem;
+  line-height: 1.3;
+  color: var(--accent);
+}
+.ea-body {
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+.ea-body p {
+  margin: 0 0 8px;
+}
+.ea-thanks {
+  font-weight: 800;
+}
+.ea-version {
+  display: inline-block;
+  background: var(--surface-2);
+  border-radius: 999px;
+  padding: 2px 12px;
+  font-weight: 800;
+  color: var(--accent);
+}
+.ea-closing {
+  font-weight: 700;
+  color: var(--text-soft);
+}
+.ea-ok {
+  width: 100%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: 0 5px 0 var(--accent-dark);
+}
+@media (max-height: 620px) {
+  .ea-emblem {
+    display: none;
+  }
+  .ea-body {
+    font-size: 0.86rem;
+  }
+}
+.ea-title,
+.ea-thanks {
+  text-wrap: balance;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}

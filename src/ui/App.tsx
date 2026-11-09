@@ -4,6 +4,7 @@ import type { CatId } from '../game/types';
 import { recovery, type RecoveryRecord } from '../save/battleRecovery';
 import { saveStore, useSave } from '../save/store';
 import { RecoveryPrompt } from './components/RecoveryPrompt';
+import { EarlyAccessNotice, noticeSeenThisSession } from './components/EarlyAccessNotice';
 import { ChapterReward } from './components/ChapterReward';
 import { BattleScreen } from './screens/BattleScreen';
 import { CatProfileScreen } from './screens/CatProfileScreen';
@@ -32,6 +33,8 @@ export function App() {
   const play = (stageId: string) => setScreen({ name: 'battle', stageId, run: Date.now() });
   // An unfinished battle saved before the page was closed / refreshed / navigated away.
   const [offer, setOffer] = useState<RecoveryRecord | null>(() => recovery.load());
+  // Early Access notice: before the main menu, once per browser session.
+  const [notice, setNotice] = useState(() => !noticeSeenThisSession());
 
   // Chapter-completion cats: granted once each — also retroactively for chapters cleared
   // before this feature existed. (Inside a battle, the victory screen presents them itself.)
@@ -43,7 +46,7 @@ export function App() {
 
   return (
     <div className="app">
-      {screen.name === 'home' && <HomeScreen go={go} blocked={!!offer || grants.length > 0} />}
+      {screen.name === 'home' && <HomeScreen go={go} blocked={notice || !!offer || grants.length > 0} />}
       {screen.name === 'stages' && <StageSelect go={go} play={play} />}
       {screen.name === 'shop' && <ShopScreen go={go} />}
       {screen.name === 'cats' && <CatsScreen go={go} />}
@@ -61,7 +64,8 @@ export function App() {
           onHome={() => go({ name: 'home' })}
         />
       )}
-      {offer && screen.name !== 'battle' && (
+      {notice && <EarlyAccessNotice onClose={() => setNotice(false)} />}
+      {offer && !notice && screen.name !== 'battle' && (
         <RecoveryPrompt
           record={offer}
           onResume={() => {
@@ -74,7 +78,7 @@ export function App() {
           }}
         />
       )}
-      {grants.length > 0 && screen.name !== 'battle' && !offer && (
+      {grants.length > 0 && screen.name !== 'battle' && !offer && !notice && (
         <ChapterReward key={grants[0].chapterId} grant={grants[0]} loadout={save.equipped} onClose={() => setGrants((g) => g.slice(1))} />
       )}
     </div>

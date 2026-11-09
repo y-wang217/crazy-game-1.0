@@ -814,4 +814,11 @@ export const en: Record<string, string> = {
   'cosmetic.skin_pounce_storm.desc': 'Crackles with speed.',
   'cosmetic.skin_devil_neon.name': 'Neon Imp',
   'cosmetic.skin_devil_neon.desc': 'Glows in the dark — so does the poison.',
+  // Early Access notice (keep wording exactly)
+  'ea.title': '🐾 Cat Defense (Working Title) — In Development!',
+  'ea.thanks': 'Thank you for trying Cat Defense (Working Title)!',
+  'ea.body': 'The game is still under active development. Features, stages, and cat characters may receive major updates from time to time, and your saved progress may occasionally be affected.',
+  'ea.version': 'Current Version: {v}',
+  'ea.closing': 'Thank you for growing alongside our cats!',
+  'ea.ok': "Got it! Let's Play!",
 };

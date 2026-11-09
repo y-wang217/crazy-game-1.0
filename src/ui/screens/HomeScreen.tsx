@@ -14,7 +14,8 @@ import { SKIN_RULES } from '../../config/cosmetics';
 /** Seen-id of the one-time Skin Shop introduction (Home → Replay tutorials shows it again). */
 export const SHOP_INTRO_ID = 'tut:shop';
 
-export const APP_VERSION = '1.7';
+import { APP_VERSION } from '../../config/version';
+export { APP_VERSION };
 
 export function HomeScreen({
   go,

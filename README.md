@@ -37,6 +37,13 @@ npm run build        # type-check + production build into dist/
 
 While dragging, tiles are tinted to show what the drop will do: green = move, gold = merge, blue = swap. A press only becomes a drag after the pointer moves 10 px, so a tap never moves a cat by accident.
 
+## Early Access notice
+
+- **When:** before the main menu, once per browser session (`sessionStorage` key `catdefense.noticeSeen`; returning to the menu or reloading the tab doesn't show it again, a new browser session does). Its single button dismisses it. It shows **「🐾 喵喵防衛隊（暫定）・開發中！」 / "🐾 Cat Defense (Working Title) — In Development!"** with the exact wording as specified.
+- **Look:** always the Moonlit Gothic style (scoped colour tokens), even when the player uses the Light theme. A language switch sits on the card, and it fits without scrolling on 320 × 568 and 360 × 640 screens.
+- **Version:** shown from `src/config/version.ts` (`APP_VERSION`, displayed as `V1.7` via `versionLabel()`), the same constant as the Home footer. Bump the version there only.
+- **No side effects:** it never touches the save. If an interrupted battle was saved, the "Resume previous battle?" prompt appears right after the notice is dismissed.
+
 ## What's new in V1.7 — Skin Shop tutorial & Special Skins
 
 - **Two kinds of skins** (`src/config/cosmetics.ts`; every price and bonus is configurable):
