@@ -1,5 +1,4 @@
 import { useRef, useState } from 'react';
-import { CAT_ORDER } from '../../config/cats';
 import { LANGS, setLang, t, useLang } from '../../i18n';
 import { THEMES, setTheme, useTheme } from '../../theme';
 import { saveStore, useSave } from '../../save/store';
@@ -10,7 +9,7 @@ import { GameIcon } from '../components/GameIcon';
 import { CoinIcon } from '../components/Icons';
 import { debugStore, useDebug } from '../debugStore';
 
-export const APP_VERSION = '1.3';
+export const APP_VERSION = '1.4';
 
 export function HomeScreen({ go }: { go: (s: Screen) => void }) {
   const lang = useLang();
@@ -70,7 +69,7 @@ export function HomeScreen({ go }: { go: (s: Screen) => void }) {
         </h1>
         <p className="tagline">{t('home.tagline')}</p>
         <div className="home-cats">
-          {CAT_ORDER.map((c) => (
+          {save.team.map((c) => (
             <CatPreview key={c} type={c} loadout={save.equipped} size={60} />
           ))}
         </div>
@@ -80,6 +79,9 @@ export function HomeScreen({ go }: { go: (s: Screen) => void }) {
           <GameIcon name="play" size={22} /> {t('home.play')}
         </button>
         <div className="row">
+          <button className="btn btn-secondary" onClick={() => go({ name: 'recruit' })}>
+            <GameIcon name="recruit" size={22} /> {t('home.recruit')}
+          </button>
           <button className="btn btn-secondary" onClick={() => go({ name: 'shop' })}>
             <GameIcon name="shop" size={22} /> {t('home.shop')}
           </button>

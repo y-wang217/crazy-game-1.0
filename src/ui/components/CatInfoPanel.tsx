@@ -1,4 +1,6 @@
 import { useEffect } from 'react';
+import { BALANCE } from '../../config/balance';
+import { STARS } from '../../config/collection';
 import { CATS, TARGET_MODE_INFO } from '../../config/cats';
 import { SKILLS, SKILL_ORDER, skillParams } from '../../config/skills';
 import type { Battle, CatUnit } from '../../game/battle';
@@ -7,8 +9,9 @@ import type { CosmeticLoadout, SkillId } from '../../game/types';
 import { t, useLang } from '../../i18n';
 import { CatPreview } from './CatPreview';
 import { GameIcon } from './GameIcon';
+import { Stars } from './Stars';
+import { fmt, specialStats } from './statText';
 
-const fmt = (n: number, d = 1) => (Math.round(n * 10 ** d) / 10 ** d).toString();
 
 /** Skills currently boosting this cat (its own skills + general combat skills). */
 export function bonusesFor(cat: CatUnit, b: Battle): [SkillId, number][] {
@@ -21,18 +24,20 @@ export function bonusesFor(cat: CatUnit, b: Battle): [SkillId, number][] {
   }).map((id) => [id, b.skills[id]!]);
 }
 
-/** Effective stats (after level, skills and debug tuning) plus base stats for comparison. */
+/** Effective stats (level × star × skills × buffs × debug tuning) plus the no-skill base for comparison. */
 export function effectiveStats(cat: CatUnit, b: Battle): { eff: CatStats; base: CatStats } {
   const def = CATS[cat.type];
-  const eff = getCatStats(def, cat.level, b.mods);
-  const base = getCatStats(def, cat.level, NO_MODS);
+  const eff = b.unitStats(cat);
+  const base = getCatStats(def, cat.level, NO_MODS, b.starOf(cat.type));
   const k = b.tuning.catDamageMult;
-  return { eff: { ...eff, damage: eff.damage * k }, base: { ...base, damage: base.damage * k } };
+  return { eff: { ...eff, damage: eff.damage * k, poisonDps: eff.poisonDps * k }, base: { ...base, damage: base.damage * k } };
 }
 
 /**
  * Long-press (or right-click) details for one cat. The battle is paused while
  * it is open; tap anywhere outside or the close button to dismiss.
+ * Shows the in-battle level (Lv.) and the permanent star rank (★) separately, the cat's
+ * real current stats and what the next merge (Lv.+1) would give.
  */
 export function CatInfoPanel({
   cat,
@@ -53,59 +58,26 @@ export function CatInfoPanel({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
   const def = CATS[cat.type];
-  const { eff, base } = effectiveStats(cat, battle);
+  const { eff } = effectiveStats(cat, battle);
+  const maxed = cat.level >= BALANCE.levels.maxLevel;
+  const nextEff = maxed ? null : effectiveStats({ ...cat, level: cat.level + 1 }, battle).eff;
   const cell = battle.map.cell;
-  const aura = def.attack === 'aura';
+  const support = def.attack === 'aura' || def.attack === 'support';
   const mode = TARGET_MODE_INFO[cat.mode];
   const bonuses = bonusesFor(cat, battle);
+  const star = battle.starOf(cat.type);
+  const ult = battle.ultReadiness(cat.type);
 
-  /** "value (base)" when an upgrade changed it. */
-  const cmp = (v: number, b0: number, d = 1, suffix = '') => (
-    <>
-      {fmt(v, d)}
-      {suffix}
-      {Math.abs(v - b0) > 1e-6 && (
-        <span className="info-up">
-          {' '}
-          ▲ <s>{fmt(b0, d)}</s>
-        </span>
-      )}
-    </>
-  );
-
-  const rows: [string, React.ReactNode][] = [];
-  if (!aura) {
-    rows.push([
-      t('info.damage'),
-      eff.comboHits > 1 ? (
-        <>
-          {t('info.hits', { dmg: fmt(eff.damage), n: eff.comboHits })}
-          {(Math.abs(eff.damage - base.damage) > 1e-6 || eff.comboHits !== base.comboHits) && (
-            <span className="info-up">
-              {' '}
-              ▲ <s>{t('info.hits', { dmg: fmt(base.damage), n: base.comboHits })}</s>
-            </span>
-          )}
-        </>
-      ) : (
-        cmp(eff.damage, base.damage)
-      ),
-    ]);
-  }
-  rows.push([t('info.attackSpeed'), <>{t('info.perSec', { n: fmt(1 / eff.interval, 2) })}{1 / eff.interval > 1 / base.interval + 1e-6 && <span className="info-up"> ▲ <s>{fmt(1 / base.interval, 2)}</s></span>}</>]);
-  rows.push([aura ? t('info.charm') : t('info.range'), cmp(eff.range / cell, base.range / cell, 2, ' ' + t('info.tiles', { n: '' }).trim())]);
-  if (!aura) {
-    const dps = (eff.damage * eff.comboHits) / eff.interval;
-    const bdps = (base.damage * base.comboHits) / base.interval;
-    rows.push([t('info.dps'), cmp(dps, bdps)]);
-  }
-  if (def.attack === 'slam') {
-    rows.push([t('info.splash'), t('info.splashVal', { r: fmt(eff.splashRadius / cell, 2), p: Math.round(eff.splashRatio * 100) })]);
-  }
-  if (aura) {
-    rows.push([t('info.slow'), t('info.slowVal', { p: Math.round(eff.slowStrength * 100), s: fmt(eff.slowDuration) })]);
-    rows.push([t('info.focus'), t('info.focusVal', { p: Math.round(eff.focusBonus * 100) })]);
-  }
+  const dps = (s: CatStats) => (s.damage * s.comboHits) / s.interval + s.poisonDps;
+  const rows: [string, string, string | null][] = [];
+  const dmgText = (s: CatStats) => (s.comboHits > 1 ? t('info.hits', { dmg: fmt(s.damage), n: s.comboHits }) : fmt(s.damage));
+  if (!support) rows.push([t('info.damage'), dmgText(eff), nextEff && dmgText(nextEff)]);
+  rows.push([t('info.attackSpeed'), t('info.perSec', { n: fmt(1 / eff.interval, 2) }), nextEff && t('info.perSec', { n: fmt(1 / nextEff.interval, 2) })]);
+  rows.push([support ? t('info.charm') : t('info.range'), t('info.tiles', { n: fmt(eff.range / cell, 2) }), nextEff && t('info.tiles', { n: fmt(nextEff.range / cell, 2) })]);
+  if (!support) rows.push([t('info.dps'), fmt(dps(eff)), nextEff && fmt(dps(nextEff))]);
+  const cur = specialStats(cat.type, eff, cell);
+  const nxt = nextEff ? specialStats(cat.type, nextEff, cell) : [];
+  cur.forEach(([k, v], i) => rows.push([k, v, nextEff ? (nxt[i]?.[1] ?? null) : null]));
 
   return (
     <div className="overlay info-overlay" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
@@ -117,7 +89,7 @@ export function CatInfoPanel({
           <CatPreview type={cat.type} level={cat.level} loadout={loadout} size={96} attackLoop />
           <div className="info-title">
             <div className="info-name">
-              {t(`cat.${cat.type}.name`)} <span className="info-lv">{t('info.level', { n: cat.level })}</span>
+              {t(`cat.${cat.type}.name`)} <span className="info-lv">{t('info.level', { n: cat.level })}</span> <Stars n={star} size={11} />
             </div>
             <div className="muted small">{t(`cat.${cat.type}.title`)}</div>
             <div className="small info-quote">{t(`cat.${cat.type}.personality`)}</div>
@@ -130,16 +102,36 @@ export function CatInfoPanel({
           </span>
         </div>
         <div className="small info-mech">{t(`cat.${cat.type}.attack`)}</div>
-        <table className="info-stats">
+        <table className="info-stats info-compare">
+          <thead>
+            <tr>
+              <th />
+              <th>{t('info.level', { n: cat.level })}</th>
+              <th>{maxed ? t('info.nextMax') : t('info.next', { n: cat.level + 1 })}</th>
+            </tr>
+          </thead>
           <tbody>
-            {rows.map(([k, v]) => (
+            {rows.map(([k, v, n]) => (
               <tr key={k}>
                 <td>{k}</td>
                 <td>{v}</td>
+                <td className={n && n !== v ? 'info-up' : 'muted'}>{maxed ? t('star.max') : n ?? '—'}</td>
               </tr>
             ))}
           </tbody>
         </table>
+        <div className="info-abilities">
+          <div className={`info-ability ${battle.hasSpecial(cat.type) ? 'on' : ''}`}>
+            <GameIcon name="flag" size={16} /> <b>{t('info.special')}:</b> {t(`ability.${cat.type}.special.name`)}{' '}
+            <span className="muted tiny">{battle.hasSpecial(cat.type) ? t('ability.unlocked') : t('info.lockedAt', { n: STARS.specialAt })}</span>
+          </div>
+          <div className={`info-ability ${ult !== undefined ? 'on' : ''}`}>
+            <GameIcon name="ult" size={16} /> <b>{t('info.ult')}:</b> {t(`ability.${cat.type}.ult.name`)}{' '}
+            <span className="muted tiny">
+              {ult === undefined ? t('info.lockedAt', { n: STARS.ultimateAt }) : ult >= 1 ? t('info.ultReady') : t('info.ultCharging', { p: Math.round(ult * 100) })}
+            </span>
+          </div>
+        </div>
         <div className="info-bonuses">
           <div className="info-sub">{t('info.bonuses')}</div>
           {bonuses.length === 0 ? (

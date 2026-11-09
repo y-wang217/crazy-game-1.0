@@ -11,6 +11,12 @@ import type { CatDef, CatId, TargetMode } from '../game/types';
 //   Black      46       0.33        3.2        1                  0.6s aim, overkill on small mice
 //   White       0       0.45        1.64       area               45% slow for 2s (+15% on her focus)
 //
+//   Whiskers    8       1.11        1.6        1 + 2 bounces      bounces to nearby mice (−30% per jump)
+//   Sable      14       0.77        1.7        line               sword wave pierces everything in a line
+//   Mallow      0       0.4         1.8        allies             +30% attack speed to nearby cats for 3s
+//   Pounce      6       2.38        1.24       1                  ×2.2 damage on mice below 35% HP
+//   Devil       3       0.91        1.9        1 + poison         6 poison dmg/s for 3s, ignores armor
+//
 // Rough Lv.1 single-target DPS: kitten 14, tabby 21, orange 13 (×mice hit), black 15, white 0.
 // Range matters a lot (longer range = more time hitting each mouse), so long-range cats get
 // lower single-target DPS. `npm test` prints a Lv.1 comparison table (catIdentity.test.ts).
@@ -127,9 +133,128 @@ export const CATS: Record<CatId, CatDef> = {
       outline: '#a8a8c0',
     },
   },
+  // ---------------- Recruitable cats ----------------
+  whiskers: {
+    id: 'whiskers',
+    name: 'Mr. Whiskers',
+    title: 'Tuxedo Magician',
+    personality: 'Theatrical, confident, a little clumsy — and obsessed with applause.',
+    role: 'Ricochet chain attacker',
+    attack: 'ricochet',
+    damage: 8,
+    range: 80,
+    interval: 0.9,
+    projectileSpeed: 330,
+    bounces: 2,
+    bounceRange: 75,
+    bounceFalloff: 0.7,
+    scale: 0.95,
+    palette: {
+      body: '#2e2c38',
+      belly: '#f6f2ea',
+      earInner: '#b07a9a',
+      stripe: '#1e1c26',
+      eye: '#ffd36a',
+      outline: '#16141c',
+    },
+  },
+  sable: {
+    id: 'sable',
+    name: 'Sir Sable',
+    title: 'Moonlit Swordsman',
+    personality: 'Elegant, proud and impeccably polite. Treats every fight like a duel.',
+    role: 'Piercing line attacker',
+    attack: 'pierce',
+    damage: 14,
+    range: 85,
+    interval: 1.3,
+    pierceWidth: 14,
+    pierceLength: 1.15,
+    scale: 0.95,
+    palette: {
+      body: '#f3e6cf',
+      belly: '#fbf4e6',
+      earInner: '#6a5240',
+      stripe: '#5a4434',
+      eye: '#5ab0f0',
+      outline: '#7a6248',
+    },
+  },
+  mallow: {
+    id: 'mallow',
+    name: 'Captain Mallow',
+    title: 'Gentle Captain',
+    personality: 'Warm, fluffy and caring. Remembers everyone’s favourite snack.',
+    role: 'Team support (attack speed)',
+    attack: 'support',
+    damage: 0,
+    range: 90,
+    interval: 2.5,
+    buffSpeed: 0.3,
+    buffDuration: 3,
+    scale: 1.02,
+    palette: {
+      body: '#f6efe6',
+      belly: '#ffffff',
+      earInner: '#e6b8c0',
+      stripe: '#b8a08c',
+      eye: '#6aa8e8',
+      outline: '#a8927e',
+    },
+  },
+  pounce: {
+    id: 'pounce',
+    name: 'Shadow Pounce',
+    title: 'Rooftop Hunter',
+    personality: 'Energetic, competitive and always racing the Black Cat.',
+    role: 'Finisher (execute)',
+    attack: 'execute',
+    damage: 6,
+    range: 62,
+    interval: 0.42,
+    executeThreshold: 0.35,
+    executeMult: 2.2,
+    scale: 0.92,
+    palette: {
+      body: '#e0a85a',
+      belly: '#f8e6c4',
+      earInner: '#e8a090',
+      stripe: '#6a4220',
+      eye: '#7ac04a',
+      outline: '#7a4e20',
+    },
+  },
+  devil: {
+    id: 'devil',
+    name: 'Silver Devil',
+    title: 'Innocent Herbalist',
+    personality: 'Looks unbelievably innocent. Is not.',
+    role: 'Single-target poison',
+    attack: 'poison',
+    damage: 3,
+    range: 95,
+    interval: 1.1,
+    projectileSpeed: 300,
+    poisonDps: 6,
+    poisonDuration: 3,
+    scale: 0.95,
+    palette: {
+      body: '#d8dce4',
+      belly: '#ffffff',
+      earInner: '#c8a8c0',
+      stripe: '#8a8e9a',
+      eye: '#5ac08a',
+      outline: '#7a7e8c',
+    },
+  },
 };
 
-export const CAT_ORDER: CatId[] = ['kitten', 'tabby', 'orange', 'black', 'white'];
+/** Collection order: the original five, then the recruitable cats. */
+export const CAT_ORDER: CatId[] = ['kitten', 'tabby', 'orange', 'black', 'white', 'whiskers', 'sable', 'mallow', 'pounce', 'devil'];
+/** Owned by every player from the start; also the default battle team. */
+export const STARTER_CATS: CatId[] = ['kitten', 'tabby', 'orange', 'black', 'white'];
+/** Earned through recruitment or chapter rewards. */
+export const NEW_CATS: CatId[] = ['whiskers', 'sable', 'mallow', 'pounce', 'devil'];
 
 export const TARGET_MODES: TargetMode[] = ['first', 'nearest', 'strongest', 'weakest', 'treasure'];
 

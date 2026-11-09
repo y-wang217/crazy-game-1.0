@@ -48,6 +48,26 @@ export const SKILLS: Record<SkillId, SkillDef> = {
   dazzlingGrace: S('dazzlingGrace', '💖', 'improved', 3, { slow: 0.07 }, 'white'),
   lingeringCharm: S('lingeringCharm', '⏳', 'basic', 3, { slowDur: 0.5 }, 'white'),
   radiantBeauty: S('radiantBeauty', '✨', 'basic', 3, { range: 0.12 }, 'white'),
+
+  // ---- Mr. Whiskers: ricochet ----
+  encore: S('encore', '🎩', 'improved', 2, { bounce: 1 }, 'whiskers'),
+  stageMagic: S('stageMagic', '🪄', 'basic', 4, { dmg: 0.22 }, 'whiskers'),
+
+  // ---- Sir Sable: piercing line ----
+  keenEdge: S('keenEdge', '🗡️', 'improved', 4, { dmg: 0.22 }, 'sable'),
+  swiftDraw: S('swiftDraw', '💨', 'basic', 4, { speed: 0.12 }, 'sable'),
+
+  // ---- Captain Mallow: support ----
+  warmHeart: S('warmHeart', '💛', 'improved', 3, { buff: 0.06 }, 'mallow'),
+  biggerBell: S('biggerBell', '🔔', 'basic', 3, { range: 0.12 }, 'mallow'),
+
+  // ---- Shadow Pounce: execute ----
+  sharpInstinct: S('sharpInstinct', '🐾', 'improved', 3, { execute: 0.06 }, 'pounce'),
+  rooftopSprint: S('rooftopSprint', '⚡', 'basic', 4, { speed: 0.12 }, 'pounce'),
+
+  // ---- Silver Devil: poison ----
+  potentBrew: S('potentBrew', '🧪', 'improved', 4, { poison: 0.22 }, 'devil'),
+  lingeringVenom: S('lingeringVenom', '⏳', 'basic', 3, { poisonDur: 1 }, 'devil'),
 };
 
 export const SKILL_ORDER: SkillId[] = [
@@ -70,6 +90,16 @@ export const SKILL_ORDER: SkillId[] = [
   'dazzlingGrace',
   'lingeringCharm',
   'radiantBeauty',
+  'encore',
+  'stageMagic',
+  'keenEdge',
+  'swiftDraw',
+  'warmHeart',
+  'biggerBell',
+  'sharpInstinct',
+  'rooftopSprint',
+  'potentBrew',
+  'lingeringVenom',
 ];
 
 /**
@@ -95,7 +125,7 @@ export function skillParams(id: SkillId, level: number): Record<string, number |
   const per = SKILLS[id].per;
   const [key, v] = Object.entries(per)[0] as [keyof SkillEffect, number];
   const total = v * level;
-  if (key === 'combo' || key === 'armor') return { a: total };
-  if (key === 'slowDur') return { a: total.toFixed(1) };
+  if (key === 'combo' || key === 'armor' || key === 'bounce') return { a: total };
+  if (key === 'slowDur' || key === 'poisonDur') return { a: total.toFixed(1) };
   return { a: pct(total) };
 }

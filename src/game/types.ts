@@ -1,7 +1,19 @@
 // Shared type definitions for content (config) and simulation.
 
-export type CatId = 'kitten' | 'tabby' | 'orange' | 'black' | 'white';
-export type AttackKind = 'projectile' | 'combo' | 'slam' | 'snipe' | 'aura';
+export type CatId =
+  // the original five (owned from the start)
+  | 'kitten'
+  | 'tabby'
+  | 'orange'
+  | 'black'
+  | 'white'
+  // recruitable / chapter-reward cats
+  | 'whiskers'
+  | 'sable'
+  | 'mallow'
+  | 'pounce'
+  | 'devil';
+export type AttackKind = 'projectile' | 'combo' | 'slam' | 'snipe' | 'aura' | 'ricochet' | 'pierce' | 'support' | 'execute' | 'poison';
 export type TargetMode = 'first' | 'nearest' | 'strongest' | 'weakest' | 'treasure';
 export type EnemyId = 'normal' | 'fast' | 'armored' | 'shielded' | 'boss' | 'mushroomKing';
 export type ChestTier = 'bronze' | 'silver' | 'gold';
@@ -30,7 +42,22 @@ export type SkillId =
   // white
   | 'dazzlingGrace'
   | 'lingeringCharm'
-  | 'radiantBeauty';
+  | 'radiantBeauty'
+  // whiskers
+  | 'encore'
+  | 'stageMagic'
+  // sable
+  | 'keenEdge'
+  | 'swiftDraw'
+  // mallow
+  | 'warmHeart'
+  | 'biggerBell'
+  // pounce
+  | 'sharpInstinct'
+  | 'rooftopSprint'
+  // devil
+  | 'potentBrew'
+  | 'lingeringVenom';
 
 export interface CatPalette {
   body: string;
@@ -70,6 +97,30 @@ export interface CatDef {
   /** Extra slow applied to the cat's focused target (white cat). */
   focusBonus?: number;
   projectileSpeed?: number;
+  // ---- Ricochet (Mr. Whiskers) ----
+  /** Extra enemies the projectile jumps to after the first hit. */
+  bounces?: number;
+  /** Max distance (px) from one bounce target to the next. */
+  bounceRange?: number;
+  /** Damage multiplier applied on every bounce (0.7 = −30% per jump). */
+  bounceFalloff?: number;
+  // ---- Pierce (Sir Sable) ----
+  /** Half-width (px) of the straight sword wave. */
+  pierceWidth?: number;
+  /** Wave length as a multiple of range. */
+  pierceLength?: number;
+  // ---- Support (Captain Mallow) ----
+  /** Attack-speed buff given to allies in range (0.2 = +20%). */
+  buffSpeed?: number;
+  buffDuration?: number;
+  // ---- Execute (Shadow Pounce) ----
+  /** HP fraction below which hits are empowered. */
+  executeThreshold?: number;
+  executeMult?: number;
+  // ---- Poison (Silver Devil) ----
+  /** Poison damage per second at Lv.1 (scales with level like damage). */
+  poisonDps?: number;
+  poisonDuration?: number;
   /** Relative sprite scale. */
   scale: number;
   palette: CatPalette;
@@ -116,6 +167,16 @@ export interface SkillEffect {
   slowDur?: number;
   armor?: number;
   fish?: number;
+  /** Extra ricochet bounces (flat). */
+  bounce?: number;
+  /** Support buff strength (fraction, additive). */
+  buff?: number;
+  /** Execute threshold (fraction, additive). */
+  execute?: number;
+  /** Poison damage (fraction). */
+  poison?: number;
+  /** Poison duration (seconds). */
+  poisonDur?: number;
 }
 
 export interface SkillDef {
@@ -194,6 +255,11 @@ export interface StageDef {
   armorBonus?: number;
   /** Chest HP multiplier; defaults to 1 + BALANCE.chest.hpPerStage × (order − 1). */
   chestHpScale?: number;
+  /**
+   * Tutorial stages (1-1 … 1-6) introduce cats in a set order and always use `roster`.
+   * Every other stage summons from the player's selected battle team instead.
+   */
+  fixedRoster?: boolean;
 }
 
 export interface ChapterDef {

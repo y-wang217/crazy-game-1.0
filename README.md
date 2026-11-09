@@ -34,6 +34,41 @@ npm run build        # type-check + production build into dist/
 
 While dragging, tiles are tinted to show what the drop will do: green = move, gold = merge, blue = swap. A press only becomes a drag after the pointer moves 10 px, so a tap never moves a cat by accident.
 
+## What's new in V1.4 — Cat collection, stars, new cats
+
+**Two separate progressions**
+- **In-battle level Lv.1–Lv.5** (merging, resets every battle) — unchanged.
+- **Permanent star rank 1★–5★** (saved): modest stat growth per star, attack effects evolve (trails at 2★, sparkles at 4★, gold at 5★), **3★ unlocks a Special**, **5★ unlocks an Ultimate**. A 4★ cat still enters battle at Lv.1. Stars are always drawn as ★, levels as “Lv.”.
+- Star-up costs fragments of that cat + fish coins (10/100 → 20/250 → 30/500 → 40/800). The preview shows exact stat changes, new effects, unlocks and cost; nothing is spent unless it succeeds. At 5★: MAX, and leftover fragments can be exchanged for coins.
+
+**Ten cats** — the original five plus five new ones, each with a story, Cantonese signature line, Lv.1–5 gear, Special and Ultimate:
+
+| Cat | Role | Base | 3★ Special | 5★ Ultimate |
+| --- | --- | --- | --- | --- |
+| Mr. Whiskers 燕尾服魔術師 | Ricochet | yarn bounces 2× (−30%/jump) | Endless Trick: every 4th +1 bounce | Hat of Wonders: giant ball, 8 bounces |
+| Sir Sable 高冷劍士 | Pierce | straight sword wave hits all on the line | Armor-Piercing Form: −3 armor 3s | Moonshadow Slash: telegraphed long ×5 slash |
+| Captain Mallow 溫柔隊長 | Support | +30% attack speed to nearby cats, no damage | Teamwork: nearby merge → +15% dmg | Everyone Together!: team +25% speed +15% dmg |
+| Shadow Pounce 暗影獵手 | Execute | fast claws, ×2.2 below 35% HP | Hunting Instinct: post-kill strike ×2.5 | Shadow Pursuit: 6 strikes on wounded mice (bosses: normal hits) |
+| Silver Devil 魔鬼銀漸層 | Poison | 6/s poison for 3s (ignores armor, refreshes) | Venomous Kiss: stacks up to 3 | Devil’s Pact: mark, ×2.5 poison, allies +15% (boss caps) |
+
+Originals: Kitten (every 4th yarn ×2 / Heroic Burst), Tabby (finisher ×2 / 12-punch flurry), Orange (slammed mice +15% damage taken / Mega Belly Slam, no shake), Black Cat (every 3rd shot ignores 60% armor / Charged Shot at the toughest mouse), Noble White (every 3rd charm lasts 2× / Grand Royal Pose).
+
+**Ultimates** fire automatically on one shared cooldown per species (22 s, starts half charged), performed by the highest-level copy that has a valid target — extra copies never spam it. A compact ring per species in the top-right of the board shows readiness.
+
+**Collection, recruitment, team**
+- Recruit (Home → Recruit) for 100 fish coins: every cat has the same chance (10%); duplicates give 10 fragments of that cat (5★ cats refund coins). **New-cat guarantee:** after 5 duplicates in a row, the 6th draw is a cat you don’t own. Odds and the counter are always shown. No real money.
+- **Chapter rewards:** first clear of Chapter 1 → Sir Sable, Chapter 2 → Silver Devil (once each; also granted retroactively to players who already cleared them; an unowned new cat or fragments if already owned).
+- **Battle team:** 5 species; random summons only pick from it (tutorial stages 1-1…1-6 keep their own cats). Edit it from Stage Select or the Collection; saved immediately. Existing players start with the original five.
+- First time you get or summon a cat: an entrance (spotlight, drop-in, name and line), then its profile — the battle and prep timer stay paused.
+
+**UX**
+- **Tap-to-focus:** tap a mouse or chest to focus it (gold crosshair); cats that can reach it attack it first; tap again to cancel; clears when it dies or escapes.
+- Chest skill cards show real on-field counts: “On field: 3 · Lv.1 ×2 / Lv.2 ×1”.
+- Long-press details: Lv. and ★ separately, current stats (stars, skills and buffs included) vs. the next level (MAX at Lv.5), role stats (bounces, wave length, buff, execute, poison) and Special/Ultimate status.
+- Encyclopedia profiles: star rank, fragments, upgrade, Special/Ultimate (locked/unlocked), ★1–★5 evolution, and a **live demo running the real combat engine** with a ★ selector to preview each star’s effects.
+
+Tuning lives in `src/config/collection.ts` (stars, costs, recruitment, team size, chapter rewards, every Special/Ultimate, ultimate cooldown) and `src/config/cats.ts` (base stats). Save format v3 migrates older saves automatically.
+
 ## What's new in V1.3
 
 **Gameplay reliability**

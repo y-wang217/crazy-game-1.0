@@ -1,6 +1,6 @@
 import type { Tuning } from '../config/debug';
 import { Battle, canMerge } from './battle';
-import type { MapDef, StageDef } from './types';
+import type { CatId, MapDef, StageDef } from './types';
 
 export interface BotResult {
   win: boolean;
@@ -25,9 +25,9 @@ export function runBot(
   stage: StageDef,
   map: MapDef,
   seed: number,
-  opts: { smart?: boolean; tuning?: Partial<Tuning> } = {},
+  opts: { smart?: boolean; tuning?: Partial<Tuning>; stars?: Partial<Record<CatId, number>>; roster?: CatId[] } = {},
 ): BotResult {
-  const b = new Battle(stage, map, { seed, tuning: opts.tuning as Tuning | undefined });
+  const b = new Battle(stage, map, { seed, tuning: opts.tuning as Tuning | undefined, stars: opts.stars, roster: opts.roster });
   const tick = 0.25;
   const coverage = opts.smart ? tileCoverage(b) : null;
   // Preparation: summon what we can afford, then start right away.

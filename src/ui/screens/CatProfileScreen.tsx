@@ -1,89 +1,79 @@
 import { useState } from 'react';
 import { BALANCE } from '../../config/balance';
 import { CATS, CAT_ORDER } from '../../config/cats';
+import { STARS, ULTIMATE, abilityParams, starCost } from '../../config/collection';
+import { RECRUIT } from '../../config/collection';
 import { SKILLS, SKILL_ORDER, skillParams } from '../../config/skills';
 import { getCatStats } from '../../game/combat';
 import type { CatId } from '../../game/types';
 import { t, useLang } from '../../i18n';
-import { useSave } from '../../save/store';
+import { saveStore, useSave } from '../../save/store';
 import type { Screen } from '../App';
-import { AttackDemo } from '../components/AttackDemo';
 import { CatPreview } from '../components/CatPreview';
 import { GameIcon } from '../components/GameIcon';
+import { CoinIcon } from '../components/Icons';
+import { SimDemo } from '../components/SimDemo';
+import { StarUpgrade } from '../components/StarUpgrade';
+import { specialStats } from '../components/statText';
+import { Stars } from '../components/Stars';
 
 const fmt = (n: number, d = 1) => (Math.round(n * 10 ** d) / 10 ** d).toString();
 
-/** Largest value of a stat across all cats at a level — used to scale comparison bars. */
-function maxAcross(level: number, pick: (id: CatId) => number): number {
-  return Math.max(...CAT_ORDER.map(pick).filter((v) => v > 0), 1e-6);
-  void level;
-}
-
-/** A dedicated character page: story, stats per level, gear evolution, signature attack, skills. */
+/**
+ * A character page: permanent star rank + fragments + upgrade, Special & Ultimate,
+ * star evolution, a live demo (real combat engine), stats per in-battle level, gear, story.
+ * Permanent stars (★) and in-battle levels (Lv.) are always shown separately.
+ */
 export function CatProfileScreen({ cat, go }: { cat: CatId; go: (s: Screen) => void }) {
   useLang();
   const save = useSave();
+  const own = save.collection[cat];
   const [level, setLevel] = useState(1);
+  const [demoStar, setDemoStar] = useState<number | null>(null);
+  const [upgrading, setUpgrading] = useState(false);
   const def = CATS[cat];
-  const st = getCatStats(def, level);
-  const aura = def.attack === 'aura';
+  const star = own?.stars ?? 1;
+  const st = getCatStats(def, level, undefined, star);
+  const support = def.attack === 'aura' || def.attack === 'support';
   const cell = 50;
-  const met = save.seen.includes(`cat:${cat}`);
   const skills = SKILL_ORDER.filter((id) => SKILLS[id].cat === cat);
 
-  // Comparison bars against the other cats at the same level (no skills).
-  const statsOf = (id: CatId) => getCatStats(CATS[id], level);
+  // Comparison bars against every cat at the same level and star rank 1 (no skills).
+  const statsOf = (id: CatId) => getCatStats(CATS[id], level, undefined, id === cat ? star : 1);
+  const maxAcross = (pick: (id: CatId) => number) => Math.max(...CAT_ORDER.map(pick).filter((v) => v > 0), 1e-6);
   const bars: { label: string; value: string; frac: number }[] = [];
-  if (!aura) {
+  if (!support) {
     bars.push({
       label: t('info.damage'),
       value: st.comboHits > 1 ? t('info.hits', { dmg: fmt(st.damage), n: st.comboHits }) : fmt(st.damage),
-      frac: st.damage / maxAcross(level, (id) => statsOf(id).damage),
+      frac: st.damage / maxAcross((id) => statsOf(id).damage),
     });
   }
   bars.push({
     label: t('info.attackSpeed'),
-    value: t('info.perSec', { n: fmt((st.comboHits > 1 ? 1 : 1) / st.interval, 2) }),
-    frac: 1 / st.interval / maxAcross(level, (id) => 1 / statsOf(id).interval),
+    value: t('info.perSec', { n: fmt(1 / st.interval, 2) }),
+    frac: 1 / st.interval / maxAcross((id) => 1 / statsOf(id).interval),
   });
   bars.push({
-    label: aura ? t('info.charm') : t('info.range'),
+    label: support ? t('info.charm') : t('info.range'),
     value: t('info.tiles', { n: fmt(st.range / cell, 2) }),
-    frac: st.range / maxAcross(level, (id) => statsOf(id).range),
+    frac: st.range / maxAcross((id) => statsOf(id).range),
   });
-  if (!aura) {
+  if (!support) {
     const dps = (id: CatId) => {
       const s = statsOf(id);
-      return (s.damage * s.comboHits) / s.interval;
+      return (s.damage * s.comboHits) / s.interval + s.poisonDps;
     };
-    bars.push({ label: t('info.dps'), value: fmt(dps(cat)), frac: dps(cat) / maxAcross(level, dps) });
+    bars.push({ label: t('info.dps'), value: fmt(dps(cat)), frac: dps(cat) / maxAcross(dps) });
   }
+  const extras = specialStats(cat, st, cell);
 
-  const extras: [string, string][] = [];
-  if (def.attack === 'combo') extras.push([t('profile.combo'), t('profile.comboVal', { n: st.comboHits, g: fmt(def.comboGap ?? 0.08, 2) })]);
-  if (def.attack === 'slam') {
-    extras.push([t('info.splash'), t('info.splashVal', { r: fmt(st.splashRadius / cell, 2), p: Math.round(st.splashRatio * 100) })]);
-    extras.push([t('profile.windup'), t('profile.secs', { s: fmt(def.windup ?? 0, 2) })]);
-  }
-  if (def.attack === 'snipe') extras.push([t('profile.aim'), t('profile.secs', { s: fmt(def.windup ?? 0, 2) })]);
-  if (aura) {
-    extras.push([t('info.slow'), t('info.slowVal', { p: Math.round(st.slowStrength * 100), s: fmt(st.slowDuration) })]);
-    extras.push([t('info.focus'), t('info.focusVal', { p: Math.round(st.focusBonus * 100) })]);
-  }
+  const owned = CAT_ORDER.filter((id) => save.collection[id]);
+  const idx = owned.indexOf(cat);
+  const prev = owned.length > 1 && idx >= 0 ? owned[(idx - 1 + owned.length) % owned.length] : null;
+  const next = owned.length > 1 && idx >= 0 ? owned[(idx + 1) % owned.length] : null;
 
-  const idx = CAT_ORDER.indexOf(cat);
-  const metList = CAT_ORDER.filter((id) => save.seen.includes(`cat:${id}`));
-  const neighbour = (dir: 1 | -1): CatId | null => {
-    for (let k = 1; k < CAT_ORDER.length; k++) {
-      const c = CAT_ORDER[(idx + dir * k + CAT_ORDER.length) % CAT_ORDER.length];
-      if (metList.includes(c)) return c === cat ? null : c;
-    }
-    return null;
-  };
-  const prev = neighbour(-1);
-  const next = neighbour(1);
-
-  if (!met) {
+  if (!own) {
     return (
       <div className="screen cats">
         <div className="topbar">
@@ -91,10 +81,14 @@ export function CatProfileScreen({ cat, go }: { cat: CatId; go: (s: Screen) => v
             {t('profile.back')}
           </button>
         </div>
-        <p className="center muted">{t('guide.unknownHint')}</p>
+        <p className="center muted">{t('guide.lockedHint')}</p>
       </div>
     );
   }
+
+  const cost = starCost(own.stars);
+  const maxed = own.stars >= STARS.max;
+  const shownStar = demoStar ?? star;
 
   return (
     <div className="screen profile" style={{ ['--cat-accent' as string]: def.palette.body }}>
@@ -127,9 +121,104 @@ export function CatProfileScreen({ cat, go }: { cat: CatId; go: (s: Screen) => v
           <span className="info-tag">{t(`attack.${def.attack}`)}</span>
         </div>
         <p className="profile-quote">“{t(`cat.${cat}.personality`)}”</p>
+        <p className="profile-line">「{t(`cat.${cat}.line`)}」</p>
       </div>
 
-      {/* Level evolution: each level adds visible gear; the role never changes. */}
+      {/* Permanent progression: star rank + fragments */}
+      <section className="profile-card star-card">
+        <h3>{t('star.title')}</h3>
+        <div className="star-row">
+          <Stars n={own.stars} size={26} />
+          <span className="star-frag">
+            <GameIcon name="fragment" size={16} />{' '}
+            {maxed ? t('star.fragmentsMax', { n: own.fragments }) : t('star.fragments', { n: own.fragments, need: cost!.fragments })}
+          </span>
+        </div>
+        {maxed ? (
+          <>
+            <div className="star-max">{t('star.max')}</div>
+            {own.fragments > 0 && (
+              <button className="btn btn-secondary btn-small" onClick={() => saveStore.exchangeFragments(cat)}>
+                <CoinIcon size={14} /> {t('star.exchange', { n: own.fragments, c: own.fragments * RECRUIT.maxedFragmentCoins })}
+              </button>
+            )}
+          </>
+        ) : (
+          <>
+            <div className="muted small">{t('star.cost', { f: cost!.fragments, c: cost!.coins })}</div>
+            <button className="btn btn-primary" onClick={() => setUpgrading(true)}>
+              <GameIcon name="star" size={18} /> {t('star.upgrade')}
+            </button>
+          </>
+        )}
+        <div className="muted tiny">{t('star.permanentNote')}</div>
+      </section>
+
+      {/* Special (3★) and Ultimate (5★) */}
+      <section className="profile-card">
+        <h3>{t('profile.abilities')}</h3>
+        {(['special', 'ult'] as const).map((which) => {
+          const need = which === 'special' ? STARS.specialAt : STARS.ultimateAt;
+          const unlocked = own.stars >= need;
+          return (
+            <div key={which} className={`ability ${unlocked ? 'on' : 'locked'}`}>
+              <div className="ability-head">
+                <GameIcon name={which === 'ult' ? 'ult' : 'flag'} size={20} />
+                <b>{t(`ability.${cat}.${which}.name`)}</b>
+                <span className="ability-tag">{which === 'special' ? t('ability.special') : t('ability.ultimate')}</span>
+                <span className={`ability-state ${unlocked ? 'good' : ''}`}>
+                  {unlocked ? t('ability.unlocked') : (
+                    <>
+                      <GameIcon name="lock" size={12} /> {t('ability.locked', { n: need })}
+                    </>
+                  )}
+                </span>
+              </div>
+              <div className="small">{t(`ability.${cat}.${which}.desc`, abilityParams(cat, which))}</div>
+            </div>
+          );
+        })}
+        <div className="muted tiny">{t('ability.ultNote', { s: ULTIMATE.cooldown })}</div>
+      </section>
+
+      {/* Live demo with star preview */}
+      <section className="profile-card">
+        <h3>{t('profile.signature')}</h3>
+        <SimDemo type={cat} level={level} star={shownStar} loadout={save.equipped} />
+        <div className="demo-stars" role="group" aria-label={t('profile.starFx')}>
+          {Array.from({ length: STARS.max }, (_, i) => i + 1).map((s) => (
+            <button key={s} className={`demo-star ${s === shownStar ? 'on' : ''} ${s > own.stars ? 'preview' : ''}`} onClick={() => setDemoStar(s === star ? null : s)}>
+              {s}★
+            </button>
+          ))}
+        </div>
+        <p className="small">{t(`cat.${cat}.attack`)}</p>
+        <p className="small">{t(`cat.${cat}.signature`)}</p>
+        <div className="sw-grid">
+          <div>
+            <div className="good small b">{t('intro.strengths')}</div>
+            <div className="small">{t(`cat.${cat}.strengths`)}</div>
+          </div>
+          <div>
+            <div className="bad small b">{t('intro.weaknesses')}</div>
+            <div className="small">{t(`cat.${cat}.weaknesses`)}</div>
+          </div>
+        </div>
+      </section>
+
+      {/* ★1–★5 attack-effect evolution */}
+      <section className="profile-card">
+        <h3>{t('profile.starFx')}</h3>
+        <ol className="star-fx">
+          {Array.from({ length: STARS.max }, (_, i) => i + 1).map((s) => (
+            <li key={s} className={s <= own.stars ? 'on' : ''}>
+              <span className="star-fx-n">{s}★</span> {t(`starfx.${s}`)}
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      {/* In-battle level evolution (Lv.1–5, merging): gear + stats */}
       <section className="profile-card">
         <h3>{t('profile.levels')}</h3>
         <div className="level-strip">
@@ -146,7 +235,9 @@ export function CatProfileScreen({ cat, go }: { cat: CatId; go: (s: Screen) => v
       </section>
 
       <section className="profile-card">
-        <h3>{t('profile.stats', { n: level })}</h3>
+        <h3>
+          {t('profile.stats', { n: level })} · <Stars n={star} size={12} />
+        </h3>
         <div className="stat-compare">
           {bars.map((b) => (
             <div key={b.label} className="stat-compare-row">
@@ -174,23 +265,6 @@ export function CatProfileScreen({ cat, go }: { cat: CatId; go: (s: Screen) => v
       </section>
 
       <section className="profile-card">
-        <h3>{t('profile.signature')}</h3>
-        <AttackDemo type={cat} level={level} loadout={save.equipped} />
-        <p className="small">{t(`cat.${cat}.attack`)}</p>
-        <p className="small">{t(`cat.${cat}.signature`)}</p>
-        <div className="sw-grid">
-          <div>
-            <div className="good small b">{t('intro.strengths')}</div>
-            <div className="small">{t(`cat.${cat}.strengths`)}</div>
-          </div>
-          <div>
-            <div className="bad small b">{t('intro.weaknesses')}</div>
-            <div className="small">{t(`cat.${cat}.weaknesses`)}</div>
-          </div>
-        </div>
-      </section>
-
-      <section className="profile-card">
         <h3>{t('profile.story')}</h3>
         <p className="small story">{t(`cat.${cat}.story`)}</p>
       </section>
@@ -208,6 +282,8 @@ export function CatProfileScreen({ cat, go }: { cat: CatId; go: (s: Screen) => v
         ))}
         <div className="muted tiny">{t('profile.skillsNote')}</div>
       </section>
+
+      {upgrading && <StarUpgrade cat={cat} loadout={save.equipped} onClose={() => setUpgrading(false)} />}
     </div>
   );
 }

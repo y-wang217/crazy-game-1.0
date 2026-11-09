@@ -2,6 +2,20 @@ import { useSyncExternalStore } from 'react';
 import { ALL_STAGE_IDS, findStage } from '../config/chapters';
 import { findCosmetic } from '../config/cosmetics';
 import { computeStars, nextStageId, stageClearCoins } from '../game/progression';
+import {
+  claimChapterRewards,
+  exchangeFragments,
+  recruit,
+  sanitizeCollection,
+  sanitizeTeam,
+  setTeam,
+  upgradeStar,
+  type ChapterGrant,
+  type CollectionState,
+  type OwnedCat,
+  type RecruitResult,
+  type UpgradeResult,
+} from '../game/collection';
 import type { CatId, CosmeticLoadout } from '../game/types';
 
 // Persistent progression only. Battle cats/skills/dried fish are never saved.
@@ -10,13 +24,16 @@ import type { CatId, CosmeticLoadout } from '../game/types';
 //   v1 — coins, unlocks, stars, cosmetics.
 //   v2 — adds `seen`: ids of tutorials and first-time introductions already shown
 //        (e.g. "cat:kitten", "enemy:fast", "chest:bronze", "tut:summon").
+//   v3 — adds the permanent cat collection: owned cats with star rank + fragments,
+//        the 5-species battle team, recruitment guarantee counter and claimed
+//        chapter-completion rewards. Older saves get the five starter cats at 1★.
 // parseSave() accepts any older version and fills new fields with safe defaults.
 
 const KEY = 'catdefense.save.v1';
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 export interface SaveData {
-  version: 2;
+  version: 3;
   fishCoins: number;
   /** Stage ids the player may enter. */
   unlocked: string[];
@@ -26,17 +43,30 @@ export interface SaveData {
   equipped: CosmeticLoadout;
   /** Tutorial steps and introductions the player has already completed. */
   seen: string[];
+  /** Owned cats: permanent star rank (1–5) and unspent fragments. */
+  collection: Partial<Record<CatId, OwnedCat>>;
+  /** Species random summons pick from (TEAM_SIZE). */
+  team: CatId[];
+  recruitStreak: number;
+  recruitDraws: number;
+  /** Chapters whose completion cat was granted. */
+  chapterRewards: string[];
 }
 
 export function defaultSave(): SaveData {
   return {
-    version: 2,
+    version: 3,
     fishCoins: 0,
     unlocked: [ALL_STAGE_IDS[0]],
     cleared: {},
     owned: [],
     equipped: { hat: null, skins: {} },
     seen: [],
+    collection: sanitizeCollection(null),
+    team: sanitizeTeam(null, sanitizeCollection(null)),
+    recruitStreak: 0,
+    recruitDraws: 0,
+    chapterRewards: [],
   };
 }
 
@@ -80,14 +110,21 @@ export function parseSave(raw: string | null): SaveData {
       }
     }
     const seen = Array.isArray(o.seen) ? Array.from(new Set(o.seen.filter((x: unknown) => typeof x === 'string'))) as string[] : [];
+    const collection = sanitizeCollection(o.collection);
+    const int = (v: unknown) => (typeof v === 'number' && v >= 0 ? Math.floor(v) : 0);
     return {
-      version: 2,
-      fishCoins: typeof o.fishCoins === 'number' && o.fishCoins >= 0 ? Math.floor(o.fishCoins) : 0,
+      version: 3,
+      fishCoins: int(o.fishCoins),
       unlocked: withProgressUnlocks(unlocked.length ? [ALL_STAGE_IDS[0], ...unlocked] : d.unlocked, cleared),
       cleared,
       owned,
       equipped: { hat, skins },
       seen,
+      collection,
+      team: sanitizeTeam(o.team, collection),
+      recruitStreak: int(o.recruitStreak),
+      recruitDraws: int(o.recruitDraws),
+      chapterRewards: Array.isArray(o.chapterRewards) ? o.chapterRewards.filter((x: unknown) => typeof x === 'string') : [],
     };
   } catch {
     return d;
@@ -177,6 +214,39 @@ export const saveStore = {
     commit({ ...state, seen: [...state.seen, id] });
   },
 
+  // ---------------- Cat collection ----------------
+
+  recruit(rand?: () => number): RecruitResult {
+    const r = recruit(collectionOf(state), rand);
+    if (r.ok) commit({ ...state, ...r.state });
+    return r;
+  },
+
+  upgradeStar(id: CatId): UpgradeResult {
+    const r = upgradeStar(collectionOf(state), id);
+    if (r.ok) commit({ ...state, ...r.state });
+    return r;
+  },
+
+  exchangeFragments(id: CatId): number {
+    const r = exchangeFragments(collectionOf(state), id);
+    if (r.ok) commit({ ...state, ...r.state });
+    return r.coins;
+  },
+
+  setTeam(team: CatId[]): boolean {
+    const r = setTeam(collectionOf(state), team);
+    if (r.ok) commit({ ...state, ...r.state });
+    return r.ok;
+  },
+
+  /** Grant any chapter-completion cats not yet received (safe to call any time). */
+  claimChapterRewards(): ChapterGrant[] {
+    const r = claimChapterRewards(collectionOf(state));
+    if (r.grants.length) commit({ ...state, ...r.state });
+    return r.grants;
+  },
+
   /** Show every tutorial and introduction again (keeps coins, unlocks and cosmetics). */
   resetTutorials(): void {
     commit({ ...state, seen: [] });
@@ -186,6 +256,18 @@ export const saveStore = {
     commit(defaultSave());
   },
 };
+
+function collectionOf(s: SaveData): CollectionState {
+  return {
+    fishCoins: s.fishCoins,
+    collection: s.collection,
+    team: s.team,
+    recruitStreak: s.recruitStreak,
+    recruitDraws: s.recruitDraws,
+    chapterRewards: s.chapterRewards,
+    cleared: s.cleared,
+  };
+}
 
 export function useSave(): SaveData {
   return useSyncExternalStore(saveStore.subscribe, saveStore.get, saveStore.get);

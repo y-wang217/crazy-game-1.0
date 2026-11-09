@@ -1,8 +1,7 @@
 import { BALANCE } from '../config/balance';
 import { CATS, TARGET_MODE_INFO } from '../config/cats';
 import { findCosmetic } from '../config/cosmetics';
-import type { Battle, CatUnit, Foe } from '../game/battle';
-import { getCatStats } from '../game/combat';
+import type { Battle, CatUnit, Foe, Projectile } from '../game/battle';
 import { cellCenter, worldSize } from '../game/path';
 import { Rng } from '../game/rng';
 import type { CatId, CatPalette, ChestTier, CosmeticLoadout, EnemyId, MapDef } from '../game/types';
@@ -116,8 +115,12 @@ export class Renderer {
   /** Simulation clock of the battle being drawn (wind-up poses follow game time, not wall time). */
   private simTime = 0;
 
+  /** Battle being drawn (for buff glows / star halos in drawCatUnit). */
+  private cur: Battle | null = null;
+
   draw(battle: Battle, drag: DragView | null, loadout: CosmeticLoadout, opts: DrawOptions = {}): void {
     this.simTime = battle.time;
+    this.cur = battle;
     this.ensureBackground(battle);
     const ctx = this.ctx;
     const k = this.dpr * this.scale;
@@ -166,14 +169,14 @@ export class Renderer {
     // Range rings: dragged cat (at hover tile) or recently tapped cat
     if (dragCat) {
       const tile = drag!.overTileId ? battle.tileById(drag!.overTileId) : null;
-      const st = getCatStats(CATS[dragCat.type], dragCat.level, battle.mods);
+      const st = battle.unitStats(dragCat);
       const pos = tile && tile.unlocked ? tile : { x: drag!.x, y: drag!.y };
-      this.rangeRing(pos.x, pos.y, st.range, dragCat.type === 'white' ? '#ff8fc0' : '#ffffff');
+      this.rangeRing(pos.x, pos.y, st.range, dragCat.type === 'white' ? '#ff8fc0' : dragCat.type === 'mallow' ? '#ffd36a' : '#ffffff');
     }
     for (const cat of battle.cats) {
       const age = t - cat.modeAt;
       if (age < 1.2 && cat !== dragCat) {
-        const st = getCatStats(CATS[cat.type], cat.level, battle.mods);
+        const st = battle.unitStats(cat);
         ctx.globalAlpha = 1 - age / 1.2;
         this.rangeRing(cat.x, cat.y, st.range, TARGET_MODE_INFO[cat.mode].color);
         ctx.globalAlpha = 1;
@@ -184,7 +187,7 @@ export class Renderer {
     for (const uid of opts.focusUids ?? []) {
       const cat = battle.catByUid(uid);
       if (!cat || cat === dragCat) continue;
-      const st = getCatStats(CATS[cat.type], cat.level, battle.mods);
+      const st = battle.unitStats(cat);
       this.rangeRing(cat.x, cat.y, st.range, '#ffd84a');
       const pulse = 0.5 + 0.5 * Math.sin(t * 5);
       ctx.beginPath();
@@ -200,7 +203,7 @@ export class Renderer {
       if (!w) continue;
       const p = Math.min(1, Math.max(0, (battle.time - w.start) / Math.max(0.01, w.fireAt - w.start)));
       if (cat.type === 'orange') {
-        const st = getCatStats(CATS.orange, cat.level, battle.mods);
+        const st = battle.unitStats(cat);
         ctx.beginPath();
         ctx.arc(w.x, w.y, st.splashRadius, 0, TAU);
         ctx.fillStyle = `rgba(230,140,60,${0.08 + p * 0.14})`;
@@ -242,7 +245,7 @@ export class Renderer {
 
     // Foes (sorted by y for overlap)
     const foes = [...battle.foes].sort((a, b) => a.y - b.y);
-    for (const f of foes) this.drawFoe(f, t, battle.time);
+    for (const f of foes) this.drawFoe(f, t, battle.time, f.uid === battle.focusUid);
     if (this.trail.size > 200) this.trail.clear();
 
     // Cats
@@ -256,32 +259,8 @@ export class Renderer {
       }
     }
 
-    // Projectiles
-    for (const p of battle.projectiles) {
-      if (p.style === 'bullet') {
-        const ang = Math.atan2(p.ty - p.y, p.tx - p.x);
-        ctx.save();
-        ctx.translate(p.x, p.y);
-        ctx.rotate(ang);
-        ctx.fillStyle = 'rgba(255,240,160,0.5)';
-        ctx.beginPath();
-        ctx.ellipse(-10, 0, 12, 2.2, 0, 0, TAU);
-        ctx.fill();
-        drawStar(ctx, 0, 0, 5, '#ffe066', 4, 0.45);
-        ctx.restore();
-      } else {
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 4, 0, TAU);
-        ctx.fillStyle = '#ff8fb0';
-        ctx.fill();
-        ctx.strokeStyle = '#c04a70';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 2.2, 0.3, 2.6);
-        ctx.stroke();
-      }
-    }
+    // Projectiles (attack effects evolve with the shooter's permanent star rank)
+    for (const p of battle.projectiles) this.drawProjectile(p, t);
 
     this.drawEffects(battle);
     if (this.env === 'mushroom') this.drawSpores(t);
@@ -374,6 +353,54 @@ export class Renderer {
       ctx.fill();
       ctx.globalAlpha = showBadges ? 1 : 0.35;
     }
+    // Permanent star rank: a soft halo at 5★; buffs (Captain Mallow) glow gold; ultimates flash.
+    const b = this.cur;
+    if (b && showBadges) {
+      const star = b.starOf(cat.type);
+      if (star >= 5) {
+        ctx.save();
+        ctx.globalAlpha = 0.35 + 0.1 * Math.sin(t * 2 + cat.uid);
+        ctx.strokeStyle = '#ffd36a';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.ellipse(0, 15, 17, 5, 0, 0, TAU);
+        ctx.stroke();
+        ctx.restore();
+      }
+      const buffed = cat.buffSpeedUntil > b.time || cat.buffDmgUntil > b.time || b.teamBuff.until > b.time;
+      if (buffed) {
+        ctx.save();
+        ctx.globalAlpha = 0.3 + 0.15 * Math.sin(t * 6);
+        const g = ctx.createRadialGradient(0, 4, 2, 0, 4, 24);
+        g.addColorStop(0, 'rgba(255,214,106,0.9)');
+        g.addColorStop(1, 'rgba(255,214,106,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(0, 4, 24, 0, TAU);
+        ctx.fill();
+        ctx.restore();
+      }
+      if (cat.empowered) {
+        ctx.save();
+        ctx.globalAlpha = 0.6;
+        ctx.strokeStyle = '#9fe0d0';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 2, 20, 0, TAU);
+        ctx.stroke();
+        ctx.restore();
+      }
+      const ultAge = t - cat.ultAt;
+      if (ultAge < 0.9) {
+        ctx.save();
+        ctx.globalAlpha = 1 - ultAge / 0.9;
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * TAU + ultAge * 4;
+          drawStar(ctx, Math.cos(a) * (16 + ultAge * 14), Math.sin(a) * (12 + ultAge * 10), 2.6, i % 2 ? '#ffd36a' : '#ffffff');
+        }
+        ctx.restore();
+      }
+    }
     // Level-5 sparkle aura
     if (cat.level >= BALANCE.levels.maxLevel) {
       for (let i = 0; i < 3; i++) {
@@ -439,7 +466,7 @@ export class Renderer {
   }
 
   /** t = visual clock (flashes, fades); walkT = simulation clock (walk cycle freezes with the game). */
-  private drawFoe(f: Foe, t: number, walkT: number) {
+  private drawFoe(f: Foe, t: number, walkT: number, focused = false) {
     const ctx = this.ctx;
     const hitAge = t - f.hitAt;
     const hit = hitAge < 0.08;
@@ -500,6 +527,73 @@ export class Renderer {
       ctx.restore();
     }
 
+    // Status effects: poison bubbles (Silver Devil), Devil's Pact sigil, armor shred, vulnerable.
+    const st = this.simTime;
+    if (f.poisonUntil > st) {
+      for (let i = 0; i < 2 + f.poisonStacks; i++) {
+        const k = (t * 0.9 + i * 0.37 + f.uid * 0.13) % 1;
+        ctx.globalAlpha = (1 - k) * 0.85;
+        ctx.fillStyle = i % 2 ? '#b58ad6' : '#9fd0a8';
+        ctx.beginPath();
+        ctx.arc((i - 1.5) * 4, -f.radius * 0.4 - k * 14, 1.6 + (1 - k) * 1.2, 0, TAU);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      if (f.poisonStacks > 1) {
+        ctx.font = `900 8px ${FONT_STACK}`;
+        ctx.textAlign = 'center';
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = 'rgba(40,20,50,0.8)';
+        ctx.strokeText(`×${f.poisonStacks}`, f.radius + 4, -f.radius);
+        ctx.fillStyle = '#d8b8f0';
+        ctx.fillText(`×${f.poisonStacks}`, f.radius + 4, -f.radius);
+      }
+    }
+    if (f.markUntil > st) {
+      ctx.save();
+      ctx.rotate(t * 1.5);
+      ctx.strokeStyle = 'rgba(181,138,214,0.85)';
+      ctx.lineWidth = 1.6;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.arc(0, 0, f.radius + 7, 0, TAU);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+      drawHeart(ctx, 0, -f.radius - 6, 3.2, '#9a5ac8');
+    }
+    if (f.shredUntil > st && f.shred > 0) {
+      ctx.strokeStyle = '#8ab8e8';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(-f.radius * 0.6, -f.radius * 0.2);
+      ctx.lineTo(-f.radius * 0.1, f.radius * 0.1);
+      ctx.lineTo(-f.radius * 0.4, f.radius * 0.5);
+      ctx.stroke();
+    }
+    if (f.vulnUntil > st) {
+      ctx.globalAlpha = 0.5 + 0.3 * Math.sin(t * 8);
+      ctx.strokeStyle = '#ffb35a';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(0, 2, f.radius + 2, Math.PI * 0.15, Math.PI * 0.85);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    // Tap-to-focus: a subtle gold crosshair.
+    if (focused) {
+      const r = f.radius + 9 + Math.sin(t * 4) * 1.5;
+      ctx.strokeStyle = 'rgba(217,173,114,0.95)';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, TAU);
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+        ctx.moveTo(dx * (r - 4), dy * (r - 4));
+        ctx.lineTo(dx * (r + 4), dy * (r + 4));
+      }
+      ctx.stroke();
+    }
+
     // Distracted by the white cat
     if (f.slowT > 0) {
       const b = Math.sin(t * 6 + f.uid) * 1.5;
@@ -542,6 +636,86 @@ export class Renderer {
     ctx.restore();
   }
 
+  /** One projectile; size and trail detail grow with the shooter's permanent star rank. */
+  private drawProjectile(p: Projectile, t: number) {
+    const ctx = this.ctx;
+    const star = p.star ?? 1;
+    const size = p.size ?? 1;
+    const ang = Math.atan2(p.ty - p.y, p.tx - p.x);
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    // Trail: none at 1★, a soft streak from 2★, sparkles from 4★.
+    if (star >= 2) {
+      ctx.save();
+      ctx.rotate(ang);
+      const col = p.style === 'magic' ? '200,154,255' : p.style === 'venom' ? '159,208,168' : p.style === 'bullet' ? '255,240,160' : '255,170,200';
+      const g = ctx.createLinearGradient(-14 - star * 3, 0, 0, 0);
+      g.addColorStop(0, `rgba(${col},0)`);
+      g.addColorStop(1, `rgba(${col},0.55)`);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(-8 - star * 1.5, 0, 8 + star * 2, 2 + size * 1.2, 0, 0, TAU);
+      ctx.fill();
+      ctx.restore();
+      if (star >= 4) drawStar(ctx, -Math.cos(ang) * 10 + Math.sin(t * 20) * 2, -Math.sin(ang) * 10, 2, star >= 5 ? '#ffd36a' : '#ffffff', 4, 0.4);
+    }
+    if (p.style === 'bullet') {
+      ctx.rotate(ang);
+      ctx.fillStyle = 'rgba(255,240,160,0.5)';
+      ctx.beginPath();
+      ctx.ellipse(-10 * size, 0, 12 * size, 2.2 * size, 0, 0, TAU);
+      ctx.fill();
+      drawStar(ctx, 0, 0, 5 * size, (p.armorIgnore ?? 0) > 0 ? '#ff8a8a' : star >= 5 ? '#ffd36a' : '#ffe066', 4, 0.45);
+    } else if (p.style === 'magic') {
+      // Mr. Whiskers' enchanted yarn: purple glow, gold thread.
+      const r = 4.2 * size;
+      const g = ctx.createRadialGradient(0, 0, 1, 0, 0, r * 2.2);
+      g.addColorStop(0, 'rgba(200,154,255,0.6)');
+      g.addColorStop(1, 'rgba(200,154,255,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 2.2, 0, TAU);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, TAU);
+      ctx.fillStyle = '#8a5ac8';
+      ctx.fill();
+      ctx.strokeStyle = '#ffd36a';
+      ctx.lineWidth = 1.1;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.6, t * 8, t * 8 + 4);
+      ctx.stroke();
+      if (size > 1.5) for (let i = 0; i < 3; i++) drawStar(ctx, Math.cos(t * 6 + i * 2) * r * 1.4, Math.sin(t * 6 + i * 2) * r * 1.4, 2, '#ffd36a', 4, 0.4);
+    } else if (p.style === 'venom') {
+      // Silver Devil's sweet venom: a violet droplet with a green glint.
+      ctx.rotate(ang + Math.PI / 2);
+      ctx.fillStyle = '#9a5ac8';
+      ctx.beginPath();
+      ctx.moveTo(0, -5 * size);
+      ctx.quadraticCurveTo(4 * size, 1, 0, 4 * size);
+      ctx.quadraticCurveTo(-4 * size, 1, 0, -5 * size);
+      ctx.fill();
+      ctx.fillStyle = '#b8f0c8';
+      ctx.beginPath();
+      ctx.arc(-1, 0.5, 1.2, 0, TAU);
+      ctx.fill();
+    } else {
+      // Kitten's yarn ball (bigger when empowered; golden at 5★).
+      const r = 4 * size;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, TAU);
+      ctx.fillStyle = star >= 5 ? '#ffd36a' : '#ff8fb0';
+      ctx.fill();
+      ctx.strokeStyle = star >= 5 ? '#a07a10' : '#c04a70';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.55, 0.3, 2.6);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   private drawEffects(battle: Battle) {
     const ctx = this.ctx;
     const t = battle.vtime;
@@ -565,7 +739,7 @@ export class Renderer {
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           const y = e.y - easeOut(k) * 16;
-          const label = e.mode ? tr(`mode.${e.mode}`) : e.text;
+          const label = e.mode ? tr(`mode.${e.mode}`) : e.ult ? tr(`ability.${e.ult}.ult.name`) : e.text;
           const stroke = e.mode ? TARGET_MODE_INFO[e.mode].color : e.stroke;
           ctx.lineWidth = stroke ? 4 : 3;
           ctx.strokeStyle = stroke ?? 'rgba(50,30,20,0.75)';
@@ -625,6 +799,108 @@ export class Renderer {
           ctx.globalAlpha = 1 - k;
           drawHeart(ctx, e.x - 4, e.y - 6 - k * 14, 3.5, '#ff6fa8');
           drawHeart(ctx, e.x + 5, e.y - 3 - k * 18, 2.6, '#ffa0c8');
+          break;
+        }
+        case 'slash': {
+          // Sir Sable's sword wave: a bright crescent streak; higher stars add a silver edge and glints.
+          ctx.globalAlpha = 1 - k;
+          ctx.lineCap = 'round';
+          const grow = easeOut(Math.min(1, k * 3));
+          const x2 = e.x1 + (e.x2 - e.x1) * grow;
+          const y2 = e.y1 + (e.y2 - e.y1) * grow;
+          ctx.strokeStyle = e.color;
+          ctx.lineWidth = e.width * (1 - k * 0.6);
+          ctx.globalAlpha = (1 - k) * 0.45;
+          ctx.beginPath();
+          ctx.moveTo(e.x1, e.y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+          ctx.globalAlpha = 1 - k;
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = Math.max(1.5, e.width * 0.25);
+          ctx.beginPath();
+          ctx.moveTo(e.x1, e.y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+          if (e.star >= 3) {
+            ctx.strokeStyle = '#cfe6ff';
+            ctx.lineWidth = 1;
+            const nx = -(e.y2 - e.y1);
+            const ny = e.x2 - e.x1;
+            const nl = Math.hypot(nx, ny) || 1;
+            ctx.beginPath();
+            ctx.moveTo(e.x1 + (nx / nl) * e.width * 0.5, e.y1 + (ny / nl) * e.width * 0.5);
+            ctx.lineTo(x2 + (nx / nl) * e.width * 0.5, y2 + (ny / nl) * e.width * 0.5);
+            ctx.stroke();
+          }
+          if (e.star >= 4) for (let i = 1; i <= 3; i++) drawStar(ctx, e.x1 + (x2 - e.x1) * (i / 4), e.y1 + (y2 - e.y1) * (i / 4), 2.4 * (1 - k), e.star >= 5 ? '#ffd36a' : '#ffffff', 4, 0.4);
+          break;
+        }
+        case 'telegraph': {
+          // Brief warning line before a big ultimate (Moonshadow Slash / charged shot).
+          ctx.globalAlpha = 0.25 + 0.35 * Math.abs(Math.sin(age * 14));
+          ctx.strokeStyle = e.color;
+          ctx.lineWidth = Math.max(2, e.width);
+          ctx.lineCap = 'round';
+          ctx.globalAlpha *= 0.4;
+          ctx.beginPath();
+          ctx.moveTo(e.x1, e.y1);
+          ctx.lineTo(e.x2, e.y2);
+          ctx.stroke();
+          ctx.globalAlpha = 0.8;
+          ctx.setLineDash([5, 5]);
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+          ctx.setLineDash([]);
+          break;
+        }
+        case 'claw': {
+          // Shadow Pounce: three quick claw marks.
+          ctx.globalAlpha = 1 - k;
+          ctx.save();
+          ctx.translate(e.x, e.y);
+          ctx.rotate(e.rot + Math.PI / 2);
+          const s = (e.big ? 1.5 : 1) * (0.8 + easeOut(k) * 0.4);
+          ctx.scale(s, s);
+          ctx.strokeStyle = e.color;
+          ctx.lineCap = 'round';
+          ctx.lineWidth = 2;
+          for (const o of [-4, 0, 4]) {
+            ctx.beginPath();
+            ctx.moveTo(o - 3, -7);
+            ctx.quadraticCurveTo(o + 2, 0, o - 1, 7);
+            ctx.stroke();
+          }
+          ctx.restore();
+          break;
+        }
+        case 'bell': {
+          // Captain Mallow's golden bell with two little notes.
+          ctx.globalAlpha = 1 - k;
+          ctx.save();
+          ctx.translate(e.x, e.y - k * 6);
+          ctx.rotate(Math.sin(age * 18) * 0.35 * (1 - k));
+          const s = e.big ? 1.6 : 1;
+          ctx.scale(s, s);
+          ctx.fillStyle = '#ffd36a';
+          ctx.strokeStyle = '#a07a10';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(-5, 4);
+          ctx.quadraticCurveTo(-5, -6, 0, -6);
+          ctx.quadraticCurveTo(5, -6, 5, 4);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = '#a07a10';
+          ctx.beginPath();
+          ctx.arc(0, 5, 1.4, 0, TAU);
+          ctx.fill();
+          ctx.restore();
+          ctx.fillStyle = '#fff3c0';
+          ctx.font = `900 9px ${FONT_STACK}`;
+          ctx.fillText('♪', e.x + 9, e.y - 8 - k * 12);
+          ctx.fillText('♫', e.x - 10, e.y - 4 - k * 16);
           break;
         }
       }

@@ -127,7 +127,18 @@ export function drawCat(ctx: Ctx, o: CatDrawOpts) {
   } else if (o.type === 'black' && a < 0.15) {
     dx = -Math.cos(o.aim) * 2.5 * (1 - a / 0.15);
     dy = -Math.sin(o.aim) * 2.5 * (1 - a / 0.15);
+  } else if ((o.type === 'pounce' && a < 0.12) || (o.type === 'sable' && a < 0.2)) {
+    // lunge toward the target
+    const len = o.type === 'pounce' ? 0.12 : 0.2;
+    const k = Math.sin((a / len) * Math.PI);
+    dx = Math.cos(o.aim) * (o.type === 'pounce' ? 5 : 3.5) * k;
+    dy = Math.sin(o.aim) * (o.type === 'pounce' ? 5 : 3.5) * k;
+  } else if ((o.type === 'whiskers' || o.type === 'devil') && a < 0.25) {
+    dy = -3 * Math.sin((a / 0.25) * Math.PI); // a little performer's hop / toss
+  } else if (o.type === 'mallow' && a < 0.5) {
+    dx = Math.sin((a / 0.5) * Math.PI * 3) * 1.2; // bell sway
   }
+  if (o.type === 'pounce' && fidget > 0) dy = -3 * Math.abs(Math.sin((phase / 0.8) * Math.PI * 2)); // restless bounce
 
   ctx.save();
   // Shadow (doesn't jump)
@@ -148,9 +159,15 @@ export function drawCat(ctx: Ctx, o: CatDrawOpts) {
   ctx.moveTo(8 * fat, 9);
   ctx.quadraticCurveTo(20 * fat, 8, 17 * fat + tailWag, -4);
   ctx.stroke();
-  ctx.strokeStyle = p.body;
-  ctx.lineWidth = o.type === 'white' ? 6.5 : 4.5;
+  ctx.strokeStyle = o.type === 'sable' || o.type === 'mallow' ? p.stripe : p.body;
+  ctx.lineWidth = o.type === 'white' || o.type === 'mallow' ? 6.5 : 4.5;
   ctx.stroke();
+  if (o.type === 'devil') {
+    // dark-tipped tail; at Lv.5 the tip becomes a tiny heart ("devil" tail)
+    if (o.level >= 5) drawHeart(ctx, 17 * fat + tailWag, -6, 3.2, '#9a5ac8');
+    else circle(ctx, 17 * fat + tailWag, -4, 2.4, p.stripe);
+  }
+  if (o.type === 'whiskers') circle(ctx, 17 * fat + tailWag, -4, 2.3, p.belly);
   if (o.type === 'white' && o.level >= 3) {
     // ribbon on tail
     poly(ctx, [17 + tailWag, -2, 22 + tailWag, -6, 22 + tailWag, 1], '#ff7fae', '#c04a7a', 1);
@@ -158,14 +175,23 @@ export function drawCat(ctx: Ctx, o: CatDrawOpts) {
   }
 
   // Body
-  if (o.type === 'white') {
+  const fluffy = o.type === 'white' || o.type === 'mallow';
+  if (fluffy) {
     for (let i = 0; i < 7; i++) {
       const ang = (i / 7) * TAU;
       circle(ctx, Math.cos(ang) * 9, 7 + Math.sin(ang) * 7, 6, p.body, ol, 1.2);
     }
   }
-  ellipse(ctx, 0, 7, 12 * fat, 10 * (o.type === 'orange' ? 1.1 : 1), p.body, o.type === 'white' ? undefined : ol);
-  ellipse(ctx, 0, 9, 7 * fat, 6, p.belly);
+  ellipse(ctx, 0, 7, 12 * fat, 10 * (o.type === 'orange' ? 1.1 : 1), p.body, fluffy ? undefined : ol);
+  if (o.type === 'whiskers') ellipse(ctx, 0, 8, 8, 8, p.belly); // tuxedo shirt front
+  else ellipse(ctx, 0, 9, 7 * fat, 6, p.belly);
+  if (o.type === 'pounce') {
+    // Bengal rosettes
+    for (const [sx, sy] of [[-8, 3], [-5, 11], [8, 4], [6, 12], [-9, 9], [9, 9]] as const) {
+      ellipse(ctx, sx, sy, 2.2, 1.6, p.stripe);
+      ellipse(ctx, sx + 0.4, sy, 1, 0.7, p.body);
+    }
+  }
 
   // Level accessories on body (under head)
   drawBodyGear(ctx, o, fat);
@@ -181,7 +207,7 @@ export function drawCat(ctx: Ctx, o: CatDrawOpts) {
     t.x += Math.cos(o.aim) * reach;
     t.y += Math.sin(o.aim) * reach - 4;
   }
-  const pawColor = o.type === 'tabby' && o.level >= 3 ? '#ffffff' : p.belly;
+  const pawColor = o.type === 'tabby' && o.level >= 3 ? '#ffffff' : o.type === 'sable' ? p.stripe : p.belly;
   circle(ctx, pawL.x, pawL.y, 3.6, pawColor, ol, 1.2);
   circle(ctx, pawR.x, pawR.y, 3.6, pawColor, ol, 1.2);
   if (o.type === 'tabby' && o.level >= 3) {
@@ -208,6 +234,8 @@ export function drawCat(ctx: Ctx, o: CatDrawOpts) {
 
   // Black cat rifle in front
   if (o.type === 'black') drawRifle(ctx, o);
+  if (o.type === 'sable') drawRapier(ctx, o);
+  if (o.type === 'whiskers' && o.level >= 4) drawWand(ctx, o);
 
   ctx.restore();
 
@@ -235,16 +263,37 @@ export function drawCat(ctx: Ctx, o: CatDrawOpts) {
 function drawHead(ctx: Ctx, o: CatDrawOpts) {
   const p = o.palette;
   const ol = p.outline;
-  const r = o.type === 'kitten' ? 12.5 : o.type === 'orange' ? 13 : 12;
+  const r = o.type === 'kitten' || o.type === 'devil' ? 12.8 : o.type === 'orange' ? 13 : o.type === 'pounce' ? 11.5 : 12;
   // Ears
-  const earL = [-r * 0.9, -r * 0.35, -r * 0.62, -r * 1.42, -r * 0.1, -r * 0.85];
-  const earR = earL.map((v, i) => (i % 2 === 0 ? -v : v));
-  poly(ctx, earL, p.body, ol);
-  poly(ctx, earR, p.body, ol);
-  poly(ctx, [-r * 0.72, -r * 0.5, -r * 0.6, -r * 1.15, -r * 0.3, -r * 0.8], p.earInner);
-  poly(ctx, [r * 0.72, -r * 0.5, r * 0.6, -r * 1.15, r * 0.3, -r * 0.8], p.earInner);
+  if (o.type === 'devil') {
+    // Folded ears: small rounded flaps folded forward (Scottish-fold silhouette).
+    for (const sgn of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(sgn * r * 0.85, -r * 0.45);
+      ctx.quadraticCurveTo(sgn * r * 0.75, -r * 1.05, sgn * r * 0.22, -r * 0.82);
+      ctx.quadraticCurveTo(sgn * r * 0.5, -r * 0.62, sgn * r * 0.85, -r * 0.45);
+      ctx.fillStyle = p.stripe;
+      ctx.fill();
+      ctx.strokeStyle = ol;
+      ctx.lineWidth = 1.3;
+      ctx.stroke();
+    }
+  } else {
+    const earFill = o.type === 'sable' ? p.stripe : p.body;
+    const earL = [-r * 0.9, -r * 0.35, -r * 0.62, -r * 1.42, -r * 0.1, -r * 0.85];
+    const earR = earL.map((v, i) => (i % 2 === 0 ? -v : v));
+    poly(ctx, earL, earFill, ol);
+    poly(ctx, earR, earFill, ol);
+    poly(ctx, [-r * 0.72, -r * 0.5, -r * 0.6, -r * 1.15, -r * 0.3, -r * 0.8], p.earInner);
+    poly(ctx, [r * 0.72, -r * 0.5, r * 0.6, -r * 1.15, r * 0.3, -r * 0.8], p.earInner);
+    if (o.type === 'mallow') {
+      // darker ragdoll ear points
+      poly(ctx, [-r * 0.8, -r * 0.6, -r * 0.62, -r * 1.42, -r * 0.4, -r * 1.0], 'rgba(150,120,100,0.45)');
+      poly(ctx, [r * 0.8, -r * 0.6, r * 0.62, -r * 1.42, r * 0.4, -r * 1.0], 'rgba(150,120,100,0.45)');
+    }
+  }
 
-  if (o.type === 'white') {
+  if (o.type === 'white' || o.type === 'mallow') {
     for (let i = 0; i < 9; i++) {
       const ang = (i / 9) * TAU;
       circle(ctx, Math.cos(ang) * r * 0.85, Math.sin(ang) * r * 0.8 + 1, 4.5, p.body, ol, 1);
@@ -277,6 +326,33 @@ function drawHead(ctx: Ctx, o: CatDrawOpts) {
     ctx.moveTo(2, -r * 0.88);
     ctx.lineTo(1.5, -r * 0.55);
     ctx.stroke();
+  } else if (o.type === 'whiskers') {
+    // tuxedo: white muzzle and a white blaze up the nose
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r, r * 0.92, 0, 0, TAU);
+    ctx.clip();
+    ellipse(ctx, 0, r * 0.45, r * 0.62, r * 0.5, p.belly);
+    poly(ctx, [-2.2, r * 0.1, 0, -r * 0.55, 2.2, r * 0.1], p.belly);
+    ctx.restore();
+  } else if (o.type === 'sable' || o.type === 'mallow') {
+    // Siamese / ragdoll mask: darker around the nose and eyes
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r, r * 0.92, 0, 0, TAU);
+    ctx.clip();
+    ellipse(ctx, 0, r * 0.4, r * (o.type === 'sable' ? 0.42 : 0.45), r * (o.type === 'sable' ? 0.36 : 0.38), o.type === 'sable' ? 'rgba(90,68,52,0.42)' : 'rgba(184,160,140,0.35)');
+    ctx.restore();
+  } else if (o.type === 'pounce') {
+    for (const [sx, sy] of [[-5, -r * 0.6], [0, -r * 0.75], [5, -r * 0.6], [-r * 0.75, -1], [r * 0.75, -1]] as const) ellipse(ctx, sx, sy, 1.6, 1.2, p.stripe);
+  } else if (o.type === 'devil') {
+    // silver shading: dark-tipped fur on the crown
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r, r * 0.92, 0, 0, TAU);
+    ctx.clip();
+    ellipse(ctx, 0, -r * 0.85, r * 0.9, r * 0.38, 'rgba(120,124,138,0.35)');
+    ctx.restore();
   } else if (o.type === 'kitten' && p.stripe !== '#e0a868') {
     // Calico patches (skin)
     ctx.save();
@@ -328,11 +404,31 @@ function drawHead(ctx: Ctx, o: CatDrawOpts) {
       ellipse(ctx, s * ex, ey, 3, 2.4, p.eye);
       ellipse(ctx, s * ex, ey, 0.8, 2.2, '#1a1a1a');
     }
+  } else if (o.type === 'sable' || o.type === 'pounce') {
+    // almond eyes: calm (Sable) / focused (Pounce)
+    for (const s of [-1, 1]) {
+      ellipse(ctx, s * ex, ey, 3, o.type === 'sable' ? 2 : 2.3, p.eye);
+      ellipse(ctx, s * ex + 0.3, ey, 1, 1.8, '#1a1a1a');
+      circle(ctx, s * ex + 1, ey - 0.9, 0.6, '#ffffff');
+    }
+    if (o.type === 'sable') {
+      // a slightly haughty brow
+      ctx.strokeStyle = p.outline;
+      ctx.lineWidth = 1;
+      for (const s of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(s * (ex - 2.5), ey - 3.6);
+        ctx.lineTo(s * (ex + 2.8), ey - 3);
+        ctx.stroke();
+      }
+    }
   } else {
-    const er = o.type === 'kitten' ? 3.3 : 2.8;
+    const er = o.type === 'kitten' ? 3.3 : o.type === 'devil' ? 3.7 : 2.8;
     for (const s of [-1, 1]) {
       circle(ctx, s * ex, ey, er, p.eye);
+      if (o.type === 'devil') circle(ctx, s * ex, ey + 0.3, er * 0.55, '#1e3a2a');
       circle(ctx, s * ex + 1, ey - 1.1, er * 0.38, '#ffffff');
+      if (o.type === 'devil') circle(ctx, s * ex - 1.2, ey + 1.2, er * 0.18, '#ffffff');
     }
     if (o.type === 'white') {
       ctx.strokeStyle = '#3a3a4a';
@@ -377,6 +473,39 @@ function drawHead(ctx: Ctx, o: CatDrawOpts) {
     ctx.lineTo(s * 13, 5.5);
   }
   ctx.stroke();
+
+  if (o.type === 'whiskers') {
+    // playful showman's grin
+    ctx.strokeStyle = p.outline;
+    ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.arc(0, 4.6, 3.2, 0.15 * Math.PI, 0.85 * Math.PI);
+    ctx.stroke();
+  }
+  // New cats' head accessories
+  if (o.type === 'whiskers') drawMagicianHat(ctx, r, o.level, o.t);
+  if (o.type === 'devil') {
+    // plum ribbon (always) — bigger and velvet at higher levels
+    const col = o.level >= 4 ? '#6a2a7a' : '#9a5ac8';
+    poly(ctx, [r * 0.35, -r * 0.82, r * 0.85, -r * 1.1, r * 0.8, -r * 0.55], col, '#4a1a5a', 0.9);
+    poly(ctx, [r * 0.35, -r * 0.82, r * 0.05, -r * 1.15, r * 0.0, -r * 0.6], col, '#4a1a5a', 0.9);
+    circle(ctx, r * 0.35, -r * 0.82, 1.6, '#e8b8f0');
+  }
+  if (o.type === 'mallow' && o.level >= 2) {
+    // little captain's cap
+    roundRect(ctx, -6, -r * 1.12, 12, 4.5, 2, '#8a7ab8', '#4a3a78', 1);
+    roundRect(ctx, -7.5, -r * 0.8, 15, 2, 1, '#4a3a78');
+    if (o.level >= 5) drawStar(ctx, 0, -r * 0.92, 2, '#ffd36a');
+  }
+  if (o.type === 'sable' && o.level >= 4) {
+    // plume on the side of the head
+    ctx.strokeStyle = o.level >= 5 ? '#ffd36a' : '#bfe0ff';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.6, -r * 0.7);
+    ctx.quadraticCurveTo(-r * 1.3, -r * 1.3, -r * 1.25, -r * 0.2);
+    ctx.stroke();
+  }
 
   // White cat tiara (Lv4+)
   if (o.type === 'white' && o.level >= 4) {
@@ -463,6 +592,64 @@ function drawBodyGear(ctx: Ctx, o: CatDrawOpts, fat: number) {
       }
       if (L >= 5) drawStar(ctx, -6, 8, 3.5, '#ffd84a');
       break;
+    case 'whiskers':
+      // short cape (Lv2+, purple → velvet gold trim at Lv5), golden bow tie (Lv3+)
+      if (L >= 2) {
+        poly(ctx, [-10, 0, 10, 0, 13, 13, -13, 13], '#5a3a8a', L >= 5 ? '#ffd36a' : '#2a1a4a', 1.2);
+        ellipse(ctx, 0, 8, 8, 8, o.palette.belly);
+      }
+      if (L >= 3) {
+        poly(ctx, [0, 1, -5, -2, -5, 4], '#ffd36a', '#a07a10', 0.9);
+        poly(ctx, [0, 1, 5, -2, 5, 4], '#ffd36a', '#a07a10', 0.9);
+        circle(ctx, 0, 1, 1.4, '#c89aff');
+      }
+      break;
+    case 'sable':
+      // navy cape (always), silver brooch (Lv2+), gold trim (Lv3+), sash (Lv5)
+      poly(ctx, [-10, -1, 10, -1, 13, 14, -13, 14], '#2a3a6a', L >= 3 ? '#d9ad72' : '#141c3a', 1.2);
+      ellipse(ctx, 0, 9, 7, 6, o.palette.belly);
+      if (L >= 2) circle(ctx, 0, 0.5, 2.1, '#dfe6ee', '#7a8aa0', 0.9);
+      if (L >= 5) {
+        ctx.strokeStyle = '#bfe0ff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-7, 1);
+        ctx.lineTo(6, 13);
+        ctx.stroke();
+      }
+      break;
+    case 'mallow':
+      // lavender captain's cape (always), golden bell collar (always), epaulettes (Lv4+)
+      poly(ctx, [-11, -1, 11, -1, 14, 14, -14, 14], '#b8a8e0', '#6a5aa0', 1.2);
+      ellipse(ctx, 0, 9, 7, 6, o.palette.belly);
+      roundRect(ctx, -7, -1.5, 14, 3, 1.5, '#e05a7a');
+      circle(ctx, 0, 2.5, L >= 3 ? 3 : 2.4, '#ffd36a', '#a07a10', 1);
+      if (L >= 4)
+        for (const sx of [-9, 9]) {
+          roundRect(ctx, sx - 3, -1, 6, 3, 1.5, '#ffd36a', '#a07a10', 0.8);
+        }
+      break;
+    case 'pounce':
+      // dark-green scarf (always; longer tails at Lv3+), wristbands (Lv2+), silver claw guards (Lv4+)
+      roundRect(ctx, -9, -1.5, 18, 4, 2, '#2f5a46', '#173426', 1);
+      poly(ctx, [6, 1, L >= 3 ? 16 : 12, L >= 3 ? 9 : 6, 9, 3], '#2f5a46', '#173426', 1);
+      if (L >= 5) ellipse(ctx, 0, 12, 14, 4, 'rgba(110,200,180,0.25)');
+      break;
+    case 'devil':
+      // velvet pouch of herbs (Lv2+), a tiny vial (Lv3+), plum cape (Lv4+)
+      if (L >= 4) {
+        poly(ctx, [-10, 0, 10, 0, 13, 13, -13, 13], '#6a2a7a', '#3a1048', 1.2);
+        ellipse(ctx, 0, 9, 7, 6, o.palette.belly);
+      }
+      if (L >= 2) {
+        ellipse(ctx, -9, 11, 3.6, 3.2, '#8a4aa0', '#4a1a5a', 1);
+        roundRect(ctx, -10.5, 7, 3, 1.6, 0.8, '#ffd36a');
+      }
+      if (L >= 3) {
+        roundRect(ctx, 7, 5, 3, 6, 1.2, '#b8f0c8', '#3a6a4a', 0.9);
+        circle(ctx, 8.5, 4.4, 1, '#9a5ac8');
+      }
+      break;
     case 'white':
       if (L >= 2) {
         const col = L >= 5 ? '#ffd84a' : '#ffffff';
@@ -498,6 +685,49 @@ function drawRifle(ctx: Ctx, o: CatDrawOpts) {
     drawStar(ctx, 29, 0, 6, '#fff2a0', 6, 0.4);
     drawStar(ctx, 29, 0, 3.5, '#ffffff', 6, 0.5);
   }
+  ctx.restore();
+}
+
+/** Sir Sable's thin rapier, held low and swept toward the target when he attacks. */
+function drawRapier(ctx: Ctx, o: CatDrawOpts) {
+  const a = o.attackAge;
+  ctx.save();
+  ctx.translate(6, 8);
+  const swing = a < 0.2 ? Math.sin((a / 0.2) * Math.PI) : 0;
+  ctx.rotate(swing ? o.aim : -0.9 + Math.sin(o.t * 1.3) * 0.04);
+  const gold = o.level >= 3;
+  ctx.strokeStyle = o.level >= 5 ? '#e8f4ff' : '#cfd8e2';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(2, 0);
+  ctx.lineTo(22 + swing * 4, 0);
+  ctx.stroke();
+  roundRect(ctx, -1, -3, 3, 6, 1, gold ? '#d9ad72' : '#7a8aa0');
+  roundRect(ctx, -4, -1, 4, 2, 1, '#2a3a6a');
+  ctx.restore();
+}
+
+/** Mr. Whiskers' wand (Lv.4+), with a twinkle at the tip. */
+function drawWand(ctx: Ctx, o: CatDrawOpts) {
+  ctx.save();
+  ctx.translate(-9, 10);
+  ctx.rotate(-0.6 + (o.attackAge < 0.25 ? -0.6 * Math.sin((o.attackAge / 0.25) * Math.PI) : 0));
+  roundRect(ctx, -1, -12, 2.2, 12, 1, '#1e1c26');
+  roundRect(ctx, -1.1, -12, 2.4, 2.4, 0.8, '#ffffff');
+  drawStar(ctx, 0, -14, o.level >= 5 ? 3.2 : 2.4, '#ffd36a');
+  ctx.restore();
+}
+
+/** Mr. Whiskers' little tilted top hat (always), with a band that improves with level. */
+function drawMagicianHat(ctx: Ctx, r: number, level: number, t: number) {
+  ctx.save();
+  ctx.translate(r * 0.25, -r * 0.92);
+  ctx.rotate(0.22 + Math.sin(t * 1.5) * 0.03);
+  roundRect(ctx, -8, -1, 16, 2.6, 1.2, '#1e1c26', '#0e0c14', 1);
+  roundRect(ctx, -5.2, -11, 10.4, 10.5, 1.5, '#2a2836', '#0e0c14', 1);
+  ctx.fillStyle = level >= 3 ? '#ffd36a' : '#8a5ac8';
+  ctx.fillRect(-5.2, -3.4, 10.4, 2.2);
+  if (level >= 5) drawStar(ctx, 0, -7, 2.6, '#ffd36a');
   ctx.restore();
 }
 

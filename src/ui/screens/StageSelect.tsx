@@ -6,7 +6,9 @@ import { useSave } from '../../save/store';
 import type { EnemyId, StageDef } from '../../game/types';
 import type { Screen } from '../App';
 import { CoinIcon } from '../components/Icons';
+import { CatHead } from '../components/CatPreview';
 import { GameIcon } from '../components/GameIcon';
+import { Stars } from '../components/Stars';
 
 function enemiesOf(stage?: StageDef): Set<EnemyId> {
   return new Set((stage?.waves ?? []).flatMap((w) => w.groups.flatMap((g) => ('enemy' in g ? [g.enemy] : []))));
@@ -46,6 +48,24 @@ export function StageSelect({ go, play }: { go: (s: Screen) => void; play: (id: 
         <span className="coin-pill">
           <CoinIcon /> {save.fishCoins}
         </span>
+      </div>
+      {/* The team random summons choose from (tutorial stages 1-1…1-6 use their own cats). */}
+      <div className="team-strip">
+        <div className="team-strip-head">
+          <b>{t('stages.team')}</b>
+          <button className="btn btn-small" onClick={() => go({ name: 'team', back: { name: 'stages' } })}>
+            {t('team.edit')}
+          </button>
+        </div>
+        <div className="team-strip-cats">
+          {save.team.map((id) => (
+            <span key={id} className="team-strip-cat" title={t(`cat.${id}.name`)}>
+              <CatHead type={id} loadout={save.equipped} size={34} />
+              <Stars n={save.collection[id]?.stars ?? 1} size={8} />
+            </span>
+          ))}
+        </div>
+        <div className="muted tiny">{t('team.tutorialNote')}</div>
       </div>
       {CHAPTERS.map((ch, ci) => {
         const first = ch.stages[0];

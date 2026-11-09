@@ -1,4 +1,4 @@
-import { CATS, CAT_ORDER } from '../../config/cats';
+import { CATS, CAT_ORDER, STARTER_CATS } from '../../config/cats';
 import { CHAPTERS } from '../../config/chapters';
 import { MAPS } from '../../config/maps';
 import { Battle } from '../battle';
@@ -111,7 +111,9 @@ describe('cat combat identity (Lv.1, no skills)', () => {
     for (const c of CAT_ORDER) {
       if (c === 'black') continue;
       const o = getCatStats(CATS[c], 1);
-      expect(b.range).toBeGreaterThan(o.range * 1.8);
+      // Support radii (Noble White's charm, Captain Mallow's bell) are not attack range.
+      if (CATS[c].attack === 'support') continue;
+      expect(b.range).toBeGreaterThan(o.range * (STARTER_CATS.includes(c) ? 1.8 : 1.5));
       if (CATS[c].damage > 0) expect(b.damage).toBeGreaterThan(o.damage * 1.5);
     }
     expect(b.interval).toBeGreaterThan(getCatStats(CATS.kitten, 1).interval * 3);

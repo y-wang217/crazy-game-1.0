@@ -3,7 +3,8 @@ import { CHESTS } from '../../config/enemies';
 import { SKILLS, skillParams } from '../../config/skills';
 import { t, useLang } from '../../i18n';
 import type { RewardOffer } from '../../game/battle';
-import type { SkillId } from '../../game/types';
+import type { CatUnit } from '../../game/battle';
+import type { CatId, SkillId } from '../../game/types';
 import { GameIcon } from './GameIcon';
 import { SkillOwner } from './SkillOwner';
 import { CoinIcon } from './Icons';
@@ -13,10 +14,14 @@ import { useSave } from '../../save/store';
 export function RewardModal({
   offer,
   owned,
+  cats = [],
   onChoose,
 }: {
   offer: RewardOffer;
   owned: Partial<Record<SkillId, number>>;
+  /** Cats currently on the battlefield (for the "On field" counts). */
+  cats?: readonly Pick<CatUnit, 'type' | 'level'>[];
+  roster?: CatId[];
   onChoose: (i: number) => void;
 }) {
   useLang();
@@ -82,6 +87,7 @@ export function RewardModal({
                   <span className={`reward-for ${def.cat ? 'cat' : ''}`}>
                     {def.cat ? t('battle.skillFor', { cat: t(`cat.${def.cat}.name`) }) : t('battle.allCats')}
                   </span>
+                  <OnField cats={def.cat ? cats.filter((x) => x.type === def.cat) : cats} all={!def.cat} />
                   <span className="reward-desc">{t(`skill.${c.skillId}.desc`, skillParams(c.skillId, next))}</span>
                   {c.levels > 1 && <span className="reward-bonus">{t('reward.bonus', { n: c.levels })}</span>}
                 </button>
@@ -91,5 +97,18 @@ export function RewardModal({
         </>
       )}
     </div>
+  );
+}
+
+/** "On field: 3 · Lv.1 ×1 / Lv.2 ×2" — from the live battle state. */
+export function OnField({ cats, all }: { cats: readonly Pick<CatUnit, 'level'>[]; all: boolean }) {
+  const byLevel = new Map<number, number>();
+  for (const c of cats) byLevel.set(c.level, (byLevel.get(c.level) ?? 0) + 1);
+  const levels = [...byLevel.entries()].sort((a, b) => a[0] - b[0]);
+  return (
+    <span className={`reward-field ${cats.length ? '' : 'none'}`}>
+      <b>{all ? t('reward.allOnField', { n: cats.length }) : t('reward.onField', { n: cats.length })}</b>
+      {levels.length > 0 && <span className="reward-levels">{levels.map(([lv, n]) => `Lv.${lv} ×${n}`).join(' / ')}</span>}
+    </span>
   );
 }

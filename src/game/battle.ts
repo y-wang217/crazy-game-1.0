@@ -1,9 +1,10 @@
 import { BALANCE, skillRollCost, summonCost } from '../config/balance';
 import { CATS, TARGET_MODES } from '../config/cats';
+import { ABILITIES, POISON_BOSS_MULT, STARS, ULTIMATE } from '../config/collection';
 import { NEUTRAL_TUNING, type Tuning } from '../config/debug';
 import { CHESTS, ENEMIES } from '../config/enemies';
 import { SKILLS, SKILL_ORDER, SKILL_WEIGHTS } from '../config/skills';
-import { applyDamageToPools, computeDamage, computeSkillMods, getCatStats, type SkillMods } from './combat';
+import { applyDamageToPools, computeDamage, computeSkillMods, getCatStats, type CatStats, type SkillMods } from './combat';
 import { PathGeom, cellCenter } from './path';
 import { Rng } from './rng';
 import { nextTargetMode, selectTarget, type TargetCandidate } from './targeting';
@@ -42,12 +43,35 @@ export interface CatUnit {
   /** Wind-up in progress (sim time): Orange slam or Black Cat aim. */
   windup: { start: number; fireAt: number; targetUid: number; x: number; y: number } | null;
   /** Pending combo punches (sim time). */
-  comboQueue: { at: number; targetUid: number }[];
+  comboQueue: { at: number; targetUid: number; mult?: number }[];
   /** Counts punches (alternates paws in the animation). */
   comboIndex: number;
   aimX: number;
   aimY: number;
+  /** Attacks made (drives "every Nth attack" specials). */
+  attackCount: number;
+  /** Timed actions: ultimate volleys / strikes / telegraphed slashes (sim time). */
+  queue: CatAction[];
+  /** Attack-speed and damage buffs from Captain Mallow (sim time; never stack, the stronger wins). */
+  buffSpeed: number;
+  buffSpeedUntil: number;
+  buffDmg: number;
+  buffDmgUntil: number;
+  /** Shadow Pounce 3★: next strike empowered; cooldown until. */
+  empowered: boolean;
+  specialReadyAt: number;
+  /** Silver Devil 3★: last mouse this cat poisoned (consecutive hits stack). */
+  lastHitUid: number;
+  /** Visual: last time this cat performed its ultimate. */
+  ultAt: number;
 }
+
+export type CatAction =
+  | { at: number; kind: 'shot'; mult: number }
+  | { at: number; kind: 'strike'; mult: number; hpBelow: number }
+  | { at: number; kind: 'slash'; dx: number; dy: number; mult: number; length: number; width: number }
+  | { at: number; kind: 'bigSlam'; x: number; y: number; targetUid: number }
+  | { at: number; kind: 'bigShot'; targetUid: number };
 
 export interface Foe extends TargetCandidate {
   defId: EnemyId | ChestTier;
@@ -70,6 +94,20 @@ export interface Foe extends TargetCandidate {
   walk: number;
   /** Last time Noble White charmed this foe (visual). */
   charmedAt: number;
+  /** Poison (Silver Devil): damage per second per stack, expiry, stack count. */
+  poisonDps: number;
+  poisonUntil: number;
+  poisonStacks: number;
+  /** Poison damage not yet shown as a number. */
+  poisonShown: number;
+  /** Devil's Pact mark (sim time). */
+  markUntil: number;
+  /** Sir Sable 3★: temporary armor reduction. */
+  shred: number;
+  shredUntil: number;
+  /** Chubby Orange 3★: takes extra damage. */
+  vulnerable: number;
+  vulnUntil: number;
 }
 
 export interface Projectile {
@@ -81,8 +119,18 @@ export interface Projectile {
   ty: number;
   damage: number;
   speed: number;
-  style: 'yarn' | 'bullet';
+  style: 'yarn' | 'bullet' | 'magic' | 'venom';
   done: boolean;
+  /** Visual size multiplier (empowered / ultimate shots). */
+  size?: number;
+  /** Permanent star rank of the shooter (attack effects evolve with stars). */
+  star?: number;
+  /** Ricochet: remaining jumps, falloff, max jump distance and mice already hit. */
+  bounce?: { left: number; falloff: number; range: number; hit: number[] };
+  /** Poison applied on hit. */
+  poison?: { dps: number; dur: number; maxStacks: number; srcUid: number };
+  /** Fraction of armor ignored (Black Cat 3★). */
+  armorIgnore?: number;
 }
 
 export type Effect =
@@ -99,7 +147,13 @@ export type Effect =
       stroke?: string;
       /** If set, the renderer shows the localized label for this target mode instead of `text`. */
       mode?: TargetMode;
+      /** If set, the renderer shows this cat's localized ultimate name instead of `text`. */
+      ult?: CatId;
     }
+  | { kind: 'slash'; x1: number; y1: number; x2: number; y2: number; width: number; color: string; born: number; dur: number; star: number }
+  | { kind: 'telegraph'; x1: number; y1: number; x2: number; y2: number; width: number; color: string; born: number; dur: number }
+  | { kind: 'claw'; x: number; y: number; rot: number; color: string; born: number; dur: number; big?: boolean }
+  | { kind: 'bell'; x: number; y: number; born: number; dur: number; big?: boolean }
   | {
       kind: 'particles';
       x: number;
@@ -140,6 +194,7 @@ export type BattleEvent =
   | { type: 'bossAppeared'; enemy: EnemyId }
   | { type: 'bossDefeated'; enemy: EnemyId }
   | { type: 'maxedChestFish'; fish: number }
+  | { type: 'ultimate'; cat: CatId }
   | { type: 'victory' }
   | { type: 'defeat' };
 
@@ -182,6 +237,17 @@ export interface BattleStats {
 export interface BattleOptions {
   seed?: number;
   tuning?: Tuning;
+  /**
+   * Cat species random summons pick from. Defaults to the stage roster; the UI passes the
+   * player's battle team (except on fixed-roster tutorial stages).
+   */
+  roster?: CatId[];
+  /** Permanent star rank per species (default 1★). */
+  stars?: Partial<Record<CatId, number>>;
+  /** Encyclopedia demo: no waves, no win/lose. */
+  sandbox?: boolean;
+  /** Scales the ultimate cooldown (demo only). */
+  ultCooldownMult?: number;
 }
 
 /** Pure merge rule, exported for tests and UI highlighting. */
@@ -202,6 +268,12 @@ export class Battle {
   readonly path: PathGeom;
   readonly tiles: TileState[];
   readonly tuning: Tuning;
+  /** Species random summons choose from (team, or the stage roster on tutorial stages). */
+  readonly roster: CatId[];
+  /** Permanent star ranks (1★–5★) per species. */
+  readonly stars: Partial<Record<CatId, number>>;
+  readonly sandbox: boolean;
+  private readonly ultCooldown: number;
   private rng: Rng;
   private nextUid = 1;
   private nextOfferId = 1;
@@ -265,12 +337,24 @@ export class Battle {
   private waveSpawnDone: boolean[];
   private waveBonusGiven: boolean[];
   rewardQueue: RewardOffer[] = [];
+  /** Tap-to-focus: the mouse/chest every cat that can reach it should attack (null = none). */
+  focusUid: number | null = null;
+  /** Ultimate charge (seconds) per species with a 5★ ultimate in this battle. */
+  ultCharge: Partial<Record<CatId, number>> = {};
+  /** Captain Mallow's 5★ team buff (never stacks: a new one replaces it). */
+  teamBuff = { speed: 0, dmg: 0, until: -1 };
+  private mallowSpecialReadyAt = 0;
 
   constructor(stage: StageDef, map: MapDef, opts: number | BattleOptions = {}) {
     const o: BattleOptions = typeof opts === 'number' ? { seed: opts } : opts;
     this.stage = stage;
     this.map = map;
     this.tuning = { ...NEUTRAL_TUNING, ...(o.tuning ?? {}) };
+    this.roster = o.roster?.length ? [...o.roster] : [...stage.roster];
+    this.stars = { ...(o.stars ?? {}) };
+    this.sandbox = !!o.sandbox;
+    this.ultCooldown = ULTIMATE.cooldown * (o.ultCooldownMult ?? 1);
+    for (const c of this.roster) if (this.hasUltimate(c)) this.ultCharge[c] = this.ultCooldown * ULTIMATE.startCharge;
     this.path = PathGeom.fromMap(map);
     this.rng = new Rng(o.seed ?? Date.now());
     this.fish = this.tuning.startFish ?? stage.startFish;
@@ -287,6 +371,53 @@ export class Battle {
   }
 
   // ---------------- Queries ----------------
+
+  /** Permanent star rank of a species in this battle (1–5). */
+  starOf(type: CatId): number {
+    return Math.max(1, Math.min(STARS.max, Math.round(this.stars[type] ?? 1)));
+  }
+  hasSpecial(type: CatId): boolean {
+    return this.starOf(type) >= STARS.specialAt;
+  }
+  hasUltimate(type: CatId): boolean {
+    return this.starOf(type) >= STARS.ultimateAt;
+  }
+  /** 0..1 readiness of a species' ultimate (undefined if it has none). */
+  ultReadiness(type: CatId): number | undefined {
+    const c = this.ultCharge[type];
+    return c === undefined ? undefined : Math.min(1, c / this.ultCooldown);
+  }
+
+  /** Stats for a unit on the board: level × star × skills × active buffs. */
+  unitStats(cat: CatUnit): CatStats {
+    const st = getCatStats(CATS[cat.type], cat.level, this.mods, this.starOf(cat.type));
+    let speed = 1;
+    let dmg = 1;
+    if (cat.buffSpeedUntil > this.time) speed = Math.max(speed, 1 + cat.buffSpeed);
+    if (this.teamBuff.until > this.time) {
+      speed = Math.max(speed, 1 + this.teamBuff.speed);
+      dmg = Math.max(dmg, 1 + this.teamBuff.dmg);
+    }
+    if (cat.buffDmgUntil > this.time) dmg = Math.max(dmg, 1 + cat.buffDmg);
+    if (speed === 1 && dmg === 1) return st;
+    return { ...st, interval: st.interval / speed, damage: st.damage * dmg, poisonDps: st.poisonDps * dmg };
+  }
+
+  /** Tap-to-focus: tap a mouse/chest to focus it, tap it again (or pass null) to cancel. */
+  setFocus(uid: number | null): number | null {
+    if (uid === null || uid === this.focusUid) this.focusUid = null;
+    else if (this.foes.some((f) => f.uid === uid && f.alive)) this.focusUid = uid;
+    return this.focusUid;
+  }
+
+  /** The focused foe if this cat can legally reach it, otherwise the cat's own targeting mode. */
+  private pickTarget(cat: CatUnit, range: number): Foe | null {
+    if (this.focusUid !== null) {
+      const f = this.foes.find((x) => x.uid === this.focusUid && x.alive);
+      if (f && (f.x - cat.x) ** 2 + (f.y - cat.y) ** 2 <= range * range) return f;
+    }
+    return selectTarget(cat.x, cat.y, range, cat.mode, this.foes);
+  }
 
   get summonCost(): number {
     return summonCost(this.summons, this.tuning.summonCostMult);
@@ -314,7 +445,7 @@ export class Battle {
     if (!this.preparing) return false;
     this.preparing = false;
     this.prepLeft = 0;
-    this.startWave(0);
+    if (!this.sandbox) this.startWave(0);
     return true;
   }
 
@@ -343,7 +474,7 @@ export class Battle {
     return SKILL_ORDER.filter((id) => {
       const def = SKILLS[id];
       if ((this.skills[id] ?? 0) >= def.maxLevel) return false;
-      if (def.cat && !this.stage.roster.includes(def.cat)) return false;
+      if (def.cat && !this.roster.includes(def.cat)) return false;
       return true;
     });
   }
@@ -400,7 +531,7 @@ export class Battle {
     this.spend(cost);
     this.summons++;
     this.stats.summons++;
-    const type = this.rng.pick(this.stage.roster);
+    const type = this.rng.pick(this.roster);
     const tile = this.rng.pick(empty);
     const cat = this.placeCat(type, 1, tile.id)!;
     this.addEffect({ kind: 'beam', x: tile.x, y: tile.y, born: this.vtime, dur: 0.5, color: '#fff3b0' });
@@ -433,8 +564,19 @@ export class Battle {
       comboIndex: 0,
       aimX: tile.x + 1,
       aimY: tile.y,
+      attackCount: 0,
+      queue: [],
+      buffSpeed: 0,
+      buffSpeedUntil: -1,
+      buffDmg: 0,
+      buffDmgUntil: -1,
+      empowered: false,
+      specialReadyAt: 0,
+      lastHitUid: -1,
+      ultAt: -99,
     };
     this.cats.push(cat);
+    if (this.hasUltimate(type) && this.ultCharge[type] === undefined) this.ultCharge[type] = this.ultCooldown * ULTIMATE.startCharge;
     return cat;
   }
 
@@ -484,6 +626,7 @@ export class Battle {
     this.addEffect({ kind: 'ring', x: target.x, y: target.y, r0: 8, r1: 38, color: '#ffe066', born: this.vtime, dur: 0.38, width: 5 });
     this.addEffect({ kind: 'beam', x: target.x, y: target.y, born: this.vtime, dur: 0.45, color: '#fff6a0' });
     this.addText(target.x, target.y - 28, `Lv.${target.level}!`, '#ff9f1c', 17, 1.0);
+    this.mallowTeamwork(target);
     return preview;
   }
 
@@ -531,9 +674,12 @@ export class Battle {
     this.vtime += dt;
     this.updateWaves(dt);
     this.updateFoes(dt);
+    this.updateUltimates(dt);
     this.updateCats(dt);
     this.updateProjectiles(dt);
     this.foes = this.foes.filter((f) => f.alive);
+    // Focus clears itself when the target is defeated or escapes.
+    if (this.focusUid !== null && !this.foes.some((f) => f.uid === this.focusUid)) this.focusUid = null;
     this.cleanupEffects();
     this.checkEnd();
   }
@@ -544,7 +690,7 @@ export class Battle {
 
   private updateWaves(dt: number): void {
     const waves = this.stage.waves;
-    if (this.waveIndex === -1) return; // still preparing
+    if (this.waveIndex === -1 || this.sandbox) return; // still preparing (or encyclopedia demo)
     this.waveTimer += dt;
     while (this.spawnPtr < this.spawnQueue.length && this.spawnQueue[this.spawnPtr].time <= this.waveTimer) {
       this.spawn(this.spawnQueue[this.spawnPtr].group);
@@ -622,6 +768,15 @@ export class Battle {
       rewarded: false,
       walk: 0,
       charmedAt: -99,
+      poisonDps: 0,
+      poisonUntil: -1,
+      poisonStacks: 0,
+      poisonShown: 0,
+      markUntil: -1,
+      shred: 0,
+      shredUntil: -1,
+      vulnerable: 0,
+      vulnUntil: -1,
     };
     let foe: Foe;
     if ('chest' in g) {
@@ -673,6 +828,13 @@ export class Battle {
     const end = this.path.length;
     for (const f of this.foes) {
       if (!f.alive) continue;
+      if (f.poisonUntil > this.time) {
+        this.poisonTick(f, dt);
+        if (!f.alive) continue;
+      } else if (f.poisonStacks) {
+        f.poisonStacks = 0;
+        f.poisonDps = 0;
+      }
       if (f.slowT > 0) {
         f.slowT -= dt;
         if (f.slowT <= 0) f.slowStrength = 0;
@@ -701,8 +863,11 @@ export class Battle {
   private updateCats(dt: number): void {
     for (const cat of this.cats) {
       const def = CATS[cat.type];
-      const st = getCatStats(def, cat.level, this.mods);
+      const st = this.unitStats(cat);
       const dmg = st.damage * this.tuning.catDamageMult;
+
+      // 0) Queued ultimate actions (volleys, strikes, telegraphed slashes).
+      if (cat.queue.length) this.runQueue(cat, st, dmg);
 
       // 1) Combo punches land one after another (real timing).
       if (cat.comboQueue.length) this.runCombo(cat, st, dmg);
@@ -722,7 +887,21 @@ export class Battle {
 
       cat.cooldown -= dt;
       if (cat.cooldown > 0) continue;
-      const target = selectTarget(cat.x, cat.y, st.range, cat.mode, this.foes);
+
+      // Captain Mallow needs no target: she rings her bell for nearby allies while mice are around.
+      if (def.attack === 'support') {
+        if (!this.foes.some((f) => f.alive)) {
+          cat.cooldown = 0;
+          continue;
+        }
+        cat.cooldown = st.interval;
+        cat.attackAt = this.vtime;
+        cat.attackCount++;
+        this.ringBell(cat, st);
+        continue;
+      }
+
+      const target = this.pickTarget(cat, st.range);
       if (!target) {
         cat.cooldown = 0;
         continue;
@@ -730,6 +909,8 @@ export class Battle {
       cat.cooldown = st.interval;
       cat.aimX = target.x;
       cat.aimY = target.y;
+      cat.attackCount++;
+      const special = this.hasSpecial(cat.type);
 
       if (def.windup) {
         // Commit now, hit later. The slam lands where the target WAS when the wind-up began.
@@ -740,20 +921,13 @@ export class Battle {
 
       cat.attackAt = this.vtime;
       switch (def.attack) {
-        case 'projectile':
-          this.projectiles.push({
-            uid: this.nextUid++,
-            x: cat.x,
-            y: cat.y - 4,
-            targetUid: target.uid,
-            tx: target.x,
-            ty: target.y,
-            damage: dmg,
-            speed: def.projectileSpeed ?? 400,
-            style: 'yarn',
-            done: false,
-          });
+        case 'projectile': {
+          // Kitten 3★: every Nth yarn ball is a big empowered one.
+          const A = ABILITIES.kitten.special;
+          const big = special && cat.attackCount % A.every === 0;
+          this.launch(cat, target, dmg * (big ? A.mult : 1), def.projectileSpeed ?? 400, 'yarn', { size: big ? 1.8 : 1 });
           break;
+        }
         case 'combo': {
           const gap = (def.comboGap ?? 0.08) / Math.max(1, st.comboHits / 3);
           for (let i = 0; i < st.comboHits; i++) cat.comboQueue.push({ at: this.time + i * gap, targetUid: target.uid });
@@ -763,20 +937,253 @@ export class Battle {
         case 'aura':
           this.charm(cat, target, st);
           break;
+        case 'ricochet': {
+          // Mr. Whiskers 3★: every Nth yarn ball gets an extra bounce.
+          const A = ABILITIES.whiskers.special;
+          const extra = special && cat.attackCount % A.every === 0 ? A.extraBounces : 0;
+          this.launch(cat, target, dmg, def.projectileSpeed ?? 330, 'magic', {
+            size: extra ? 1.3 : 1,
+            bounce: { left: st.bounces + extra, falloff: st.bounceFalloff, range: st.bounceRange, hit: [] },
+          });
+          break;
+        }
+        case 'pierce':
+          this.swordWave(cat, target.x - cat.x, target.y - cat.y, dmg, st.pierceLength, st.pierceWidth, false);
+          break;
+        case 'execute':
+          this.claw(cat, target, st, dmg, 1);
+          break;
+        case 'poison':
+          this.launch(cat, target, dmg, def.projectileSpeed ?? 300, 'venom', {
+            poison: { dps: st.poisonDps * this.tuning.catDamageMult, dur: st.poisonDuration, maxStacks: special ? ABILITIES.devil.special.maxStacks : 1, srcUid: cat.uid },
+          });
+          break;
         default:
           break;
       }
     }
   }
 
+  private launch(cat: CatUnit, target: Foe, damage: number, speed: number, style: Projectile['style'], extra: Partial<Projectile> = {}): void {
+    this.projectiles.push({
+      uid: this.nextUid++,
+      x: cat.x,
+      y: cat.y - 4,
+      targetUid: target.uid,
+      tx: target.x,
+      ty: target.y,
+      damage,
+      speed,
+      style,
+      done: false,
+      star: this.starOf(cat.type),
+      ...extra,
+    });
+  }
+
+  // ---------------- Ultimates (5★) ----------------
+  // One automatic, shared cooldown per species: the highest-level copy that can act performs it.
+
+  private updateUltimates(dt: number): void {
+    for (const type of Object.keys(this.ultCharge) as CatId[]) {
+      const charge = Math.min(this.ultCooldown, (this.ultCharge[type] ?? 0) + dt);
+      this.ultCharge[type] = charge;
+      if (charge < this.ultCooldown) continue;
+      const performers = this.cats.filter((c) => c.type === type).sort((x, y) => y.level - x.level);
+      for (const cat of performers) {
+        if (this.performUltimate(cat)) {
+          this.ultCharge[type] = 0;
+          cat.ultAt = this.vtime;
+          cat.attackAt = this.vtime;
+          this.events.push({ type: 'ultimate', cat: type });
+          this.addEffect({ kind: 'text', x: cat.x, y: cat.y - 34, text: '!', ult: type, color: '#ffe08a', size: 13, born: this.vtime, dur: 1.2 });
+          this.addEffect({ kind: 'ring', x: cat.x, y: cat.y, r0: 6, r1: 34, color: '#ffd36a', born: this.vtime, dur: 0.5, width: 4 });
+          break;
+        }
+      }
+    }
+  }
+
+  /** Try to perform this cat's ultimate now. Returns false if it has nothing valid to do yet. */
+  private performUltimate(cat: CatUnit): boolean {
+    const st = this.unitStats(cat);
+    const dmg = st.damage * this.tuning.catDamageMult;
+    const t = this.time;
+    switch (cat.type) {
+      case 'kitten': {
+        if (!this.pickTarget(cat, st.range)) return false;
+        const A = ABILITIES.kitten.ultimate;
+        for (let i = 0; i < A.shots; i++) cat.queue.push({ at: t + i * A.gap, kind: 'shot', mult: A.mult });
+        return true;
+      }
+      case 'tabby': {
+        const target = this.pickTarget(cat, st.range);
+        if (!target) return false;
+        const A = ABILITIES.tabby.ultimate;
+        const gap = 0.05;
+        cat.comboQueue = [];
+        for (let i = 0; i < A.punches; i++) cat.comboQueue.push({ at: t + i * gap, targetUid: target.uid, mult: A.mult });
+        return true;
+      }
+      case 'orange': {
+        const target = this.pickTarget(cat, st.range);
+        if (!target) return false;
+        const A = ABILITIES.orange.ultimate;
+        const r = st.splashRadius * A.radiusMult;
+        this.addEffect({ kind: 'ring', x: target.x, y: target.y, r0: r, r1: r * 0.96, color: '#ffb35a', born: this.vtime, dur: 0.55, width: 2 });
+        cat.queue.push({ at: t + 0.5, kind: 'bigSlam', x: target.x, y: target.y, targetUid: target.uid });
+        cat.windup = null;
+        return true;
+      }
+      case 'black': {
+        const A = ABILITIES.black.ultimate;
+        const target = selectTarget(cat.x, cat.y, st.range * A.rangeMult, 'strongest', this.foes);
+        if (!target) return false;
+        this.addEffect({ kind: 'telegraph', x1: cat.x, y1: cat.y, x2: target.x, y2: target.y, width: 2, color: '#ff6a6a', born: this.vtime, dur: 0.5 });
+        cat.queue.push({ at: t + 0.5, kind: 'bigShot', targetUid: target.uid });
+        return true;
+      }
+      case 'white': {
+        const A = ABILITIES.white.ultimate;
+        const r = st.range * A.radiusMult;
+        const hit = this.foes.filter((f) => f.alive && (f.x - cat.x) ** 2 + (f.y - cat.y) ** 2 <= r * r);
+        if (!hit.length) return false;
+        for (const f of hit) {
+          f.slowStrength = Math.max(f.slowT > 0 ? f.slowStrength : 0, Math.min(BALANCE.slowCap, A.slow));
+          f.slowT = Math.max(f.slowT, A.duration);
+          f.charmedAt = this.vtime;
+          this.addEffect({ kind: 'hearts', x: f.x, y: f.y - f.radius, born: this.vtime, dur: 1.1 });
+        }
+        this.addEffect({ kind: 'ring', x: cat.x, y: cat.y, r0: 10, r1: r, color: '#ff8fc0', born: this.vtime, dur: 1.0, width: 6 });
+        this.addEffect({ kind: 'sparkle', x: cat.x, y: cat.y - 14, born: this.vtime, dur: 1.2 });
+        return true;
+      }
+      case 'whiskers': {
+        const target = this.pickTarget(cat, st.range);
+        if (!target) return false;
+        const A = ABILITIES.whiskers.ultimate;
+        this.launch(cat, target, dmg * A.dmgMult, 360, 'magic', {
+          size: 2.4,
+          bounce: { left: A.bounces, falloff: A.falloff, range: st.bounceRange * A.bounceRangeMult, hit: [] },
+        });
+        return true;
+      }
+      case 'sable': {
+        const target = this.pickTarget(cat, st.range);
+        if (!target) return false;
+        const A = ABILITIES.sable.ultimate;
+        const dx = target.x - cat.x;
+        const dy = target.y - cat.y;
+        const d = Math.hypot(dx, dy) || 1;
+        const len = st.range * A.lengthMult;
+        this.addEffect({ kind: 'telegraph', x1: cat.x, y1: cat.y, x2: cat.x + (dx / d) * len, y2: cat.y + (dy / d) * len, width: A.width, color: '#bfe0ff', born: this.vtime, dur: A.telegraph });
+        cat.queue.push({ at: t + A.telegraph, kind: 'slash', dx, dy, mult: A.dmgMult, length: len, width: A.width });
+        return true;
+      }
+      case 'mallow': {
+        if (!this.foes.some((f) => f.alive)) return false;
+        const A = ABILITIES.mallow.ultimate;
+        this.teamBuff = { speed: A.speedBuff, dmg: A.dmgBuff, until: t + A.duration };
+        for (const c of this.cats) {
+          c.buffAt = this.vtime;
+          this.addEffect({ kind: 'ring', x: c.x, y: c.y, r0: 4, r1: 26, color: '#ffd36a', born: this.vtime, dur: 0.6, width: 3 });
+        }
+        this.addEffect({ kind: 'bell', x: cat.x, y: cat.y - 20, born: this.vtime, dur: 1.2, big: true });
+        return true;
+      }
+      case 'pounce': {
+        const A = ABILITIES.pounce.ultimate;
+        if (!this.woundedInRange(cat, st.range, A.hpBelow)) return false;
+        for (let i = 0; i < A.strikes; i++) cat.queue.push({ at: t + i * A.gap, kind: 'strike', mult: A.mult, hpBelow: A.hpBelow });
+        return true;
+      }
+      case 'devil': {
+        const target = selectTarget(cat.x, cat.y, st.range, 'strongest', this.foes);
+        if (!target || target.kind !== 'enemy') return false;
+        const A = ABILITIES.devil.ultimate;
+        target.markUntil = t + A.duration;
+        // The pact also delivers a full dose of poison right away.
+        this.applyPoison(target, st.poisonDps * this.tuning.catDamageMult, st.poisonDuration, ABILITIES.devil.special.maxStacks, cat, true);
+        this.addEffect({ kind: 'ring', x: target.x, y: target.y, r0: 30, r1: 10, color: '#b58ad6', born: this.vtime, dur: 0.6, width: 4 });
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Lowest-HP wounded mouse in range (below `hpBelow` of its max), for Shadow Pounce. */
+  private woundedInRange(cat: CatUnit, range: number, hpBelow: number): Foe | null {
+    let best: Foe | null = null;
+    let bestFrac = hpBelow;
+    for (const f of this.foes) {
+      if (!f.alive || f.kind !== 'enemy') continue;
+      if ((f.x - cat.x) ** 2 + (f.y - cat.y) ** 2 > range * range) continue;
+      const frac = (f.hp + f.shield) / Math.max(1, f.maxHp + f.maxShield);
+      if (frac < bestFrac) {
+        best = f;
+        bestFrac = frac;
+      }
+    }
+    return best;
+  }
+
+  private runQueue(cat: CatUnit, st: CatStats, dmg: number): void {
+    while (cat.queue.length && cat.queue[0].at <= this.time + 1e-9) {
+      const a = cat.queue.shift()!;
+      switch (a.kind) {
+        case 'shot': {
+          const target = this.pickTarget(cat, st.range);
+          if (!target) break;
+          cat.attackAt = this.vtime;
+          cat.aimX = target.x;
+          cat.aimY = target.y;
+          this.launch(cat, target, dmg * a.mult, (CATS[cat.type].projectileSpeed ?? 400) * 1.2, 'yarn', { size: 1.6 });
+          break;
+        }
+        case 'strike': {
+          const target = this.woundedInRange(cat, st.range, a.hpBelow);
+          if (!target) {
+            cat.queue = cat.queue.filter((q) => q.kind !== 'strike');
+            break;
+          }
+          // Bosses take a normal strike: the ultimate can't shred them.
+          this.claw(cat, target, st, dmg, target.isBoss ? 1 : a.mult, true);
+          break;
+        }
+        case 'slash':
+          cat.attackAt = this.vtime;
+          this.swordWave(cat, a.dx, a.dy, dmg * a.mult, a.length, a.width, true);
+          break;
+        case 'bigSlam': {
+          const A = ABILITIES.orange.ultimate;
+          cat.attackAt = this.vtime;
+          this.slam(cat, a.x, a.y, a.targetUid, { ...st, splashRadius: st.splashRadius * A.radiusMult, splashRatio: 1 }, dmg * A.dmgMult, true);
+          break;
+        }
+        case 'bigShot': {
+          const f = this.foes.find((x) => x.uid === a.targetUid && x.alive);
+          if (!f) break;
+          cat.attackAt = this.vtime;
+          cat.aimX = f.x;
+          cat.aimY = f.y;
+          this.launch(cat, f, dmg * ABILITIES.black.ultimate.dmgMult, 1400, 'bullet', {
+            size: 2,
+            armorIgnore: this.hasSpecial('black') ? ABILITIES.black.special.armorIgnore : 0,
+          });
+          break;
+        }
+      }
+    }
+  }
+
   /** Deliver due combo punches; if the target drops, the rest go to the next mouse in reach. */
-  private runCombo(cat: CatUnit, st: ReturnType<typeof getCatStats>, dmg: number): void {
+  private runCombo(cat: CatUnit, st: CatStats, dmg: number): void {
     while (cat.comboQueue.length && cat.comboQueue[0].at <= this.time + 1e-9) {
       const h = cat.comboQueue.shift()!;
       let f = this.foes.find((x) => x.uid === h.targetUid && x.alive);
       const reach2 = (st.range * 1.2) ** 2;
       if (!f || (f.x - cat.x) ** 2 + (f.y - cat.y) ** 2 > reach2) {
-        f = selectTarget(cat.x, cat.y, st.range, cat.mode, this.foes) ?? undefined;
+        f = this.pickTarget(cat, st.range) ?? undefined;
         if (!f) {
           cat.comboQueue = [];
           return;
@@ -787,27 +1194,40 @@ export class Battle {
       cat.attackAt = this.vtime;
       cat.aimX = f.x;
       cat.aimY = f.y;
-      this.hit(f, dmg, false);
+      // Tabby 3★: the last punch of a normal combo is a finisher.
+      const finisher = !h.mult && cat.comboQueue.length === 0 && this.hasSpecial(cat.type);
+      const mult = (h.mult ?? 1) * (finisher ? ABILITIES.tabby.special.finisherMult : 1);
+      this.hit(f, dmg * mult, finisher, { src: cat });
       this.addEffect({
         kind: 'pow',
         x: f.x + (this.vrand() - 0.5) * 12,
         y: f.y - 4 + (this.vrand() - 0.5) * 10,
         rot: this.vrand() * Math.PI,
         born: this.vtime,
-        dur: 0.2,
+        dur: finisher || h.mult ? 0.28 : 0.2,
       });
     }
   }
 
   /** Orange belly slam: everything near the impact point is hit at the same moment. */
-  private slam(cat: CatUnit, x: number, y: number, targetUid: number, st: ReturnType<typeof getCatStats>, dmg: number): void {
+  private slam(cat: CatUnit, x: number, y: number, targetUid: number, st: CatStats, dmg: number, ultimate = false): void {
     const r2 = st.splashRadius * st.splashRadius;
     const hitList = this.foes.filter((f) => f.alive && (f.x - x) ** 2 + (f.y - y) ** 2 <= r2);
-    for (const f of hitList) this.hit(f, f.uid === targetUid ? dmg : dmg * st.splashRatio, true);
+    const S = ABILITIES.orange.special;
+    const weaken = this.hasSpecial('orange');
+    for (const f of hitList) {
+      this.hit(f, f.uid === targetUid ? dmg : dmg * st.splashRatio, true, { src: cat });
+      // Orange 3★: slammed mice take extra damage from everyone for a moment.
+      if (weaken && f.alive) {
+        f.vulnerable = S.vulnerable;
+        f.vulnUntil = this.time + S.duration;
+      }
+    }
     this.stats.slamHits += hitList.length;
-    this.addEffect({ kind: 'ring', x, y, r0: 8, r1: st.splashRadius, color: '#e0883a', born: this.vtime, dur: 0.5, width: 7 });
+    const star = this.starOf(cat.type);
+    this.addEffect({ kind: 'ring', x, y, r0: 8, r1: st.splashRadius, color: star >= 4 ? '#ffb35a' : '#e0883a', born: this.vtime, dur: 0.5, width: ultimate ? 10 : 7 });
     this.addEffect({ kind: 'ring', x, y, r0: 4, r1: st.splashRadius * 0.6, color: '#fff2c0', born: this.vtime, dur: 0.35, width: 5 });
-    this.burst(x, y, ['#c8a070', '#e8d0a8', '#a07850'], 18, 120);
+    this.burst(x, y, ['#c8a070', '#e8d0a8', '#a07850', ...(star >= 2 ? ['#ffd36a'] : [])], ultimate ? 30 : 18 + star * 2, ultimate ? 170 : 120);
     // (No board/screen shake: the impact stays local — shockwave, dust and hit reactions.)
     this.addEffect({ kind: 'ring', x, y, r0: st.splashRadius * 0.85, r1: st.splashRadius * 1.05, color: '#c8a070', born: this.vtime + 0.05, dur: 0.3, width: 3 });
     if (!hitList.length) this.addText(x, y - 14, '…', '#ffffff', 14, 0.6);
@@ -816,17 +1236,21 @@ export class Battle {
   }
 
   /** Black Cat: after aiming, one heavy shot (re-acquires if the aimed target is gone). */
-  private fireShot(cat: CatUnit, targetUid: number, st: ReturnType<typeof getCatStats>, dmg: number): void {
+  private fireShot(cat: CatUnit, targetUid: number, st: CatStats, dmg: number): void {
     const reach2 = (st.range * 1.15) ** 2;
     let f = this.foes.find((x) => x.uid === targetUid && x.alive && (x.x - cat.x) ** 2 + (x.y - cat.y) ** 2 <= reach2);
-    if (!f) f = selectTarget(cat.x, cat.y, st.range, cat.mode, this.foes) ?? undefined;
+    if (!f) f = this.pickTarget(cat, st.range) ?? undefined;
     if (!f) return;
     cat.aimX = f.x;
     cat.aimY = f.y;
+    // Black Cat 3★: every Nth shot is armor-piercing.
+    const S = ABILITIES.black.special;
+    const pierce = this.hasSpecial('black') && cat.attackCount % S.every === 0;
+    const a = Math.atan2(f.y - cat.y, f.x - cat.x);
     this.projectiles.push({
       uid: this.nextUid++,
-      x: cat.x + Math.cos(Math.atan2(f.y - cat.y, f.x - cat.x)) * 26,
-      y: cat.y + 4 + Math.sin(Math.atan2(f.y - cat.y, f.x - cat.x)) * 26,
+      x: cat.x + Math.cos(a) * 26,
+      y: cat.y + 4 + Math.sin(a) * 26,
       targetUid: f.uid,
       tx: f.x,
       ty: f.y,
@@ -834,25 +1258,183 @@ export class Battle {
       speed: CATS[cat.type].projectileSpeed ?? 900,
       style: 'bullet',
       done: false,
+      star: this.starOf(cat.type),
+      size: pierce ? 1.4 : 1,
+      armorIgnore: pierce ? S.armorIgnore : 0,
     });
   }
 
   /** Noble White: every mouse in range is distracted; her focus target even more. */
-  private charm(cat: CatUnit, target: Foe, st: ReturnType<typeof getCatStats>): void {
+  private charm(cat: CatUnit, target: Foe, st: CatStats): void {
     const r2 = st.range * st.range;
+    // White 3★: every Nth charm lasts longer.
+    const S = ABILITIES.white.special;
+    const long = this.hasSpecial('white') && cat.attackCount % S.every === 0;
+    const dur = st.slowDuration * (long ? S.durationMult : 1);
     for (const f of this.foes) {
       if (!f.alive || (f.x - cat.x) ** 2 + (f.y - cat.y) ** 2 > r2) continue;
       const s = Math.min(BALANCE.slowCap, st.slowStrength + (f === target ? st.focusBonus : 0));
       f.slowStrength = f.slowT > 0 ? Math.max(f.slowStrength, s) : s;
-      f.slowT = Math.max(f.slowT, st.slowDuration);
+      f.slowT = Math.max(f.slowT, dur);
       f.charmedAt = this.vtime;
       this.addEffect({ kind: 'hearts', x: f.x, y: f.y - f.radius, born: this.vtime, dur: 0.9 });
     }
-    this.addEffect({ kind: 'ring', x: cat.x, y: cat.y, r0: 10, r1: st.range, color: '#ff8fc0', born: this.vtime, dur: 0.8, width: 5 });
+    this.addEffect({ kind: 'ring', x: cat.x, y: cat.y, r0: 10, r1: st.range, color: long ? '#ffb0d8' : '#ff8fc0', born: this.vtime, dur: 0.8, width: long ? 7 : 5 });
     this.addEffect({ kind: 'sparkle', x: cat.x, y: cat.y - 12, born: this.vtime, dur: 0.8 });
   }
 
+  /**
+   * Sir Sable: a straight sword wave from the cat toward (dx, dy). Every mouse whose body
+   * touches the line segment is hit — so lining the wave up with the road matters.
+   */
+  private swordWave(cat: CatUnit, dx: number, dy: number, dmg: number, length: number, width: number, ultimate: boolean): Foe[] {
+    const d = Math.hypot(dx, dy) || 1;
+    const ux = dx / d;
+    const uy = dy / d;
+    const hits = this.foesOnLine(cat.x, cat.y, ux, uy, length, width);
+    const S = ABILITIES.sable.special;
+    const shred = this.hasSpecial('sable');
+    for (const f of hits) {
+      this.hit(f, dmg, true, { src: cat });
+      // Sable 3★: armor-piercing form.
+      if (shred && f.alive && f.armor > 0) {
+        f.shred = Math.max(f.shred, S.armorShred);
+        f.shredUntil = this.time + S.duration;
+      }
+    }
+    cat.aimX = cat.x + ux * 20;
+    cat.aimY = cat.y + uy * 20;
+    const star = this.starOf(cat.type);
+    this.addEffect({
+      kind: 'slash',
+      x1: cat.x + ux * 10,
+      y1: cat.y + uy * 10,
+      x2: cat.x + ux * length,
+      y2: cat.y + uy * length,
+      width: ultimate ? width * 1.4 : width,
+      color: ultimate ? '#e8f4ff' : '#bfe0ff',
+      born: this.vtime,
+      dur: ultimate ? 0.45 : 0.28,
+      star,
+    });
+    return hits;
+  }
+
+  /** Mice whose bodies touch a segment from (x, y) along unit (ux, uy). Exported logic for tests. */
+  foesOnLine(x: number, y: number, ux: number, uy: number, length: number, width: number): Foe[] {
+    return this.foes.filter((f) => {
+      if (!f.alive) return false;
+      const px = f.x - x;
+      const py = f.y - y;
+      const along = px * ux + py * uy;
+      if (along < -f.radius || along > length + f.radius) return false;
+      const perp = Math.abs(px * uy - py * ux);
+      return perp <= width + f.radius;
+    });
+  }
+
+  /** Shadow Pounce: a quick claw; wounded mice take execute damage. */
+  private claw(cat: CatUnit, target: Foe, st: CatStats, dmg: number, mult: number, ultimate = false): void {
+    const frac = (target.hp + target.shield) / Math.max(1, target.maxHp + target.maxShield);
+    const execute = frac < st.executeThreshold;
+    let m = mult * (execute ? st.executeMult : 1);
+    // Pounce 3★: the strike after a kill is empowered.
+    const S = ABILITIES.pounce.special;
+    const empowered = cat.empowered;
+    if (empowered) {
+      m *= S.mult;
+      cat.empowered = false;
+    }
+    cat.attackAt = this.vtime;
+    cat.aimX = target.x;
+    cat.aimY = target.y;
+    const killed = this.hit(target, dmg * m, execute || empowered || ultimate, { src: cat });
+    if (killed && this.hasSpecial(cat.type) && this.time >= cat.specialReadyAt) {
+      cat.empowered = true;
+      cat.specialReadyAt = this.time + S.cooldown;
+    }
+    const star = this.starOf(cat.type);
+    this.addEffect({
+      kind: 'claw',
+      x: target.x,
+      y: target.y - 4,
+      rot: Math.atan2(target.y - cat.y, target.x - cat.x) + (this.vrand() - 0.5) * 0.6,
+      color: execute || ultimate ? '#9fe0d0' : star >= 4 ? '#c8f0e4' : '#ffffff',
+      born: this.vtime,
+      dur: ultimate ? 0.3 : 0.2,
+      big: execute || empowered || ultimate,
+    });
+  }
+
+  /** Captain Mallow: allies in range attack faster for a few seconds (never stacks). */
+  private ringBell(cat: CatUnit, st: CatStats): void {
+    const r2 = st.range * st.range;
+    for (const c of this.cats) {
+      if (c === cat || (c.x - cat.x) ** 2 + (c.y - cat.y) ** 2 > r2) continue;
+      if (c.buffSpeedUntil <= this.time || c.buffSpeed <= st.buffSpeed) {
+        c.buffSpeed = st.buffSpeed;
+        c.buffSpeedUntil = this.time + st.buffDuration;
+      }
+      c.buffAt = this.vtime;
+    }
+    this.addEffect({ kind: 'ring', x: cat.x, y: cat.y, r0: 10, r1: st.range, color: '#ffd36a', born: this.vtime, dur: 0.7, width: 3 });
+    this.addEffect({ kind: 'bell', x: cat.x + 10, y: cat.y - 18, born: this.vtime, dur: 0.6 });
+  }
+
+  /** Captain Mallow 3★: a nearby merge inspires nearby allies (limited by its own cooldown). */
+  private mallowTeamwork(merged: CatUnit): void {
+    if (!this.hasSpecial('mallow') || this.time < this.mallowSpecialReadyAt) return;
+    const S = ABILITIES.mallow.special;
+    const captains = this.cats.filter((m) => m.type === 'mallow');
+    for (const m of captains) {
+      const st = this.unitStats(m);
+      if ((m.x - merged.x) ** 2 + (m.y - merged.y) ** 2 > st.range * st.range) continue;
+      for (const c of this.cats) {
+        if ((c.x - m.x) ** 2 + (c.y - m.y) ** 2 > st.range * st.range) continue;
+        c.buffDmg = Math.max(c.buffDmgUntil > this.time ? c.buffDmg : 0, S.dmgBuff);
+        c.buffDmgUntil = this.time + S.duration;
+        c.buffAt = this.vtime;
+      }
+      this.addEffect({ kind: 'bell', x: m.x + 10, y: m.y - 18, born: this.vtime, dur: 0.8, big: true });
+      this.mallowSpecialReadyAt = this.time + S.cooldown;
+      return;
+    }
+  }
+
+  /** Silver Devil: poison refreshes its duration; consecutive hits on the same mouse can stack. */
+  private applyPoison(f: Foe, dps: number, dur: number, maxStacks: number, src: CatUnit, forceMax = false): void {
+    if (!f.alive || dps <= 0) return;
+    const active = f.poisonUntil > this.time;
+    let stacks = active ? f.poisonStacks : 0;
+    if (forceMax) stacks = maxStacks;
+    else if (active && src.lastHitUid === f.uid) stacks = Math.min(maxStacks, stacks + 1);
+    else stacks = Math.max(stacks, 1);
+    f.poisonStacks = Math.max(1, Math.min(Math.max(maxStacks, active ? f.poisonStacks : 1), stacks));
+    f.poisonDps = Math.max(active ? f.poisonDps : 0, dps);
+    f.poisonUntil = this.time + dur;
+    src.lastHitUid = f.uid;
+  }
+
+  private poisonTick(f: Foe, dt: number): void {
+    const P = ABILITIES.devil.ultimate;
+    const marked = f.markUntil > this.time;
+    const markMult = marked ? (f.isBoss ? P.bossPoisonMult : P.poisonMult) : 1;
+    const bossMult = f.isBoss ? POISON_BOSS_MULT : 1;
+    const dmg = f.poisonDps * f.poisonStacks * markMult * bossMult * dt;
+    const r = applyDamageToPools(f.hp, f.shield, dmg);
+    this.stats.damageDealt += Math.min(dmg, f.hp + f.shield);
+    f.hp = r.hp;
+    f.shield = r.shield;
+    f.poisonShown += dmg;
+    if (f.poisonShown >= 8) {
+      this.addText(f.x + (this.vrand() - 0.5) * 10, f.y - f.radius - 4, String(Math.round(f.poisonShown)), '#b8f0a8', 10, 0.6);
+      f.poisonShown = 0;
+    }
+    if (f.hp <= 0) this.kill(f);
+  }
+
   private updateProjectiles(dt: number): void {
+    const spawned: Projectile[] = [];
     for (const p of this.projectiles) {
       const target = this.foes.find((f) => f.uid === p.targetUid);
       if (target && target.alive) {
@@ -865,26 +1447,78 @@ export class Battle {
       const move = p.speed * dt;
       if (d <= move + 4) {
         p.done = true;
-        if (target && target.alive) this.hit(target, p.damage, p.style === 'bullet');
-        else this.burst(p.tx, p.ty, ['#dddddd'], 3, 30);
+        if (target && target.alive) {
+          const src = p.poison ? this.catByUid(p.poison.srcUid) : undefined;
+          this.hit(target, p.damage, p.style === 'bullet' || (p.size ?? 1) > 1.2, { armorIgnore: p.armorIgnore });
+          if (p.poison && src) this.applyPoison(target, p.poison.dps, p.poison.dur, p.poison.maxStacks, src);
+          if (p.bounce && p.bounce.left > 0) {
+            const next = this.bounceTarget(target, p.bounce.range, [...p.bounce.hit, target.uid]);
+            if (next) {
+              spawned.push({
+                ...p,
+                uid: this.nextUid++,
+                x: target.x,
+                y: target.y - 4,
+                targetUid: next.uid,
+                tx: next.x,
+                ty: next.y,
+                damage: p.damage * p.bounce.falloff,
+                done: false,
+                bounce: { ...p.bounce, left: p.bounce.left - 1, hit: [...p.bounce.hit, target.uid] },
+              });
+            }
+          }
+          if (p.style === 'magic') this.burst(p.tx, p.ty, ['#c89aff', '#ffd36a', ...((p.star ?? 1) >= 4 ? ['#ffffff'] : [])], 4 + (p.star ?? 1) * 2, 60);
+          if (p.style === 'venom') this.burst(p.tx, p.ty, ['#b58ad6', '#9fd0a8'], 3 + (p.star ?? 1), 40);
+        } else this.burst(p.tx, p.ty, ['#dddddd'], 3, 30);
       } else {
         p.x += (dx / d) * move;
         p.y += (dy / d) * move;
       }
     }
-    this.projectiles = this.projectiles.filter((p) => !p.done);
+    this.projectiles = this.projectiles.filter((p) => !p.done).concat(spawned);
   }
 
-  private hit(f: Foe, raw: number, showNumber: boolean): void {
-    if (!f.alive) return;
-    const dmg = computeDamage(raw, f.armor, this.mods.armorReduce);
+  /** Mr. Whiskers: next ricochet target — the nearest mouse within jump range not hit yet. */
+  bounceTarget(from: { x: number; y: number }, range: number, exclude: number[]): Foe | null {
+    let best: Foe | null = null;
+    let bestScore = Infinity;
+    for (const f of this.foes) {
+      if (!f.alive || exclude.includes(f.uid)) continue;
+      const d2 = (f.x - from.x) ** 2 + (f.y - from.y) ** 2;
+      if (d2 > range * range) continue;
+      const score = d2 + (f.kind === 'chest' ? range * range : 0); // mice before chests
+      if (score < bestScore) {
+        best = f;
+        bestScore = score;
+      }
+    }
+    return best;
+  }
+
+  /** Apply one hit. Returns true if it defeated the foe. */
+  private hit(f: Foe, raw: number, showNumber: boolean, opts: { armorIgnore?: number; src?: CatUnit } = {}): boolean {
+    if (!f.alive) return false;
+    const shred = f.shredUntil > this.time ? f.shred : 0;
+    const armor = Math.max(0, f.armor - shred) * (1 - (opts.armorIgnore ?? 0));
+    let dmg = computeDamage(raw, armor, this.mods.armorReduce);
+    if (f.vulnUntil > this.time) dmg *= 1 + f.vulnerable;
+    // Devil's Pact: allies' hits on the marked mouse deal a little bonus poison damage.
+    if (f.markUntil > this.time && raw > 0) {
+      const U = ABILITIES.devil.ultimate;
+      dmg += raw * (f.isBoss ? U.bossAllyBonus : U.allyBonus);
+    }
     const r = applyDamageToPools(f.hp, f.shield, dmg);
     this.stats.damageDealt += Math.min(dmg, f.hp + f.shield);
     f.hp = r.hp;
     f.shield = r.shield;
     f.hitAt = this.vtime;
     if (showNumber) this.addText(f.x + (this.vrand() - 0.5) * 10, f.y - f.radius - 6, String(Math.round(dmg)), '#ffffff', 12, 0.6);
-    if (f.hp <= 0) this.kill(f);
+    if (f.hp <= 0) {
+      this.kill(f);
+      return true;
+    }
+    return false;
   }
 
   private kill(f: Foe): void {
@@ -981,6 +1615,7 @@ export class Battle {
   }
 
   private checkEnd(): void {
+    if (this.sandbox) return;
     if (this.status !== 'playing' && this.status !== 'reward') return;
     if (this.baseHp <= 0) {
       this.status = 'defeat';

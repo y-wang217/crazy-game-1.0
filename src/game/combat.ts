@@ -1,4 +1,6 @@
 import { BALANCE } from '../config/balance';
+import { STARS } from '../config/collection';
+import { CAT_ORDER } from '../config/cats';
 import { SKILLS } from '../config/skills';
 import type { CatDef, CatId, SkillId } from './types';
 
@@ -42,6 +44,11 @@ export interface CatMods {
   splashRatio: number;
   slow: number;
   slowDur: number;
+  bounce: number;
+  buff: number;
+  execute: number;
+  poison: number;
+  poisonDur: number;
 }
 
 export interface SkillMods {
@@ -53,12 +60,12 @@ export interface SkillMods {
   fishMult: number;
 }
 
-const neutralCat = (): CatMods => ({ dmg: 1, speed: 1, range: 1, combo: 0, splash: 1, splashRatio: 0, slow: 0, slowDur: 0 });
+const neutralCat = (): CatMods => ({ dmg: 1, speed: 1, range: 1, combo: 0, splash: 1, splashRatio: 0, slow: 0, slowDur: 0, bounce: 0, buff: 0, execute: 0, poison: 1, poisonDur: 0 });
 
 export function computeSkillMods(skills: Partial<Record<SkillId, number>>): SkillMods {
   const mods: SkillMods = {
     all: neutralCat(),
-    cat: { kitten: neutralCat(), tabby: neutralCat(), orange: neutralCat(), black: neutralCat(), white: neutralCat() },
+    cat: Object.fromEntries(CAT_ORDER.map((id) => [id, neutralCat()])) as Record<CatId, CatMods>,
     armorReduce: 0,
     fishMult: 1,
   };
@@ -75,6 +82,11 @@ export function computeSkillMods(skills: Partial<Record<SkillId, number>>): Skil
     if (p.splashRatio) m.splashRatio += p.splashRatio * lv;
     if (p.slow) m.slow += p.slow * lv;
     if (p.slowDur) m.slowDur += p.slowDur * lv;
+    if (p.bounce) m.bounce += p.bounce * lv;
+    if (p.buff) m.buff += p.buff * lv;
+    if (p.execute) m.execute += p.execute * lv;
+    if (p.poison) m.poison += p.poison * lv;
+    if (p.poisonDur) m.poisonDur += p.poisonDur * lv;
     if (p.armor) mods.armorReduce += p.armor * lv;
     if (p.fish) mods.fishMult += p.fish * lv;
   }
@@ -93,19 +105,44 @@ export interface CatStats {
   slowStrength: number;
   slowDuration: number;
   focusBonus: number;
+  /** Ricochet: extra targets after the first hit, jump distance and per-jump falloff. */
+  bounces: number;
+  bounceRange: number;
+  bounceFalloff: number;
+  /** Pierce: half-width and length (px) of the sword wave. */
+  pierceWidth: number;
+  pierceLength: number;
+  /** Support: attack-speed buff given to allies and its duration. */
+  buffSpeed: number;
+  buffDuration: number;
+  /** Execute: HP threshold and damage multiplier below it. */
+  executeThreshold: number;
+  executeMult: number;
+  /** Poison: damage per second and duration. */
+  poisonDps: number;
+  poisonDuration: number;
+  /** Permanent star rank these stats were computed with. */
+  star: number;
 }
 
-/** Effective stats for a cat of a given level with current skill modifiers. */
-export function getCatStats(def: CatDef, level: number, mods: SkillMods = NO_MODS): CatStats {
+/**
+ * Effective stats for a cat: in-battle level (Lv.1–5, from merging) × permanent star rank
+ * (1★–5★, from the collection) × this battle's skills. The two progressions are separate:
+ * `level` resets every battle, `star` never does.
+ */
+export function getCatStats(def: CatDef, level: number, mods: SkillMods = NO_MODS, star = 1): CatStats {
   const L = BALANCE.levels;
   const li = Math.max(0, Math.min(L.damageMult.length - 1, level - 1));
+  const si = Math.max(0, Math.min(STARS.max - 1, star - 1));
   const up = level - 1;
   const a = mods.all;
   const c = mods.cat[def.id];
-  const damage = def.damage * L.damageMult[li] * a.dmg * c.dmg;
+  const lvDmg = L.damageMult[li] * STARS.damageMult[si];
+  const damage = def.damage * lvDmg * a.dmg * c.dmg;
   const range = def.range * (1 + L.rangePerLevel * up) * a.range * c.range;
-  const interval = def.interval / ((1 + L.speedPerLevel * up) * a.speed * c.speed);
-  const slowStrength = Math.min(BALANCE.slowCap, (def.slowStrength ?? 0) + L.slowPerLevel * up + c.slow);
+  const interval = def.interval / ((1 + L.speedPerLevel * up) * a.speed * c.speed * STARS.speedMult[si]);
+  const support = STARS.supportMult[si];
+  const slowStrength = Math.min(BALANCE.slowCap, ((def.slowStrength ?? 0) + L.slowPerLevel * up + c.slow) * (def.slowStrength ? support : 1));
   return {
     damage,
     range,
@@ -116,5 +153,17 @@ export function getCatStats(def: CatDef, level: number, mods: SkillMods = NO_MOD
     slowStrength,
     slowDuration: (def.slowDuration ?? 0) + c.slowDur,
     focusBonus: def.focusBonus ?? 0,
+    bounces: (def.bounces ?? 0) + c.bounce,
+    bounceRange: (def.bounceRange ?? 0) * (1 + L.rangePerLevel * up),
+    bounceFalloff: def.bounceFalloff ?? 0,
+    pierceWidth: def.pierceWidth ?? 0,
+    pierceLength: range * (def.pierceLength ?? 0),
+    buffSpeed: def.buffSpeed ? (def.buffSpeed + 0.04 * up + c.buff) * support : 0,
+    buffDuration: def.buffDuration ?? 0,
+    executeThreshold: def.executeThreshold ? Math.min(0.7, def.executeThreshold + c.execute) : 0,
+    executeMult: def.executeMult ?? 1,
+    poisonDps: (def.poisonDps ?? 0) * lvDmg * a.dmg * c.poison,
+    poisonDuration: (def.poisonDuration ?? 0) + c.poisonDur,
+    star: si + 1,
   };
 }

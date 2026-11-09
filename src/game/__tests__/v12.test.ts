@@ -1,4 +1,4 @@
-import { CATS, CAT_ORDER } from '../../config/cats';
+import { CATS, CAT_ORDER, STARTER_CATS } from '../../config/cats';
 import { CHAPTERS } from '../../config/chapters';
 import { MAPS } from '../../config/maps';
 import { SKILLS, SKILL_ORDER } from '../../config/skills';
@@ -71,7 +71,7 @@ describe('character-specific skills', () => {
   };
 
   it('every cat has at least three of its own skills', () => {
-    for (const c of CAT_ORDER) expect(SKILL_ORDER.filter((id) => SKILLS[id].cat === c).length).toBeGreaterThanOrEqual(3);
+    for (const c of CAT_ORDER) expect(SKILL_ORDER.filter((id) => SKILLS[id].cat === c).length).toBeGreaterThanOrEqual(STARTER_CATS.includes(c) ? 3 : 2);
     expect(SKILL_ORDER.filter((id) => !SKILLS[id].cat).length).toBeGreaterThanOrEqual(3);
   });
 

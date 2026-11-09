@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { CATS, TARGET_MODES, TARGET_MODE_INFO } from '../../config/cats';
+import { TARGET_MODES, TARGET_MODE_INFO } from '../../config/cats';
 import { CHESTS } from '../../config/enemies';
 import type { Battle } from '../../game/battle';
 import { t, useLang } from '../../i18n';
 import type { Renderer } from '../../render/renderer';
 import type { ActiveStep, Focus } from '../../tutorial/director';
 import type { CosmeticLoadout } from '../../game/types';
-import { CatPreview, FoePreview } from './CatPreview';
+import { CatReveal } from './CatReveal';
+import { FoePreview } from './CatPreview';
 import { CoinIcon } from './Icons';
-import { GameIcon, type IconName } from './GameIcon';
+import { GameIcon } from './GameIcon';
 
 interface Rect {
   x: number;
@@ -143,6 +144,9 @@ export function TutorialOverlay({
           {step.panel.kind === 'text' && <div className="tut-bar-body">{t(step.panel.bodyKey)}</div>}
           {step.hintKey && <div className="tut-hint"><GameIcon name="next" size={14} /> {t(step.hintKey)}</div>}
         </div>
+      ) : step.panel.kind === 'cat' ? (
+        // First summon of a species: entrance animation, then the profile (battle stays paused).
+        <CatReveal key={step.key} cat={step.panel.cat} loadout={loadout} onClose={onContinue} />
       ) : (
         <div className="tut-card-wrap">
           <div className="tut-card" key={step.key}>
@@ -173,33 +177,9 @@ function Hand({ from, to }: { from: Rect; to?: Rect }) {
   );
 }
 
-function PanelBody({ step, loadout }: { step: ActiveStep; loadout: CosmeticLoadout }) {
+function PanelBody({ step }: { step: ActiveStep; loadout: CosmeticLoadout }) {
   const p = step.panel;
-  if (p.kind === 'cat') {
-    const id = p.cat;
-    return (
-      <div className="intro">
-        <div className="intro-kicker">{t('intro.newCat')}</div>
-        <div className="intro-art">
-          <CatPreview type={id} level={1} loadout={loadout} size={120} attackLoop />
-        </div>
-        <h2 className="intro-name">{t(`cat.${id}.name`)}</h2>
-        <div className="intro-sub">{t(`cat.${id}.title`)}</div>
-        <p className="intro-quote">“{t(`cat.${id}.personality`)}”</p>
-        <dl className="intro-facts">
-          <dt>{t('intro.role')}</dt>
-          <dd>{t(`cat.${id}.role`)}</dd>
-          <dt>{t('intro.attack')}</dt>
-          <dd>{t(`cat.${id}.attack`)}</dd>
-          <dt className="good">{t('intro.strengths')}</dt>
-          <dd>{t(`cat.${id}.strengths`)}</dd>
-          <dt className="bad">{t('intro.weaknesses')}</dt>
-          <dd>{t(`cat.${id}.weaknesses`)}</dd>
-        </dl>
-        <StatBars cat={id} />
-      </div>
-    );
-  }
+  if (p.kind === 'cat') return null; // shown by CatReveal
   if (p.kind === 'enemy') {
     const id = p.enemy;
     return (
@@ -269,31 +249,6 @@ function PanelBody({ step, loadout }: { step: ActiveStep; loadout: CosmeticLoado
           ))}
         </ul>
       )}
-    </div>
-  );
-}
-
-/** Simple relative stat bars so cats are easy to compare at a glance. */
-function StatBars({ cat }: { cat: keyof typeof CATS }) {
-  const d = CATS[cat];
-  const hits = d.comboHits ?? 1;
-  const dps = (d.damage * hits) / d.interval;
-  const rows: [IconName, number][] = [
-    ['damage', Math.min(1, (d.damage * hits) / 46)],
-    ['speed', Math.min(1, 0.75 / d.interval)],
-    ['range', Math.min(1, d.range / 150)],
-  ];
-  if (d.attack === 'aura') rows[0] = ['charm', 0.8];
-  return (
-    <div className="stat-bars" title={`DPS ${dps.toFixed(0)}`}>
-      {rows.map(([icon, v]) => (
-        <div key={icon} className="stat-row">
-          <GameIcon name={icon} size={16} />
-          <div className="stat-track">
-            <div className="stat-fill" style={{ width: `${Math.round(v * 100)}%` }} />
-          </div>
-        </div>
-      ))}
     </div>
   );
 }

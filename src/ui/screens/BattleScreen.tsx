@@ -6,7 +6,7 @@ import { MAPS } from '../../config/maps';
 import { SKILLS, SKILL_ORDER, skillParams } from '../../config/skills';
 import { Battle, type BattleEvent, type BattleStats } from '../../game/battle';
 import { nextStageId } from '../../game/progression';
-import type { SkillId } from '../../game/types';
+import type { CatId, SkillId } from '../../game/types';
 import { t, useLang } from '../../i18n';
 import { Renderer, type DragView } from '../../render/renderer';
 import { saveStore, useSave } from '../../save/store';
@@ -17,7 +17,10 @@ import { ResultPanel } from '../components/ResultPanel';
 import { SkillOwner } from '../components/SkillOwner';
 import { DebugPanel, StatsTable } from '../components/DebugPanel';
 import { FishIcon, HeartIcon } from '../components/Icons';
+import { ChapterReward } from '../components/ChapterReward';
 import { RewardModal } from '../components/RewardModal';
+import type { ChapterGrant } from '../../game/collection';
+import { CatHead } from '../components/CatPreview';
 import { TutorialOverlay } from '../components/TutorialOverlay';
 import { debugStore, useDebug } from '../debugStore';
 
@@ -44,6 +47,8 @@ interface Hud {
   rewardId: number;
   preparing: boolean;
   prepLeft: number;
+  /** 5★ ultimates: species → readiness (rounded to 5% so the HUD doesn't re-render every frame). */
+  ults: [CatId, number][];
 }
 
 interface Result {
@@ -79,6 +84,7 @@ function hudOf(b: Battle): Hud {
     rewardId: b.currentReward?.id ?? 0,
     preparing: b.preparing,
     prepLeft: Math.ceil(b.prepRemaining),
+    ults: (Object.keys(b.ultCharge) as CatId[]).map((id) => [id, Math.floor((b.ultReadiness(id) ?? 0) * 20) / 20]),
   };
 }
 
@@ -111,7 +117,15 @@ export function BattleScreen({
   const summonRef = useRef<HTMLButtonElement>(null);
   const skillRef = useRef<HTMLButtonElement>(null);
   const rendererRef = useRef<Renderer | null>(null);
-  const newBattle = () => new Battle(stage, map, { tuning: debugStore.get().enabled ? debugStore.get().tuning : undefined });
+  const newBattle = () => {
+    const sv = saveStore.get();
+    return new Battle(stage, map, {
+      tuning: debugStore.get().enabled ? debugStore.get().tuning : undefined,
+      // Tutorial stages keep their own cats; every other stage summons from the player's team.
+      roster: stage.fixedRoster ? undefined : sv.team,
+      stars: Object.fromEntries(Object.entries(sv.collection).map(([id, c]) => [id, c!.stars])),
+    });
+  };
   const battleRef = useRef<Battle>(null as unknown as Battle);
   if (!battleRef.current) battleRef.current = newBattle();
   const directorRef = useRef<TutorialDirector>(null as unknown as TutorialDirector);
@@ -129,6 +143,7 @@ export function BattleScreen({
   const inspectRef = useRef<number | null>(null);
   inspectRef.current = inspectUid;
   const resultLoggedRef = useRef<Battle | null>(null);
+  const [grants, setGrants] = useState<ChapterGrant[]>([]);
 
   const [hud, setHud] = useState<Hud>(() => hudOf(battleRef.current));
   const hudKeyRef = useRef('');
@@ -188,6 +203,9 @@ export function BattleScreen({
           case 'bossDefeated':
             toast(t('battle.bossDefeated', { boss: t(`enemy.${e.enemy}.name`) }), 'good');
             break;
+          case 'ultimate':
+            toast(t('battle.ultFired', { cat: t(`cat.${e.cat}.name`), name: t(`ability.${e.cat}.ult.name`) }), 'good');
+            break;
           case 'maxedChestFish':
             toast(t('battle.maxedChestFish', { n: e.fish }), 'good');
             break;
@@ -214,6 +232,9 @@ export function BattleScreen({
                 firstClear: r.firstClear,
                 chapterComplete: !!stage.isBoss && found.index === chapter.stages.length - 1,
               });
+              // First clear of a chapter: its reward cat joins right away (shown over the result).
+              const g = saveStore.claimChapterRewards();
+              if (g.length) setGrants(g);
             } else {
               setResult({ ...common, victory: false, stars: 0, coins: 0, firstClear: false, chapterComplete: false });
             }
@@ -398,7 +419,24 @@ export function BattleScreen({
     const w = r.toWorld(e.clientX, e.clientY);
     const tileId = tileAtWorld(w.x, w.y);
     const cat = tileId ? b.catAt(tileId) : undefined;
-    if (!cat) return;
+    if (!cat) {
+      // Tap-to-focus: tap a mouse or chest (forgiving hit area for fingers) to focus it,
+      // tap it again to cancel. Cats that can reach it attack it first.
+      if (!directorRef.current.active) {
+        let best: { uid: number; d: number } | null = null;
+        for (const f of b.foes) {
+          if (!f.alive) continue;
+          const d = Math.hypot(f.x - w.x, f.y - (w.y + 3));
+          if (d <= f.radius + 18 && (!best || d < best.d)) best = { uid: f.uid, d };
+        }
+        if (best) {
+          const was = b.focusUid;
+          const now = b.setFocus(best.uid);
+          toast(now === null && was !== null ? t('battle.focusClear') : t('battle.focusSet'), 'info');
+        }
+      }
+      return;
+    }
     e.preventDefault();
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -522,6 +560,16 @@ export function BattleScreen({
 
       {/* Battlefield */}
       <div className="field" ref={fieldRef}>
+        {/* Compact 5★ ultimate readiness: one ring per species (fires automatically). */}
+        {hud.ults.length > 0 && (
+          <div className="ult-strip" aria-label={t('battle.ult')}>
+            {hud.ults.map(([id, r]) => (
+              <span key={id} className={`ult-chip ${r >= 1 ? 'ready' : ''}`} style={{ ['--p' as string]: `${Math.round(r * 100)}%` }} title={`${t(`ability.${id}.ult.name`)} · ${r >= 1 ? t('info.ultReady') : t('info.ultCharging', { p: Math.round(r * 100) })}`}>
+                <CatHead type={id} loadout={save.equipped} size={22} />
+              </span>
+            ))}
+          </div>
+        )}
         <canvas
           ref={canvasRef}
           className="field-canvas"
@@ -659,7 +707,10 @@ export function BattleScreen({
         />
       )}
 
-      {offer && <RewardModal key={hud.rewardId} offer={offer} owned={b.skills} onChoose={(i) => battleRef.current.chooseReward(i)} />}
+      {offer && <RewardModal key={hud.rewardId} offer={offer} owned={b.skills} cats={b.cats} roster={b.roster} onChoose={(i) => battleRef.current.chooseReward(i)} />}
+      {result && grants.length > 0 && (
+        <ChapterReward key={grants[0].chapterId} grant={grants[0]} loadout={save.equipped} onClose={() => setGrants((g) => g.slice(1))} />
+      )}
 
       {showDebug && debug.enabled && (
         <DebugPanel
@@ -696,7 +747,7 @@ export function BattleScreen({
       {result && (
         <ResultPanel
           result={result}
-          roster={stage.roster}
+          roster={battleRef.current.roster}
           loadout={save.equipped}
           totalCoins={save.fishCoins}
           hasNext={!!next}
