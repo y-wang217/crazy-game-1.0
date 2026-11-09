@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { CATS } from '../../config/cats';
-import { STARS, starCost } from '../../config/collection';
+import { FRAGMENT_TOPUP, STARS, starCost } from '../../config/collection';
 import { getCatStats } from '../../game/combat';
 import type { CatId, CosmeticLoadout } from '../../game/types';
 import { t, useLang } from '../../i18n';
@@ -116,6 +116,17 @@ export function StarUpgrade({ cat, loadout, onClose }: { cat: CatId; loadout: Co
                 {lackFrag > 0 && t('star.needFrag', { n: lackFrag })} {lackCoins > 0 && t('star.needCoins', { n: lackCoins })}
               </div>
             )}
+            {lackFrag > 0 && FRAGMENT_TOPUP.enabled && (
+              // Optional: skip the luck and buy exactly the missing fragments for this star.
+              <button
+                className={`btn btn-secondary btn-small topup-btn ${save.fishCoins < lackFrag * FRAGMENT_TOPUP.coinsPerFragment ? 'disabled' : ''}`}
+                disabled={save.fishCoins < lackFrag * FRAGMENT_TOPUP.coinsPerFragment}
+                onClick={() => saveStore.topUpFragments(cat)}
+              >
+                <GameIcon name="fragment" size={14} /> {t('star.topUp', { n: lackFrag, c: lackFrag * FRAGMENT_TOPUP.coinsPerFragment })}
+              </button>
+            )}
+            {lackFrag > 0 && FRAGMENT_TOPUP.enabled && <div className="muted tiny">{t('star.topUpNote')}</div>}
             <div className="star-actions">
               <button className="btn btn-secondary" onClick={onClose}>
                 {t('star.cancel')}

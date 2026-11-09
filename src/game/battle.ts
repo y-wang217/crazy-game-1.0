@@ -99,6 +99,8 @@ export interface Foe extends TargetCandidate {
   /** Chubby Orange 3★: takes extra damage. */
   vulnerable: number;
   vulnUntil: number;
+  /** Moonshadow Emperor: its veil already regrew (the second phase happens once). */
+  phased?: boolean;
 }
 
 export interface Projectile {
@@ -184,6 +186,7 @@ export type BattleEvent =
   | { type: 'chestEscaped' }
   | { type: 'bossAppeared'; enemy: EnemyId }
   | { type: 'eliteAppeared'; enemy: EnemyId }
+  | { type: 'bossPhase'; enemy: EnemyId }
   | { type: 'bossDefeated'; enemy: EnemyId }
   | { type: 'maxedChestFish'; fish: number }
   | { type: 'ultimate'; cat: CatId }
@@ -1737,6 +1740,7 @@ export class Battle {
       f.poisonShown = 0;
     }
     if (f.hp <= 0) this.kill(f);
+    else this.checkBossPhase(f);
   }
 
   private updateProjectiles(dt: number): void {
@@ -1827,7 +1831,23 @@ export class Battle {
       this.kill(f);
       return true;
     }
+    this.checkBossPhase(f);
     return false;
+  }
+
+  /** Moonshadow Emperor's second phase: at half HP its veil regrows once and guards arrive. */
+  private checkBossPhase(f: Foe): void {
+    if (f.defId !== 'moonEmperor' || f.phased || !f.alive || f.hp > f.maxHp * BALANCE.boss.regrowAt) return;
+    f.phased = true;
+    f.shield = Math.max(f.shield, Math.round(f.maxShield * BALANCE.boss.regrowShield));
+    for (let i = 0; i < BALANCE.boss.regrowGuards; i++) {
+      const g = this.spawn({ enemy: 'normal', count: 1, interval: 1 });
+      const d = Math.max(0, f.dist - 18 - i * 16);
+      const p = this.path.pointAt(d);
+      Object.assign(g, { dist: d, x: p.x, y: p.y });
+    }
+    this.addEffect({ kind: 'ring', x: f.x, y: f.y, r0: 10, r1: 60, color: '#b8a8ff', born: this.vtime, dur: 0.6, width: 5 });
+    this.events.push({ type: 'bossPhase', enemy: f.defId as EnemyId });
   }
 
   /** Is this mouse inside a living Mouse Captain's guard aura? */

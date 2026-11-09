@@ -15,7 +15,7 @@ export type CatId =
   | 'devil';
 export type AttackKind = 'projectile' | 'combo' | 'slam' | 'snipe' | 'aura' | 'ricochet' | 'pierce' | 'support' | 'execute' | 'poison';
 export type TargetMode = 'first' | 'nearest' | 'strongest' | 'weakest' | 'treasure';
-export type EnemyId = 'normal' | 'fast' | 'armored' | 'shielded' | 'boss' | 'mushroomKing' | 'brute' | 'ironclad' | 'thief' | 'captain';
+export type EnemyId = 'normal' | 'fast' | 'armored' | 'shielded' | 'boss' | 'mushroomKing' | 'moonEmperor' | 'brute' | 'ironclad' | 'thief' | 'captain';
 
 /** Elite enemy roles: rare, visually distinct, each a focused tactical threat. */
 export type EliteRole = 'hp' | 'armor' | 'fast' | 'escort';
@@ -250,6 +250,8 @@ export interface StageDef {
   waves: WaveDef[];
   rewards: { firstClear: number; replay: number };
   isBoss?: boolean;
+  /** A mini-boss stage (a boss mid-chapter that is not the chapter finale). */
+  miniBoss?: boolean;
   /** Cats already on the board when the stage starts (free; used by tutorials). */
   startCats?: StartCat[];
   /** Per-wave HP growth inside this stage (defaults to BALANCE.waveHpGrowth). */

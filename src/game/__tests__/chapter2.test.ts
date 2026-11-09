@@ -25,10 +25,10 @@ function hpBudget(stage: StageDef): number {
   return total;
 }
 
-describe('20 stages in two chapters', () => {
-  it('has Chapter 1 (1-1…1-10) and Chapter 2 (2-1…2-10) in order', () => {
+describe('30 stages in two chapters', () => {
+  it('has Chapter 1 (1-1…1-10) and Chapter 2 (2-1…2-20) in order', () => {
     expect(CHAPTERS.map((c) => c.id)).toEqual(['ch1', 'ch2']);
-    expect(ALL_STAGE_IDS).toEqual([...Array.from({ length: 10 }, (_, i) => `1-${i + 1}`), ...Array.from({ length: 10 }, (_, i) => `2-${i + 1}`)]);
+    expect(ALL_STAGE_IDS).toEqual([...Array.from({ length: 10 }, (_, i) => `1-${i + 1}`), ...Array.from({ length: 20 }, (_, i) => `2-${i + 1}`)]);
     CHAPTERS.flatMap((c) => c.stages).forEach((s, i) => expect(s.order).toBe(i + 1));
   });
 
@@ -122,13 +122,35 @@ describe('Chapter 2 map', () => {
 });
 
 describe('Chapter 2 difficulty', () => {
-  it('enemy HP budget rises through the chapter without sudden spikes', () => {
+  it('enemy HP budget rises through each half of the chapter without sudden spikes', () => {
+    // 2-1…2-10 climb to the Mushroom King milestone. 2-11…2-20 are shorter stages whose challenge
+    // comes mostly from composition (Captain guards, shields, armor, more elites — see the
+    // profile simulation), so their raw HP restarts lower and climbs again to the finale.
+    // Boss stages (2-10, 2-15 mini-boss, 2-20) are compared with the stage before them;
+    // regular stages with the previous regular stage of the same half.
     const budgets = ch2.stages.map(hpBudget);
-    for (let i = 1; i < budgets.length; i++) {
-      expect(budgets[i] / budgets[i - 1], ch2.stages[i].id).toBeGreaterThan(0.95);
-      expect(budgets[i] / budgets[i - 1], ch2.stages[i].id).toBeLessThan(1.6);
+    const special = (s: StageDef) => !!(s.isBoss || s.miniBoss);
+    for (const [from, to] of [
+      [0, 10],
+      [10, 20],
+    ]) {
+      let lastRegular = budgets[from];
+      for (let i = from + 1; i < to; i++) {
+        const s = ch2.stages[i];
+        if (special(s)) {
+          expect(budgets[i] / budgets[i - 1], s.id).toBeGreaterThan(1);
+          expect(budgets[i] / budgets[i - 1], s.id).toBeLessThan(2.2);
+        } else {
+          expect(budgets[i] / lastRegular, s.id).toBeGreaterThan(0.95);
+          expect(budgets[i] / lastRegular, s.id).toBeLessThan(1.6);
+          lastRegular = budgets[i];
+        }
+      }
+      expect(budgets[to - 1]).toBeGreaterThan(budgets[from] * 2);
     }
-    expect(budgets[9]).toBeGreaterThan(budgets[0] * 2);
+    // The second half never restarts below the early chapter, and the finale is a real climb.
+    expect(budgets[10]).toBeGreaterThan(budgets[2]);
+    expect(budgets[19]).toBeGreaterThan(budgets[10] * 2);
     // Chapter 2 asks for more than the end of Chapter 1.
     expect(budgets[9]).toBeGreaterThan(hpBudget(ch1.stages[9]));
   });
@@ -181,10 +203,12 @@ describe('Stage 2-10 boss', () => {
 });
 
 describe('progression & saves', () => {
-  it('1-10 leads to 2-1; 2-10 is the last stage', () => {
+  it('1-10 leads to 2-1; 2-10 leads on to 2-11; 2-20 is the last stage', () => {
     expect(nextStageId('1-10')).toBe('2-1');
     expect(nextStageId('2-9')).toBe('2-10');
-    expect(nextStageId('2-10')).toBeNull();
+    expect(nextStageId('2-10')).toBe('2-11');
+    expect(nextStageId('2-19')).toBe('2-20');
+    expect(nextStageId('2-20')).toBeNull();
   });
 
   it('clearing 1-10 unlocks Chapter 2 and keeps replays available', () => {
@@ -244,15 +268,15 @@ describe('shorter stages (~30% fewer waves)', () => {
   it('plays round(plan × 0.7) waves: e.g. 1-10 21 → 15, 1-3 10 → 7', () => {
     expect(BALANCE.waves.countScale).toBeCloseTo(0.7);
     expect(ch1.stages.map((s) => s.waves.length)).toEqual([4, 6, 7, 10, 10, 11, 12, 12, 13, 15]);
-    expect(ch2.stages.map((s) => s.waves.length)).toEqual([8, 9, 10, 11, 11, 11, 12, 13, 13, 15]);
+    expect(ch2.stages.map((s) => s.waves.length)).toEqual([8, 9, 10, 11, 11, 11, 12, 13, 13, 15, 11, 11, 11, 12, 12, 12, 13, 13, 13, 14]);
   });
 
   it('keeps every chest and puts each boss in the final wave', () => {
     // chest counts per stage from the original plans
     const chestCount = (s: StageDef) => s.waves.flatMap((w) => w.groups).filter((g) => 'chest' in g).length;
     expect(ch1.stages.map(chestCount)).toEqual([0, 0, 3, 3, 3, 3, 4, 4, 5, 5]);
-    expect(ch2.stages.map(chestCount)).toEqual([3, 3, 3, 4, 4, 4, 4, 5, 5, 5]);
-    for (const s of [ch1.stages[9], ch2.stages[9]]) {
+    expect(ch2.stages.map(chestCount)).toEqual([3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5]);
+    for (const s of [ch1.stages[9], ch2.stages[9], ch2.stages[14], ch2.stages[19]]) {
       const last = s.waves[s.waves.length - 1].groups;
       expect(last.some((g) => 'enemy' in g && ENEMIES[g.enemy].isBoss)).toBe(true);
     }
@@ -279,7 +303,7 @@ describe('shorter stages (~30% fewer waves)', () => {
 describe('Chapter 2 placement capacity', () => {
   it('opens plenty of tiles from 2-1 (17) up to 23, never fewer than Chapter 1 at the same point', () => {
     const counts = ch2.stages.map((s) => s.tiles.length);
-    expect(counts).toEqual([17, 18, 19, 19, 20, 21, 21, 22, 23, 23]);
+    expect(counts).toEqual([17, 18, 19, 19, 20, 21, 21, 22, 23, 23, ...Array(10).fill(23)]);
     expect(counts[0]).toBeGreaterThan(ch1.stages[3].tiles.length); // 2-1 > 1-4
     expect(counts[9]).toBeGreaterThan(ch1.stages[9].tiles.length); // 2-10 > 1-10
   });
@@ -332,5 +356,73 @@ describe('Chapter 2 placement capacity', () => {
     const [p, q] = b.cats;
     expect(b.dropCat(p.uid, q.tileId).result).toBe('merged');
     expect(b.emptyTiles()).toHaveLength(1);
+  });
+});
+
+describe('Chapter 2 second half (2-11…2-20)', () => {
+  it('2-15 is a mini-boss stage (the Cheese King returns) and 2-20 ends the chapter with the Moonshadow Emperor', () => {
+    const s15 = ch2.stages[14];
+    const s20 = ch2.stages[19];
+    expect(s15.miniBoss).toBe(true);
+    expect(s15.waves[s15.waves.length - 1].groups.some((g) => 'enemy' in g && g.enemy === 'boss')).toBe(true);
+    expect(s20.isBoss).toBe(true);
+    expect(s20.waves[s20.waves.length - 1].groups.some((g) => 'enemy' in g && g.enemy === 'moonEmperor')).toBe(true);
+    expect(ch2.stages[9].isBoss).toBe(true); // 2-10 stays a (milestone) boss
+    expect(en['enemy.moonEmperor.name']).toBe('Moonshadow Emperor');
+    expect(zh['enemy.moonEmperor.name']).toBe('月影鼠皇');
+  });
+
+  it('every new stage has its own elite mix, 11–14 waves and the full board', () => {
+    const mixes = new Set<string>();
+    for (const s of ch2.stages.slice(10)) {
+      expect(s.waves.length, s.id).toBeGreaterThanOrEqual(11);
+      expect(s.waves.length, s.id).toBeLessThanOrEqual(14);
+      expect(s.tiles.length, s.id).toBe(23);
+      const elites = s.waves.flatMap((w) => w.groups.flatMap((g) => ('enemy' in g && ENEMIES[g.enemy].elite ? [g.enemy] : []))).sort();
+      expect(elites.length, s.id).toBeGreaterThanOrEqual(3);
+      mixes.add(elites.join(','));
+    }
+    expect(mixes.size).toBe(10); // no two stages share the same elite line-up
+  });
+
+  it("the Moonshadow Emperor's veil regrows exactly once at half HP and calls guards", () => {
+    const s = ch2.stages[19];
+    const b = new Battle(s, mapOf(s), 1);
+    b.startBattle();
+    b.foes = [];
+    const emp = b.spawn({ enemy: 'moonEmperor', count: 1, interval: 1 });
+    Object.assign(emp, { dist: 300 });
+    const hit = (raw: number) => (b as unknown as { hit: (f: typeof emp, r: number, s: boolean) => void }).hit(emp, raw, false);
+    emp.shield = 0;
+    hit(emp.maxHp * 0.3);
+    expect(emp.phased).toBeFalsy();
+    b.drainEvents();
+    hit(emp.maxHp * 0.25); // below half
+    expect(emp.phased).toBe(true);
+    expect(emp.shield).toBe(Math.round(emp.maxShield * BALANCE.boss.regrowShield));
+    expect(b.foes.filter((f) => f.defId === 'normal').length).toBe(BALANCE.boss.regrowGuards);
+    expect(b.drainEvents()).toContainEqual({ type: 'bossPhase', enemy: 'moonEmperor' });
+    emp.shield = 0;
+    hit(emp.maxHp * 0.1);
+    expect(b.foes.filter((f) => f.defId === 'normal').length).toBe(BALANCE.boss.regrowGuards); // only once
+  });
+
+  it('existing progress past the old ending unlocks 2-11 and keeps every cleared stage', () => {
+    const legacy = JSON.stringify({
+      version: 3,
+      fishCoins: 1234,
+      unlocked: [...ch1.stages.map((s) => s.id), ...ch2.stages.slice(0, 10).map((s) => s.id)],
+      cleared: Object.fromEntries([...ch1.stages, ...ch2.stages.slice(0, 10)].map((s) => [s.id, 2])),
+      owned: [],
+      equipped: { hat: null, skins: {} },
+      seen: [],
+      chapterRewards: ['ch1', 'ch2'],
+    });
+    const s = parseSave(legacy);
+    expect(s.fishCoins).toBe(1234);
+    expect(s.unlocked).toContain('2-11');
+    expect(s.unlocked).not.toContain('2-12');
+    expect(Object.keys(s.cleared)).toHaveLength(20);
+    expect(s.chapterRewards).toEqual(['ch1', 'ch2']);
   });
 });

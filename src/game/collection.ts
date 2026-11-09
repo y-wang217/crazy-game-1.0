@@ -1,6 +1,6 @@
 import { CAT_ORDER, NEW_CATS, STARTER_CATS } from '../config/cats';
 import { CHAPTERS } from '../config/chapters';
-import { CHAPTER_REWARDS, RECRUIT, STARS, TEAM_MIN, TEAM_SIZE, starCost } from '../config/collection';
+import { CHAPTER_REWARDS, RECRUIT, STARS, TEAM_MIN, TEAM_SIZE, starCost, FRAGMENT_TOPUP } from '../config/collection';
 import type { CatId } from './types';
 
 // Pure functions for the permanent cat collection (recruitment, fragments, stars,
@@ -126,7 +126,9 @@ export function recruit(s: CollectionState, rand: () => number = Math.random): R
 
 // ---------------- Star upgrades ----------------
 
-export type UpgradeResult = { ok: false; reason: 'notOwned' | 'maxed' | 'noFragments' | 'noCoins' } | { ok: true; stars: number; state: CollectionState };
+export type UpgradeResult =
+  | { ok: false; reason: 'notOwned' | 'maxed' | 'noFragments' | 'noCoins' }
+  | { ok: true; stars: number; state: CollectionState };
 
 /** Spend fragments + coins for the next star. Nothing is consumed if it fails. */
 export function upgradeStar(s: CollectionState, id: CatId): UpgradeResult {
@@ -140,15 +142,40 @@ export function upgradeStar(s: CollectionState, id: CatId): UpgradeResult {
   return {
     ok: true,
     stars,
-    state: {
-      ...s,
-      fishCoins: s.fishCoins - cost.coins,
-      collection: { ...s.collection, [id]: { stars, fragments: cur.fragments - cost.fragments } },
-    },
+    state: { ...s, fishCoins: s.fishCoins - cost.coins, collection: { ...s.collection, [id]: { stars, fragments: cur.fragments - cost.fragments } } },
   };
 }
 
 /** Leftover fragments of a 5★ cat → fish coins. */
+/** Fragments still missing for this cat's next star, and what topping them up would cost. */
+export function topUpQuote(s: CollectionState, id: CatId): { missing: number; coins: number } | null {
+  const cur = s.collection[id];
+  if (!FRAGMENT_TOPUP.enabled || !cur) return null;
+  const cost = starCost(cur.stars);
+  if (!cost) return null;
+  const missing = Math.max(0, cost.fragments - cur.fragments);
+  return { missing, coins: missing * FRAGMENT_TOPUP.coinsPerFragment };
+}
+
+/** Buy exactly the missing fragments for the next star (owned, below 5★, enough coins). */
+export function topUpFragments(
+  s: CollectionState,
+  id: CatId,
+): { ok: boolean; reason?: 'notOwned' | 'maxed' | 'nothingMissing' | 'noCoins'; bought: number; coins: number; state: CollectionState } {
+  const cur = s.collection[id];
+  if (!cur) return { ok: false, reason: 'notOwned', bought: 0, coins: 0, state: s };
+  const q = topUpQuote(s, id);
+  if (!q) return { ok: false, reason: 'maxed', bought: 0, coins: 0, state: s };
+  if (q.missing <= 0) return { ok: false, reason: 'nothingMissing', bought: 0, coins: 0, state: s };
+  if (s.fishCoins < q.coins) return { ok: false, reason: 'noCoins', bought: 0, coins: 0, state: s };
+  return {
+    ok: true,
+    bought: q.missing,
+    coins: q.coins,
+    state: { ...s, fishCoins: s.fishCoins - q.coins, collection: { ...s.collection, [id]: { ...cur, fragments: cur.fragments + q.missing } } },
+  };
+}
+
 export function exchangeFragments(s: CollectionState, id: CatId): { ok: boolean; coins: number; state: CollectionState } {
   const cur = s.collection[id];
   if (!cur || cur.stars < STARS.max || cur.fragments <= 0) return { ok: false, coins: 0, state: s };
@@ -207,7 +234,14 @@ export function claimChapterRewards(s: CollectionState): { grants: ChapterGrant[
       } else {
         const cur = collection[reward.cat]!;
         collection[reward.cat] = { ...cur, fragments: cur.fragments + reward.fallbackFragments };
-        grant = { chapterId: ch.id, chapterNumber: ch.number, cat: reward.cat, kind: 'fragments', fragments: reward.fallbackFragments, substituted: false };
+        grant = {
+          chapterId: ch.id,
+          chapterNumber: ch.number,
+          cat: reward.cat,
+          kind: 'fragments',
+          fragments: reward.fallbackFragments,
+          substituted: false,
+        };
       }
     }
     grants.push(grant);

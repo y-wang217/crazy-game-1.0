@@ -300,6 +300,9 @@ export function BattleScreen({
           case 'bossAppeared':
             toast(t('battle.bossAppeared', { boss: t(`enemy.${e.enemy}.name`) }), 'warn');
             break;
+          case 'bossPhase':
+            toast(t('battle.bossPhase', { boss: t(`enemy.${e.enemy}.name`) }), 'warn');
+            break;
           case 'eliteAppeared':
             toast(t('battle.eliteAppeared', { name: t(`enemy.${e.enemy}.name`) }), 'warn');
             break;

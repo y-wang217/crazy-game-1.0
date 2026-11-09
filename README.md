@@ -44,6 +44,136 @@ While dragging, tiles are tinted to show what the drop will do: green = move, go
 - **Version:** shown from `src/config/version.ts` (`APP_VERSION`, displayed as e.g. `V1.4` via `versionLabel()`), the same constant as the Home footer. Bump the version there only.
 - **No side effects:** it never touches the save. If an interrupted battle was saved, the "Resume previous battle?" prompt appears right after the notice is dismissed.
 
+## Next release (V1.5) — Win-rate targets, Chapter 2 to 2-20, fish-coin economy
+
+### Three player profiles
+
+`npm run sim:profiles` runs each profile 40 times per stage (`N=…` and `STAGES=…` to change that). Every profile uses a fresh save: only the five original cats at 1★, no skins, no upgrades, 1× speed. Each run uses its own seed, so ordinary and unlucky summon luck are both included.
+
+- **Beginner** (`runBeginnerBot`): summons, merges a random pair about 35% of the time, simple placement. **The target table applies to this profile.**
+- **Struggling** (`struggling: true`): slower, misses more merges, never repositions, no Tactical Pause.
+- **Experienced** (`runBot smart`): efficient merges, moves strong cats to the best tiles.
+
+### Results: wins out of 40 (Beginner before → after)
+
+"before" = the previous build: Chapter 1 and 2-1 → 2-10 as they were, 2-11 → 2-20 did not exist. Stages near a boundary were re-checked with 120 attempts; those results are given as wins per 40.
+
+| Stage | Target | Beginner before → after | Struggling | Experienced | Main changes |
+|---|---|---|---|---|---|
+| 1-1 | 38–40 | 40 → 40 | 40 | 40 | — |
+| 1-2 | 38–40 | 40 → 40 | 39 | 40 | — |
+| 1-3 | 38–40 | 40 → 40 | 25 | 40 | — |
+| 1-4 | 35–40 | 39 → 40 | 16 → **24** | 40 | late HP ramp 0.09 → 0.083 |
+| 1-5 | 35–40 | 39 → 40 | 11 → **25** | 40 | late ramp 0.10 → 0.08 |
+| 1-6 | 35–40 | 39 → 40 | 4 → **14** | 40 | late ramp 0.075 → 0.055 |
+| 1-7 | 32–40 | 39 → 40 | 6 → 8 | 40 | late ramp −12% |
+| 1-8 | 32–40 | 39 → 39 | 7 | 40 | — |
+| 1-9 | 30–38 | 36 → 36 | 6 | 39 | — |
+| 1-10 | 30–38 | 38 → 38 (37.7 at 120) | 13 | 39 | — |
+| 2-1 | 32–40 | 40 → 40 | 14 | 40 | — (gentler than 1-10: chapter reset) |
+| 2-2 | 32–40 | 40 → 40 | 13 | 40 | — |
+| 2-3 | 32–40 | 39 → 39 | 5 | 40 | — |
+| 2-4 | 30–38 | **39** → 38 (37.7 at 120) | 3 | 40 | +1 elite (Chonky Cheese Guard) |
+| 2-5 | 30–38 | 36 → 36 | 8 | 39 | — |
+| 2-6 | 30–38 | 37 → 37 (38.0 at 120) | 7 | 40 | — |
+| 2-7 | 28–36 | 34 → 34 | 4 | 39 | — |
+| 2-8 | 28–36 | **37** → 35 | 4 | 39 | +1 elite (Cheese Thief) |
+| 2-9 | 26–34 | 34 → 34 (33.7 at 120) | 1 | 39 | — |
+| 2-10 | 26–34 | **37** → 34 (33.3 at 120) | 0 | 37 | Mouse Captain escorts the Mushroom King; opening HP ×1.05 |
+| 2-11 | 25–34 | new → 34 (32.3 at 120) | 2 | 35 | Spore Drift: shields + 2 Captains |
+| 2-12 | 25–34 | new → 34 (33.7 at 120) | 3 | 39 | Thief Night: 3 Cheese Thieves |
+| 2-13 | 25–34 | new → 32 | 5 | 39 | Iron March: armour + 3 Iron Helms |
+| 2-14 | 24–33 | new → 32 | 3 | 37 | Captains' Parade |
+| 2-15 | 24–33 | new → 29 | 0 | 35 | **Mini-boss: the Cheese King returns** (+ Captain) |
+| 2-16 | 24–33 | new → 33 (31.0 at 120) | 3 | 37 | Moonlit Melee: every type |
+| 2-17 | 23–32 | new → 30 | 0 | 39 | Swift Shadows: fast, spread out |
+| 2-18 | 23–32 | new → 29 | 1 | 35 | Mushroom Fortress: heavy armour |
+| 2-19 | 23–32 | new → 29 | 1 | 37 | Grand Escort: every elite role |
+| 2-20 | 22–30 | new → 25 | 0 | 34 | **Final boss: Moonshadow Emperor** |
+
+**Every stage's Beginner result is inside its target band.** These are estimates from 40–120 simulated attempts, not exact probabilities.
+
+**Lv.5 is not required:**
+- Capped at Lv.4 or Lv.3, the Experienced profile wins as often as uncapped on 1-8, 1-10, 2-5, 2-10, 2-13, 2-15, 2-18 and 2-20.
+- On 2-20 the capped runs even won more (39 vs 34/40). That suggests Lv.4 → Lv.5 merges are slightly under-rewarded at the very end; it is a candidate follow-up, not changed here.
+- Beginner runs that never reach Lv.5 on boss stages mostly lose, but those are runs that fell behind early.
+
+**Remaining issues:**
+- The Struggling profile stays very low from 1-7 onward and through Chapter 2 (0–14/40). That is intentional skill pressure, but it is a large gap to watch in real playtests.
+- Experienced wins 34–40 everywhere, so expert players may find the game easy. Raising the challenge for them would mean lowering Beginner rates below target.
+
+**How the difficulty is built:** mostly composition rather than raw HP.
+- **Chapter 1:** only the late HP ramps of 1-4 → 1-7 were flattened, for the Struggling gap. Starting fish and extra tiles were tested on 1-4 → 1-6 and reverted: they did not help.
+- **2-1 → 2-10:** extra elites; the Mushroom King gets a Captain escort.
+- **2-11 → 2-20:** themes, elite count and mix, mouse composition, and per-stage HP ramps.
+- **Spawn intervals** are never denser than 2-9 / 2-10.
+- **Total enemy HP per stage:** 2-11 → 2-20 starts at about half of 2-10's and climbs again; the test was changed to check each half separately.
+
+### Chapter 2 now has 20 stages
+
+- **Structure:** 2-10 is a *milestone* boss (Mushroom King), 2-15 a *mini-boss* (the Cheese King returns with a Captain), and 2-20 the final boss.
+- **The final boss, 月影鼠皇 / Moonshadow Emperor:** a moonlight-veil shield, armour and large HP. At half HP the veil regrows once (60%) and 4 guards appear (`BALANCE.boss`), with a toast. It has its own sprite: night cloak, crescent crown and glowing veil.
+- **Stage size:** each new stage has 11–14 waves and all 23 tiles (48.7 px on a 320 px Galaxy S9+), 5 chests, 3–6 elites (no two stages share a line-up) and 150–350 first-clear coins.
+- **Stage select:** tags 中段首領 / Milestone boss, 小首領 / Mini-boss and 首領 / Boss. "New enemy" tags now compare with *all* earlier stages.
+- **Completion:** the chapter-complete screen, Silver Devil reward and story text now trigger only after **2-20**. Rewards are claimed once (players who received Silver Devil before keep it and never get it twice).
+- **Saves:** 2-11 unlocks for anyone who had already cleared 2-10, and every star is kept.
+
+### Fish-coin economy audit
+
+Run with `npm run sim:economy`. It uses the real config, the real `recruit()` logic, and income from the Beginner profile actually playing each stage.
+
+**Income:**
+- **Sources:** first clears; replays (victory only); chest coins (bronze 5–10, silver 15–25, gold 40–60, **kept even on defeat**); chapter rewards are cats, not coins.
+- **No other coin sources exist:** there is no 3-star bonus and no milestone coin bonus.
+- **Totals:** first-clearing all of Chapter 1 earns about 1,000 coins including failed tries; Chapter 2 (20 stages) about 5,200; the whole game about **6,200**.
+- **Replays:** about 40–110 coins per attempt in Chapter 1 and 60–170 in Chapter 2.
+- **Farming:** every source is time-bound, so there is no infinite loop. Chest coins on defeat need the chest waves to be reached, and buy/sell loops are impossible.
+
+| Economy item | Current value | Proposed (implemented) | Reason |
+|---|---|---|---|
+| Average stage reward (first clear, incl. chests) | Ch1 ≈ 100, Ch2 ≈ 200 (2-1…10) | Ch2 2-11…20 ≈ 315 (new stages) | rises with the new stages |
+| Recruitment cost | 100 | 100 | first draw after ~3 stages: early enough |
+| Duplicate fragments | 10 | 10 | broad progress already fine (any cat 3★ ≈ 12 draws) |
+| New-cat guarantee | after 6 duplicates | unchanged | all 10 cats: median 14 draws, p90 18 |
+| 2★ upgrade cost | 10 fragments + 100 | unchanged | |
+| 3★ upgrade cost | 20 fragments + 250 | unchanged | |
+| 4★ upgrade cost | 30 fragments + 500 | unchanged | |
+| 5★ upgrade cost | 40 fragments + 800 | unchanged | |
+| **Fragment top-up** (new) | — (didn't exist) | **30 coins per missing fragment**, only for the next star of an owned cat | upgrading a *chosen* cat was pure luck (see below) |
+| Regular skin cost | 60–80 (hats 30–150) | unchanged | ≈ 1 stage clear |
+| Special skin cost | 220–260 | unchanged | ≈ 1–2 Chapter 2 clears, never required |
+| Skill upgrade cost | **Not implemented** as a permanent system; in-battle skills cost dried fish (20 → 60) and reset each battle | — | |
+
+**Affordability** (Monte Carlo, 2,000 players). The fragment top-up turns the luck-driven costs into a worst-case ceiling:
+
+| Goal | Cost before (median / unlucky 90th percentile) | With fragment top-up | ≈ stage clears |
+|---|---|---|---|
+| 1 recruitment | 100 | 100 | by 1-3 |
+| 5 recruitments | 500 | 500 | by 1-7 |
+| 2★, any cat | ≈ 200 | ≈ 200 | ~5 |
+| 2★, chosen cat | 800 / 2,500 | **≤ 400** | 2–3 Chapter 2 clears |
+| 3★ Special, any cat | ≈ 1,550 | ≈ 1,550 | by ~2-3 |
+| 3★ Special, chosen cat | 3,150 / 5,550 | **≤ 1,250** | ~6 Chapter 2 clears |
+| 4★, chosen cat | 6,550 / 9,950 | **≤ 2,650** | ~13 Chapter 2 clears |
+| 5★ Ultimate, chosen cat | **11,350 / 15,650** (≈ 2× the whole game) | **≤ 4,650** | most of Chapter 2, a long-term goal |
+| Regular skin | 60–80 | — | ≈ 1 |
+| Special skin | 220–260 | — | ≈ 1–2 |
+
+Recruiting is still the better value overall: 100 coins give 10 fragments, worth 300 at top-up prices. Top-ups only remove the bad-luck wall for the cat you want. Topping up a 5★ cat is impossible, and topping up costs 6× what maxed fragments convert back to, so there is no loop (tested).
+
+### Consolidated QoL audit
+
+| Feature | Existing status | Work this round | Testing |
+|---|---|---|---|
+| Combat pacing | done (1× = 1.08, −10% vs 1.2; +3 s calm after cleared waves; 5 speeds) | measured, **no second multiplier** | pacing tests ✓ |
+| Tactical Pause | done | none | freeze, edit-while-paused, rapid-toggle tests ✓ |
+| Interactive tutorials | done (one step at a time, highlights, required actions, "Nice!", skip, replay) | none | director tests + e2e ✓ |
+| Experimental Focus Target | done (feature flag) | none | flag tests ✓ |
+| Android navigation safety | done | Leave-battle button renamed 「繼續戰鬥 / Continue Battle」 per spec | Back-sheet e2e ✓ |
+| Battle recovery | done (versioned snapshot, resume paused, no duplicate rewards) | none | recovery tests ✓ |
+| Skin Shop introduction | done | now after the first clear of **1-4** (was 1-3) | e2e: none after 1-3, shown after 1-4 ✓ |
+| Early Access notice | done (exact wording, dynamic version) | none | wording test ✓ |
+
 ## Next release — Cat level scaling vs enemy progression (balance review)
 
 **What playtesting reported:** runs swing between "one Lv.5 cat makes everything trivial" and "didn't merge enough, the run collapses".
@@ -178,7 +308,7 @@ Version numbers follow public releases: each deploy to production gets the next 
   Tapping any card opens a **preview** before buying: "now" vs "with this look" (animated), the bonus, and a Buy / Equip / Take-off / Locked message.
   The long-press details panel in battle shows 「造型加成：攻擊速度 +3%」 and the boosted stats.
 - **Skin Shop intro:**
-  - Shown once on Home after the first clear of Stage 1-3 (`SKIN_RULES.shopIntroAfterStage`), also for existing players already past it.
+  - Shown once on Home after the first clear of Stage 1-4 (`SKIN_RULES.shopIntroAfterStage`; was 1-3), also for existing players already past it.
   - Kitten says 「儲咗魚幣未？除咗招募新貓，仲可以買靚衫畀貓咪著㗎！」 while a live preview cycles through default → regular skin → special skin. The two skin types are explained in one line each.
   - The Shop button is spotlighted (the other Home buttons are dimmed), with **去商店看看 / Take a look** or **稍後再看 / Maybe later**. Nothing has to be bought, and the buttons ignore taps for the first 0.7 s.
   - Revisit it any time with **造型介紹 / About skins** in the shop, or Home → Replay tutorials.

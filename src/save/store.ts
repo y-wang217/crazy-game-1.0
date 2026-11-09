@@ -5,6 +5,7 @@ import { computeStars, nextStageId, stageClearCoins } from '../game/progression'
 import {
   claimChapterRewards,
   exchangeFragments,
+  topUpFragments,
   recruit,
   sanitizeCollection,
   sanitizeTeam,
@@ -228,6 +229,13 @@ export const saveStore = {
     const r = upgradeStar(collectionOf(state), id);
     if (r.ok) commit({ ...state, ...r.state });
     return r;
+  },
+
+  /** Buy the fragments still missing for this cat's next star. Returns how many were bought. */
+  topUpFragments(id: CatId): number {
+    const r = topUpFragments(collectionOf(state), id);
+    if (r.ok) commit({ ...state, ...r.state });
+    return r.bought;
   },
 
   exchangeFragments(id: CatId): number {

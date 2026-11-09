@@ -42,6 +42,15 @@ export const RECRUIT = {
   maxedFragmentCoins: 5,
 } as const;
 
+/**
+ * Fragment top-up (V1.5 economy audit): buy the fragments still missing for an owned cat's NEXT
+ * star with fish coins. Removes the pure-luck wall on upgrading the cat you actually want
+ * (5★ for one chosen cat used to need ~100 recruits ≈ 10,000 coins). Only ever the missing
+ * amount (no overbuying), never for a 5★ cat, so it can't be looped with `maxedFragmentCoins`.
+ * Draws stay the better value for broad progress: 100 coins → 10 fragments for some cat.
+ */
+export const FRAGMENT_TOPUP = { enabled: true, coinsPerFragment: 30 } as const;
+
 /** Most cat species a player can bring into a battle (random summons pick from these). */
 export const TEAM_SIZE = 5;
 /**
@@ -152,7 +161,25 @@ export function abilityParams(cat: CatId, which: 'special' | 'ult'): Record<stri
   const out: Record<string, number | string> = { cd: ULTIMATE.cooldown };
   for (const [k, v] of Object.entries(p)) {
     // fractions → percent, multipliers stay as ×N
-    out[k] = k.toLowerCase().includes('mult') || ['shots', 'punches', 'strikes', 'bounces', 'every', 'extraBounces', 'maxStacks', 'armorShred', 'duration', 'cooldown', 'telegraph', 'gap', 'width'].includes(k) ? v : pct(v);
+    out[k] =
+      k.toLowerCase().includes('mult') ||
+      [
+        'shots',
+        'punches',
+        'strikes',
+        'bounces',
+        'every',
+        'extraBounces',
+        'maxStacks',
+        'armorShred',
+        'duration',
+        'cooldown',
+        'telegraph',
+        'gap',
+        'width',
+      ].includes(k)
+        ? v
+        : pct(v);
   }
   return out;
 }

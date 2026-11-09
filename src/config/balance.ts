@@ -107,6 +107,14 @@ export const BALANCE = {
   waveHpCurve: 1.5,
 
   // ---- Combat ----
+  /** Moonshadow Emperor (2-20): when its HP first drops to `regrowAt`, the veil regrows. */
+  boss: {
+    regrowAt: 0.5,
+    /** Fraction of the original shield that comes back. */
+    regrowShield: 0.6,
+    /** Regular mice that appear behind it at that moment. */
+    regrowGuards: 4,
+  },
   /** Elite enemies (see config/enemies.ts). */
   elite: {
     /** Mouse Captain: mice within this radius (world px; a tile is 50) take less damage… */

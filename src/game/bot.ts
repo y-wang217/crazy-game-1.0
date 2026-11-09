@@ -15,6 +15,8 @@ export interface BotResult {
   waveReached: number;
   chestsOpened: number;
   chestsMissed: number;
+  /** Persistent fish coins from chests this battle (kept even on defeat). */
+  chestCoins: number;
 }
 
 /**
@@ -74,6 +76,7 @@ export function runBot(
     waveReached: b.waveIndex + 1,
     chestsOpened: b.stats.chestsOpened,
     chestsMissed: b.stats.chestsMissed,
+    chestCoins: b.chestCoins,
   };
 }
 
@@ -184,5 +187,6 @@ export function runBeginnerBot(
     waveReached: b.waveIndex + 1,
     chestsOpened: b.stats.chestsOpened,
     chestsMissed: b.stats.chestsMissed,
+    chestCoins: b.chestCoins,
   };
 }

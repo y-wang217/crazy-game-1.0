@@ -9,7 +9,7 @@ export const SKIN_RULES = {
   /** Hard cap for any single special-skin bonus (percent). Tests enforce it. */
   maxBonusPct: 5,
   /** Shop intro appears once this stage has been cleared (first time). */
-  shopIntroAfterStage: '1-3',
+  shopIntroAfterStage: '1-4',
 } as const;
 
 export const COSMETICS: CosmeticDef[] = [

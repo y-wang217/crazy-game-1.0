@@ -813,6 +813,7 @@ const MOUSE_COLORS: Record<EnemyId, { body: string; belly: string; outline: stri
   shielded: { body: '#a8b8a0', belly: '#e4eede', outline: '#4e6046' },
   boss: { body: '#8a7a9e', belly: '#d8cce6', outline: '#3e3250' },
   mushroomKing: { body: '#7a8a9a', belly: '#dde4ea', outline: '#2e3846' },
+  moonEmperor: { body: '#5c5a8c', belly: '#e6e0ff', outline: '#22224a' },
   // Elites: richer, darker coats so the crowned silhouettes stand out from the crowd.
   brute: { body: '#8f7fa8', belly: '#ddd2ea', outline: '#3e3252' },
   ironclad: { body: '#8c8f9c', belly: '#d6d8e0', outline: '#3a3c48' },
@@ -824,6 +825,7 @@ const MOUSE_COLORS: Record<EnemyId, { body: string; belly: string; outline: stri
 const MOUSE_SCALE: Partial<Record<EnemyId, number>> = {
   boss: 2,
   mushroomKing: 2,
+  moonEmperor: 2.15,
   fast: 0.85,
   armored: 1.08,
   brute: 1.5,
@@ -1006,6 +1008,44 @@ export function drawMouse(ctx: Ctx, o: MouseDrawOpts) {
       ctx.lineTo(3, -11);
       ctx.stroke();
     }
+  } else if (o.id === 'moonEmperor') {
+    // Moonlight veil (= shield): a glowing lavender halo while it holds
+    if (o.hasShield) {
+      ctx.save();
+      ctx.globalAlpha = 0.3 + 0.15 * Math.sin(o.t * 3);
+      circle(ctx, 0, -2, 18, '#b8a8ff');
+      ctx.restore();
+    }
+    // royal night cloak with star specks
+    poly(ctx, [-9, -4, 6, -4, 3, 9, -14, 8], '#2a2a6a', '#14143a', 0.8);
+    for (const [x, y] of [
+      [-8, 2],
+      [-4, 5],
+      [-10, 6],
+    ] as const)
+      circle(ctx, x, y, 0.7, '#f5e9d5');
+    ellipse(ctx, 2, 3, 5.5, 4.5, c.belly);
+    // glowing eyes + stern brow
+    circle(ctx, 4.5, -2.5, 1.9, '#d8c8ff');
+    ctx.strokeStyle = '#14143a';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(2.5, -5.6);
+    ctx.lineTo(7, -4.6);
+    ctx.stroke();
+    // crescent-moon crown
+    ctx.save();
+    ctx.translate(0.5, -14);
+    ctx.beginPath();
+    ctx.arc(0, 0, 5, 0, TAU);
+    ctx.fillStyle = '#ffe9a8';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(2.2, -1.4, 4.4, 0, TAU);
+    ctx.fillStyle = o.hasShield ? '#5c5a8c' : '#3e3c6a';
+    ctx.fill();
+    ctx.restore();
+    poly(ctx, [-5, -9, -5, -12, -2.5, -10.5, 0, -13, 2.5, -10.5, 5, -12, 5, -9], '#ffd84a', '#a07a10', 0.8);
   } else if (o.id === 'brute') {
     // HP elite: big belly, cheese-wedge shoulder pad, sturdy brow
     ellipse(ctx, 2, 3, 6.5, 5.2, c.belly);

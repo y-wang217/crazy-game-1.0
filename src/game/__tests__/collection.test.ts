@@ -168,7 +168,8 @@ describe('battle team', () => {
 
 describe('chapter-completion cats', () => {
   const ch1Boss = CHAPTERS[0].stages[9].id;
-  const ch2Boss = CHAPTERS[1].stages[9].id;
+  // Chapter 2 now ends at 2-20 (2-10 is a mid-chapter milestone boss).
+  const ch2Boss = CHAPTERS[1].stages[CHAPTERS[1].stages.length - 1].id;
 
   it('Chapter 1 grants Sir Sable, Chapter 2 grants Silver Devil — once each', () => {
     expect(CHAPTER_REWARDS.ch1.cat).toBe('sable');
@@ -191,6 +192,18 @@ describe('chapter-completion cats', () => {
 
   it('nothing is granted before the chapter is cleared', () => {
     expect(claimChapterRewards(base({ cleared: { '1-9': 3 } })).grants).toEqual([]);
+  });
+
+  it('Chapter 2 now completes at 2-20: clearing the 2-10 milestone alone grants nothing', () => {
+    expect(ch2Boss).toBe('2-20');
+    const r = claimChapterRewards(base({ cleared: { [ch1Boss]: 3, '2-10': 3 } }));
+    expect(r.grants.map((g) => g.chapterId)).toEqual(['ch1']);
+  });
+
+  it('players who already received the Chapter 2 cat (at the old 2-10 ending) keep it and never get it twice', () => {
+    const owned = { ...defaultCollection(), sable: { stars: 1, fragments: 0 }, devil: { stars: 1, fragments: 0 } };
+    const s = base({ collection: owned, chapterRewards: ['ch1', 'ch2'], cleared: { [ch1Boss]: 3, '2-10': 3, [ch2Boss]: 3 } });
+    expect(claimChapterRewards(s).grants).toEqual([]);
   });
 
   it('if the reward cat is already owned, an unowned new cat is given; otherwise fragments', () => {
@@ -248,5 +261,47 @@ describe('save migration (v2 → v3)', () => {
     expect(s.team).toEqual(['sable', 'kitten', 'tabby', 'orange', 'black']);
     expect(s.recruitStreak).toBe(2);
     expect(s.chapterRewards).toEqual(['ch1']);
+  });
+});
+
+describe('fragment top-up (economy audit)', () => {
+  it('buys exactly the missing fragments for the next star, never for a 5★ cat, never on credit', async () => {
+    const { topUpFragments, topUpQuote, upgradeStar, exchangeFragments } = await import('../collection');
+    const { FRAGMENT_TOPUP, STARS, RECRUIT } = await import('../../config/collection');
+    const base = {
+      fishCoins: 1000,
+      collection: { kitten: { stars: 2, fragments: 5 } },
+      team: ['kitten'],
+      recruitStreak: 0,
+      recruitDraws: 0,
+      chapterRewards: [],
+      cleared: {},
+    } as never;
+    const q = topUpQuote(base, 'kitten')!;
+    expect(q.missing).toBe(STARS.costs[1].fragments - 5);
+    expect(q.coins).toBe(q.missing * FRAGMENT_TOPUP.coinsPerFragment);
+    const r = topUpFragments(base, 'kitten');
+    expect(r.ok).toBe(true);
+    expect(r.state.collection.kitten!.fragments).toBe(STARS.costs[1].fragments);
+    expect(r.state.fishCoins).toBe(1000 - q.coins);
+    // Nothing left to buy until the star is actually upgraded.
+    expect(topUpFragments(r.state, 'kitten').reason).toBe('nothingMissing');
+    const up = upgradeStar(r.state, 'kitten');
+    expect(up.ok).toBe(true);
+    // Not owned / not enough coins / 5★: refused, state untouched.
+    expect(topUpFragments(base, 'devil').ok).toBe(false);
+    expect(topUpFragments({ ...(base as object), fishCoins: 0 } as never, 'kitten').reason).toBe('noCoins');
+    const maxed = { ...(base as object), collection: { kitten: { stars: 5, fragments: 0 } } } as never;
+    expect(topUpFragments(maxed, 'kitten').reason).toBe('maxed');
+    // No profitable loop: buying costs far more than maxed fragments convert back to.
+    expect(FRAGMENT_TOPUP.coinsPerFragment).toBeGreaterThan(RECRUIT.maxedFragmentCoins * 3);
+    expect(exchangeFragments(base, 'kitten').ok).toBe(false); // conversion only exists at 5★
+  });
+
+  it('caps the cost of upgrading one chosen cat to 5★', async () => {
+    const { FRAGMENT_TOPUP, STARS } = await import('../../config/collection');
+    const frag = STARS.costs.reduce((a, c) => a + c.fragments, 0);
+    const coins = STARS.costs.reduce((a, c) => a + c.coins, 0);
+    expect(frag * FRAGMENT_TOPUP.coinsPerFragment + coins).toBeLessThanOrEqual(5000);
   });
 });

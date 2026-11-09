@@ -29,7 +29,21 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
   // Escort elite: arrives with an escort; nearby mice take less damage while it lives
   // (BALANCE.elite.guard*). Kill the Captain first — or poison the pack (poison ignores it).
   captain: { id: 'captain', name: 'Mouse Captain', hp: 200, shield: 0, armor: 3, speed: 30, reward: 12, baseDamage: 3, radius: 14, elite: 'escort' },
-  // Chapter 2 boss: the huge mushroom cap is a regenerating-free shield (existing mechanic),
+  // Chapter 2 final boss (2-20): a moonlight veil (shield) that regrows ONCE when its HP falls
+  // to half (BALANCE.boss), calling a few guards — the fight has a real second phase.
+  moonEmperor: {
+    id: 'moonEmperor',
+    name: 'Moonshadow Emperor',
+    hp: 2600,
+    shield: 1300,
+    armor: 6,
+    speed: 12,
+    reward: 80,
+    baseDamage: 8,
+    radius: 24,
+    isBoss: true,
+  },
+  // Chapter 2 mid-chapter boss (2-10): the huge mushroom cap is a regenerating-free shield (existing mechanic),
   // the body underneath is armored. Break the cap first, then burn through the HP.
   mushroomKing: {
     id: 'mushroomKing',

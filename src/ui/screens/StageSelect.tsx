@@ -17,13 +17,23 @@ function enemiesOf(stage?: StageDef): Set<EnemyId> {
 
 /** Small tag describing what a stage introduces. */
 function newThing(stage: StageDef, prev: StageDef | undefined): string {
-  if (stage.isBoss) return t('tag.boss');
+  if (stage.isBoss) {
+    const ch = CHAPTERS.find((c) => c.stages.includes(stage));
+    // A boss that isn't the chapter's last stage is a milestone (e.g. 2-10 of 20).
+    return ch && ch.stages[ch.stages.length - 1] !== stage ? t('tag.milestone') : t('tag.boss');
+  }
+  if (stage.miniBoss) return t('tag.miniBoss');
   const order = stage.order ?? stage.number;
   if (order === 1) return t('tag.basics');
   if (!prev) return t('tag.newMap'); // first stage of a later chapter
   const newCat = prev ? stage.roster.find((c) => !prev.roster.includes(c)) : undefined;
   if (newCat && prev) return t('tag.newCat', { name: t(`cat.${newCat}.name`) });
-  const before = enemiesOf(prev);
+  // "New" means never seen in ANY earlier stage (not just the previous one).
+  const before = new Set(
+    CHAPTERS.flatMap((c) => c.stages)
+      .filter((s) => (s.order ?? 0) < order)
+      .flatMap((s) => [...enemiesOf(s)]),
+  );
   const newEnemy = [...enemiesOf(stage)].find((e) => !before.has(e) && e !== 'normal');
   if (newEnemy) return t('tag.newEnemy', { name: t(`enemy.${newEnemy}.name`) });
   if (order === 2) return t('tag.practice');
@@ -87,11 +97,11 @@ export function StageSelect({ go, play }: { go: (s: Screen) => void; play: (id: 
                 </span>
               </div>
               {open && ch.id === 'ch2' && (
-              <button className="btn btn-small btn-secondary story-btn" onClick={() => setStory(true)}>
-                <GameIcon name="play" size={14} /> {t('story.replay')}
-              </button>
-            )}
-            {!open && prevBoss && (
+                <button className="btn btn-small btn-secondary story-btn" onClick={() => setStory(true)}>
+                  <GameIcon name="play" size={14} /> {t('story.replay')}
+                </button>
+              )}
+              {!open && prevBoss && (
                 <div className="chapter-lock">
                   <GameIcon name="lock" size={14} /> {t('stages.locked', { stage: prevBoss.id })}
                 </div>
