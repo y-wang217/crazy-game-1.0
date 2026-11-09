@@ -1,3 +1,4 @@
+import { BALANCE, summonCost } from '../../config/balance';
 import { CATS, CAT_ORDER, NEW_CATS } from '../../config/cats';
 import { CHAPTERS } from '../../config/chapters';
 import { ABILITIES, STARS, ULTIMATE } from '../../config/collection';
@@ -329,5 +330,61 @@ describe('battle roster', () => {
     for (let i = 0; i < 11; i++) b.summon();
     expect(b.cats.every((c) => team.includes(c.type))).toBe(true);
     expect(b.availableSkills().every((id) => !CATS[id as CatId])).toBe(true);
+  });
+});
+
+describe('selling cats', () => {
+  it('refunds by level, frees the tile and updates dried fish', () => {
+    const b = new Battle(stage, map, { seed: 4 });
+    b.fish = 0;
+    for (let lv = 1; lv <= 5; lv++) {
+      const t = b.emptyTiles()[0];
+      const c = b.placeCat('kitten', lv, t.id)!;
+      const before = b.fish;
+      const r = b.sellCat(c.uid);
+      expect(r.ok).toBe(true);
+      expect(b.fish - before).toBe(BALANCE.sell.refund[lv - 1]);
+      expect(b.catAt(t.id)).toBeUndefined();
+    }
+    // Higher levels refund more; never more than the cheapest possible cost of the cat.
+    const refunds: readonly number[] = BALANCE.sell.refund;
+    for (let i = 1; i < refunds.length; i++) expect(refunds[i]).toBeGreaterThanOrEqual(refunds[i - 1]);
+    expect(refunds[4]).toBeGreaterThan(refunds[0]);
+  });
+
+  it('summon → sell loops can never gain dried fish', () => {
+    const b = new Battle(stage, map, { seed: 9 });
+    b.fish = 30;
+    let last = b.fish;
+    for (let i = 0; i < 40; i++) {
+      const s = b.summon();
+      if (!s.ok) break;
+      b.sellCat(s.uid!);
+      expect(b.fish).toBeLessThanOrEqual(last);
+      last = b.fish;
+    }
+    expect(b.fish).toBeLessThan(30);
+  });
+
+  it('merging then selling returns far less than the cats cost', () => {
+    // cheapest possible cost of a Lv.N cat = sum of the first 2^(N−1) summon prices
+    for (let lv = 2; lv <= 5; lv++) {
+      let cost = 0;
+      for (let i = 0; i < 2 ** (lv - 1); i++) cost += summonCost(i);
+      expect(BALANCE.sell.refund[lv - 1]).toBeLessThanOrEqual(cost * 0.6);
+    }
+  });
+
+  it('only during an active battle or preparation; never touches permanent progress', () => {
+    const b = new Battle(stage, map, { seed: 1, stars: { kitten: 4 } });
+    const c = b.placeCat('kitten', 2, b.emptyTiles()[0].id)!;
+    expect(b.preparing).toBe(true);
+    b.status = 'paused';
+    expect(b.sellCat(c.uid).ok).toBe(false);
+    b.status = 'victory';
+    expect(b.sellCat(c.uid).ok).toBe(false);
+    b.status = 'playing';
+    expect(b.sellCat(c.uid).ok).toBe(true); // preparation phase is fine
+    expect(b.starOf('kitten')).toBe(4);
   });
 });

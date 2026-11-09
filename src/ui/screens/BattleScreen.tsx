@@ -17,12 +17,14 @@ import { ResultPanel } from '../components/ResultPanel';
 import { SkillOwner } from '../components/SkillOwner';
 import { DebugPanel, StatsTable } from '../components/DebugPanel';
 import { FishIcon, HeartIcon } from '../components/Icons';
+import { ChapterCutscene } from '../components/ChapterCutscene';
 import { ChapterReward } from '../components/ChapterReward';
 import { RewardModal } from '../components/RewardModal';
 import type { ChapterGrant } from '../../game/collection';
 import { CatHead } from '../components/CatPreview';
 import { TutorialOverlay } from '../components/TutorialOverlay';
 import { debugStore, useDebug } from '../debugStore';
+import { loadSpeed, saveSpeed } from '../speedPref';
 
 interface Toast {
   id: number;
@@ -90,6 +92,8 @@ function hudOf(b: Battle): Hud {
 
 const seenStore = { has: (id: string) => saveStore.hasSeen(id), mark: (id: string) => saveStore.markSeen(id) };
 let toastId = 1;
+/** Seen-id of the Chapter 1 → 2 story transition. */
+export const CUTSCENE_ID = 'story:ch1-ch2';
 
 export function BattleScreen({
   stageId,
@@ -131,7 +135,7 @@ export function BattleScreen({
   const directorRef = useRef<TutorialDirector>(null as unknown as TutorialDirector);
   if (!directorRef.current) directorRef.current = new TutorialDirector(stage.id, seenStore);
   /** Speed multiplier relative to the baseline (BALANCE.speed.baseline). */
-  const speedRef = useRef<number>(BALANCE.speed.default);
+  const speedRef = useRef<number>(loadSpeed());
   const speedBtnRef = useRef<HTMLButtonElement>(null);
   const startBtnRef = useRef<HTMLButtonElement>(null);
   const dragRef = useRef<DragView | null>(null);
@@ -144,6 +148,7 @@ export function BattleScreen({
   inspectRef.current = inspectUid;
   const resultLoggedRef = useRef<Battle | null>(null);
   const [grants, setGrants] = useState<ChapterGrant[]>([]);
+  const [cutscene, setCutscene] = useState(false);
 
   const [hud, setHud] = useState<Hud>(() => hudOf(battleRef.current));
   const hudKeyRef = useRef('');
@@ -153,7 +158,7 @@ export function BattleScreen({
   const [skillPop, setSkillPop] = useState<{ id: SkillId; level: number; isNew: boolean; key: number } | null>(null);
   const [costBump, setCostBump] = useState<{ n: number; key: number } | null>(null);
   const [result, setResult] = useState<Result | null>(null);
-  const [speed, setSpeed] = useState<number>(BALANCE.speed.default);
+  const [speed, setSpeed] = useState<number>(speedRef.current);
   const [shake, setShake] = useState<'summon' | 'skill' | null>(null);
   const [showDebug, setShowDebug] = useState(false);
 
@@ -232,7 +237,10 @@ export function BattleScreen({
                 firstClear: r.firstClear,
                 chapterComplete: !!stage.isBoss && found.index === chapter.stages.length - 1,
               });
-              // First clear of a chapter: its reward cat joins right away (shown over the result).
+              // First clear of Chapter 1: the story transition plays first (once; replayable from
+              // Stage Select), then the chapter reward cat is revealed. The reward is claimed
+              // right now and saved, so nothing can award it twice.
+              if (r.firstClear && chapter.id === 'ch1' && found.index === chapter.stages.length - 1 && !saveStore.hasSeen(CUTSCENE_ID)) setCutscene(true);
               const g = saveStore.claimChapterRewards();
               if (g.length) setGrants(g);
             } else {
@@ -372,8 +380,9 @@ export function BattleScreen({
   const setGameSpeed = (s: number) => {
     speedRef.current = s;
     setSpeed(s);
+    saveSpeed(s);
   };
-  /** Cycle 0.75× → 1× → 1.5× → 2× (relative to the faster V1.3 baseline). */
+  /** Cycle 0.5× → 0.75× → 1× → 1.5× → 2× (1× = the faster V1.3 baseline). Remembered between battles. */
   const toggleSpeed = () => {
     if (!directorRef.current.allows('speed')) return;
     const opts = BALANCE.speed.options;
@@ -704,11 +713,29 @@ export function BattleScreen({
           battle={battleRef.current}
           loadout={save.equipped}
           onClose={() => setInspectUid(null)}
+          canSell={battleRef.current.status === 'playing' && !directorRef.current.active}
+          onSell={() => {
+            const r = battleRef.current.sellCat(inspectUid);
+            if (r.ok) {
+              setInspectUid(null);
+              toast(t('sell.done', { n: r.refund ?? 0 }), 'good');
+            }
+          }}
         />
       )}
 
       {offer && <RewardModal key={hud.rewardId} offer={offer} owned={b.skills} cats={b.cats} roster={b.roster} onChoose={(i) => battleRef.current.chooseReward(i)} />}
-      {result && grants.length > 0 && (
+      {result && cutscene && (
+        <ChapterCutscene
+          cats={battleRef.current.roster}
+          loadout={save.equipped}
+          onDone={() => {
+            saveStore.markSeen(CUTSCENE_ID);
+            setCutscene(false);
+          }}
+        />
+      )}
+      {result && !cutscene && grants.length > 0 && (
         <ChapterReward key={grants[0].chapterId} grant={grants[0]} loadout={save.equipped} onClose={() => setGrants((g) => g.slice(1))} />
       )}
 

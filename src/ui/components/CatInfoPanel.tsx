@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { BALANCE } from '../../config/balance';
 import { STARS } from '../../config/collection';
 import { CATS, TARGET_MODE_INFO } from '../../config/cats';
@@ -9,6 +9,7 @@ import type { CosmeticLoadout, SkillId } from '../../game/types';
 import { t, useLang } from '../../i18n';
 import { CatPreview } from './CatPreview';
 import { GameIcon } from './GameIcon';
+import { FishIcon } from './Icons';
 import { Stars } from './Stars';
 import { fmt, specialStats } from './statText';
 
@@ -44,13 +45,19 @@ export function CatInfoPanel({
   battle,
   loadout,
   onClose,
+  onSell,
+  canSell = false,
 }: {
   cat: CatUnit;
   battle: Battle;
   loadout: CosmeticLoadout;
   onClose: () => void;
+  /** Sell this cat (only offered during an active battle / preparation). */
+  onSell?: () => void;
+  canSell?: boolean;
 }) {
   useLang();
+  const [confirming, setConfirming] = useState(false);
   // Desktop: Escape closes the panel.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -148,6 +155,32 @@ export function CatInfoPanel({
             ))
           )}
         </div>
+        {onSell && (
+          <div className="sell-box">
+            {confirming ? (
+              <>
+                <div className="small b">{t('sell.confirm', { lv: cat.level, cat: t(`cat.${cat.type}.name`), n: battle.sellValue(cat.uid) })}</div>
+                <div className="sell-actions">
+                  <button className="btn btn-secondary btn-small" onClick={() => setConfirming(false)}>
+                    {t('sell.cancel')}
+                  </button>
+                  <button className="btn btn-danger btn-small" onClick={onSell}>
+                    {t('sell.yes')}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <button
+                className="btn btn-secondary sell-btn"
+                disabled={!canSell}
+                onClick={() => (cat.level >= BALANCE.sell.confirmFromLevel ? setConfirming(true) : onSell())}
+              >
+                {t('sell.button')} · +{battle.sellValue(cat.uid)} <FishIcon size={16} />
+              </button>
+            )}
+            <div className="muted tiny">{t('sell.note')}</div>
+          </div>
+        )}
         <div className="muted tiny center">{t('info.hint')}</div>
       </div>
     </div>

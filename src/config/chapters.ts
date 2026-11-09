@@ -1,3 +1,4 @@
+import { BALANCE } from './balance';
 import type { ChapterDef, ChestTier, EnemyId, SpawnGroup, StageDef, WaveDef } from '../game/types';
 
 // ---------------------------------------------------------------------------
@@ -24,29 +25,45 @@ interface WavePlan {
   extra?: Record<number, SpawnGroup[]>;
 }
 
-function buildWaves(p: WavePlan): WaveDef[] {
-  const out: WaveDef[] = [];
-  for (let w = 0; w < p.waves; w++) {
-    const t = p.waves > 1 ? w / (p.waves - 1) : 0;
-    const total = Math.round(p.count + p.growth * w);
+/** Built waves; `progressScale` = how many original waves one played wave spans. */
+export type BuiltWaves = WaveDef[] & { progressScale?: number };
+
+function buildWaves(p: WavePlan): BuiltWaves {
+  // Fewer waves (BALANCE.waves.countScale), same arc: wave sizes, mix and timing follow the
+  // original plan's progress, so wave 1 and the final wave look like the original ones.
+  const n = Math.max(3, Math.round(p.waves * BALANCE.waves.countScale));
+  const stretch = n > 1 ? (p.waves - 1) / (n - 1) : 1;
+  const toNew = (k: number) => Math.max(1, Math.min(n, k >= p.waves ? n : Math.round((k - 1) / stretch) + 1));
+  const out: BuiltWaves = [];
+  for (let w = 0; w < n; w++) {
+    const t = n > 1 ? w / (n - 1) : 0;
+    const wo = w * stretch; // position in the original plan
+    const total = Math.round(p.count + p.growth * wo);
     const interval = p.interval[0] + (p.interval[1] - p.interval[0]) * t;
     const span = total * interval;
-    const mix = Object.entries(p.mix(w)).filter(([, v]) => (v ?? 0) > 0) as [EnemyId, number][];
+    const mix = Object.entries(p.mix(Math.round(wo))).filter(([, v]) => (v ?? 0) > 0) as [EnemyId, number][];
     const weightSum = mix.reduce((a, [, v]) => a + v, 0);
     const groups: SpawnGroup[] = [];
     let assigned = 0;
     mix.forEach(([enemy, weight], i) => {
-      const n = i === mix.length - 1 ? total - assigned : Math.max(1, Math.round((total * weight) / weightSum));
-      assigned += n;
-      if (n <= 0) return;
+      const cnt = i === mix.length - 1 ? total - assigned : Math.max(1, Math.round((total * weight) / weightSum));
+      assigned += cnt;
+      if (cnt <= 0) return;
       // Spread each type across the whole wave so types interleave.
-      groups.push({ enemy, count: n, interval: span / n, delay: (i * interval) / Math.max(1, mix.length) });
+      groups.push({ enemy, count: cnt, interval: span / cnt, delay: (i * interval) / Math.max(1, mix.length) });
     });
-    const chest = p.chests?.[w + 1];
-    if (chest) groups.push({ chest, delay: Math.min(5, span * 0.3) });
-    for (const g of p.extra?.[w + 1] ?? []) groups.push(g);
     out.push({ groups });
   }
+  // Every chest of the original plan is kept (never fewer skill chances); two landing in the
+  // same wave are spaced out.
+  for (const [k, tier] of Object.entries(p.chests ?? {})) {
+    const wave = out[toNew(Number(k)) - 1];
+    const already = wave.groups.filter((g) => 'chest' in g).length;
+    const span = wave.groups.reduce((m, g) => Math.max(m, 'count' in g ? g.count * g.interval : 0), 0);
+    wave.groups.push({ chest: tier, delay: Math.min(5, span * 0.3) + already * 4 });
+  }
+  for (const [k, groups] of Object.entries(p.extra ?? {})) out[toNew(Number(k)) - 1].groups.push(...groups);
+  out.progressScale = stretch;
   return out;
 }
 
@@ -468,8 +485,11 @@ export const CHAPTERS: ChapterDef[] = [
 ];
 
 // Global 1-based order (skill-shop unlock, chest scaling) — chapter-local `number` is for display.
+// Shorter stages keep the same HP arc: the per-wave growth is stretched to the played wave count.
 CHAPTERS.flatMap((c) => c.stages).forEach((s, i) => {
   s.order = i + 1;
+  const scale = (s.waves as BuiltWaves).progressScale ?? 1;
+  s.waveHpGrowth = (s.waveHpGrowth ?? BALANCE.waveHpGrowth) * Math.pow(scale, BALANCE.waveHpCurve);
 });
 
 export function findStage(stageId: string): { chapter: ChapterDef; stage: StageDef; index: number } | null {

@@ -1,5 +1,5 @@
 import { BALANCE } from '../../config/balance';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ALL_STAGE_IDS, CHAPTERS } from '../../config/chapters';
 import { t, useLang } from '../../i18n';
 import { useSave } from '../../save/store';
@@ -7,6 +7,7 @@ import type { EnemyId, StageDef } from '../../game/types';
 import type { Screen } from '../App';
 import { CoinIcon } from '../components/Icons';
 import { CatHead } from '../components/CatPreview';
+import { ChapterCutscene } from '../components/ChapterCutscene';
 import { GameIcon } from '../components/GameIcon';
 import { Stars } from '../components/Stars';
 
@@ -33,6 +34,7 @@ function newThing(stage: StageDef, prev: StageDef | undefined): string {
 export function StageSelect({ go, play }: { go: (s: Screen) => void; play: (id: string) => void }) {
   useLang();
   const save = useSave();
+  const [story, setStory] = useState(false);
   // Scroll the newest unlocked stage into view (e.g. straight to Chapter 2).
   const latest = [...ALL_STAGE_IDS].reverse().find((id) => save.unlocked.includes(id));
   const latestRef = useRef<HTMLButtonElement>(null);
@@ -84,7 +86,12 @@ export function StageSelect({ go, play }: { go: (s: Screen) => void; play: (id: 
                   <GameIcon name="star" size={14} /> {stars}/{ch.stages.length * 3}
                 </span>
               </div>
-              {!open && prevBoss && (
+              {open && ch.id === 'ch2' && (
+              <button className="btn btn-small btn-secondary story-btn" onClick={() => setStory(true)}>
+                <GameIcon name="play" size={14} /> {t('story.replay')}
+              </button>
+            )}
+            {!open && prevBoss && (
                 <div className="chapter-lock">
                   <GameIcon name="lock" size={14} /> {t('stages.locked', { stage: prevBoss.id })}
                 </div>
@@ -122,6 +129,7 @@ export function StageSelect({ go, play }: { go: (s: Screen) => void; play: (id: 
         );
       })}
       <p className="muted small center">{t('stages.footer')}</p>
+      {story && <ChapterCutscene cats={save.team} loadout={save.equipped} onDone={() => setStory(false)} />}
     </div>
   );
 }

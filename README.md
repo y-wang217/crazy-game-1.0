@@ -34,6 +34,13 @@ npm run build        # type-check + production build into dist/
 
 While dragging, tiles are tinted to show what the drop will do: green = move, gold = merge, blue = swap. A press only becomes a drag after the pointer moves 10 px, so a tap never moves a cat by accident.
 
+## What's new in V1.5 — Shorter stages, selling, story, 0.5×
+
+- **~30% fewer waves everywhere** (`BALANCE.waves.countScale = 0.7`): e.g. 1-1 6 → 4, 1-3 10 → 7, 1-10 21 → 15, 2-10 21 → 15. Stage plans in `chapters.ts` keep their original length; the game stretches each plan's arc over the shorter stage, so wave sizes still run from the first to the last original size (~30% fewer mice in total, nothing crammed), every enemy type still appears, **every chest is kept** (same skill chances) and bosses stay in the final wave. The HP ramp follows the same progress. Dried fish per mouse ×1.25 and wave-clear bonus 3 → 4 keep summoning and Lv.5 reachable; the bots' win rates are unchanged.
+- **Sell Cat / 出售貓咪** in the long-press panel: shows the exact refund, removes the cat and frees the tile immediately (refund `BALANCE.sell.refund` = Lv.1 1 · Lv.2 1 · Lv.3 3 · Lv.4 5 · Lv.5 9 dried fish; Lv.3+ ask to confirm). The suggested table (1/2/4/7/12) let Lv.2–3 cats sell back for 80–100% of their cheapest cost, so it was lowered; summon → sell can never gain fish (tested). Only during battle/preparation; never affects stars, fragments or the collection.
+- **Chapter 1 → 2 story transition** (~11 s, three scenes: celebration in the moonlit forest → a mysterious glow beyond the trees → “Chapter 2 · Moonlit Mushroom Forest” reveal) with short Cantonese / English dialogue, Skip button and reduced-motion support. Plays once after the first clear of 1-10, then Sir Sable’s reward reveal; replay any time from Stage Select (Chapter 2 → Story). The reward is claimed and saved before the cutscene, so nothing can be awarded twice and taps underneath are blocked.
+- **0.5× speed** added: 0.5× / 0.75× / 1× / 1.5× / 2× (1× is still the faster V1.3 baseline). The chosen speed is remembered between battles; the 20 s preparation timer is never affected.
+
 ## What's new in V1.4 — Cat collection, stars, new cats
 
 **Two separate progressions**

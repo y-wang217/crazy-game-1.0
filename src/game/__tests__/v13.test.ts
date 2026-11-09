@@ -113,8 +113,8 @@ describe('V1.3 preparation phase', () => {
 });
 
 describe('V1.3 speed system', () => {
-  it('four options with 1× = the old 1.2×', () => {
-    expect(BALANCE.speed.options).toEqual([0.75, 1, 1.5, 2]);
+  it('five options (0.5× added) with 1× = the old 1.2×', () => {
+    expect(BALANCE.speed.options).toEqual([0.5, 0.75, 1, 1.5, 2]);
     expect(BALANCE.speed.default).toBe(1);
     expect(BALANCE.speed.baseline).toBe(1.2);
   });
@@ -128,6 +128,9 @@ describe('V1.3 speed system', () => {
     };
     const slow = run(1, 600);
     const fast = run(2, 300);
+    const half = run(0.5, 1200); // 0.5× needs twice the frames for the same battle state
+    expect(half.t).toBeCloseTo(slow.t, 5);
+    expect(half.n).toBe(slow.n);
     expect(fast.t).toBeCloseTo(slow.t, 5);
     expect(fast.n).toBe(slow.n);
     fast.d.forEach((d, i) => expect(Math.abs(d - slow.d[i])).toBeLessThan(1));

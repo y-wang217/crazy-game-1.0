@@ -492,7 +492,7 @@ describe('stage start cats', () => {
 describe('battle length', () => {
   it('later stages have more waves', () => {
     const waves = CHAPTERS[0].stages.map((s) => s.waves.length);
-    expect(waves[0]).toBeGreaterThanOrEqual(5);
+    expect(waves[0]).toBeGreaterThanOrEqual(4);
     expect(waves[9]).toBeGreaterThan(waves[3]);
     expect(waves[3]).toBeGreaterThan(waves[1]);
   });

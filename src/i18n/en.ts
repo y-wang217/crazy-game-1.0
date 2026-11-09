@@ -696,4 +696,20 @@ export const en: Record<string, string> = {
   'battle.focusClear': 'Focus cleared',
   'battle.ultFired': '{cat}: {name}!',
   'battle.ult': 'Ultimate',
+  // Sell cat
+  'sell.button': 'Sell Cat',
+  'sell.confirm': 'Sell this Lv.{lv} {cat} for {n} dried fish?',
+  'sell.yes': 'Sell',
+  'sell.cancel': 'Keep',
+  'sell.note': 'Frees the tile. Permanent stars and fragments are not affected.',
+  'sell.done': 'Sold! +{n} dried fish',
+  // Chapter cutscene
+  'story.title': 'Chapter transition',
+  'story.skip': 'Skip ›',
+  'story.replay': 'Story',
+  'story.s1.a': 'We did it! The Beginner Forest is safe!',
+  'story.s1.b': 'Victory feast — dried fish for everyone!',
+  'story.s2.a': '…Something is glowing beyond the trees.',
+  'story.s2.b': 'How rude. It’s stealing my spotlight.',
+  'story.s3.sub': 'The road spirals toward a glowing ring of mushrooms…',
 };

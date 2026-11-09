@@ -232,6 +232,7 @@ export interface BattleStats {
   slamHits: number;
   /** Damage actually removed from enemies/chests (excludes overkill). */
   damageDealt: number;
+  sells: number;
 }
 
 export interface BattleOptions {
@@ -319,6 +320,7 @@ export class Battle {
     chestsMissed: 0,
     slamHits: 0,
     damageDealt: 0,
+    sells: 0,
   };
 
   /** -1 while waiting for the first wave. */
@@ -640,6 +642,33 @@ export class Battle {
     return cat.mode;
   }
 
+  /** Dried fish a cat would sell for right now. */
+  sellValue(uid: number): number {
+    const cat = this.catByUid(uid);
+    if (!cat) return 0;
+    const r = BALANCE.sell.refund;
+    return r[Math.max(0, Math.min(r.length - 1, cat.level - 1))] ?? 0;
+  }
+
+  /**
+   * Sell a cat: removes it, frees its tile and refunds a little dried fish. Only during an
+   * active battle or the preparation phase. Never touches permanent progress (stars,
+   * fragments, collection) — those live in the save, not in the battle.
+   */
+  sellCat(uid: number): ActionResult & { refund?: number } {
+    if (this.status !== 'playing') return { ok: false, reason: 'notNow' };
+    const cat = this.catByUid(uid);
+    if (!cat) return { ok: false, reason: 'notNow' };
+    const refund = this.sellValue(uid);
+    this.cats = this.cats.filter((c) => c.uid !== uid);
+    this.earn(refund);
+    this.stats.sells++;
+    this.addEffect({ kind: 'ring', x: cat.x, y: cat.y, r0: 20, r1: 4, color: '#ffffff', born: this.vtime, dur: 0.35, width: 3 });
+    this.burst(cat.x, cat.y, ['#ffffff', '#e8e0f0', '#ffd36a'], 12, 70);
+    this.addText(cat.x, cat.y - 16, `+${refund}`, '#ffd36a', 14, 0.9);
+    return { ok: true, refund };
+  }
+
   chooseReward(index: number): ActionResult {
     if (this.status !== 'reward') return { ok: false, reason: 'notNow' };
     const offer = this.rewardQueue[0];
@@ -813,7 +842,7 @@ export class Battle {
         maxShield: shield,
         armor: def.armor > 0 ? def.armor + (this.stage.armorBonus ?? 0) : 0,
         speed: def.speed * this.tuning.enemySpeedMult,
-        reward: Math.max(1, Math.round(def.reward * Math.pow(tough, BALANCE.rewardScaleExponent))),
+        reward: Math.max(1, Math.round(def.reward * Math.pow(tough, BALANCE.rewardScaleExponent) * BALANCE.waves.fishMult)),
         baseDamage: def.baseDamage,
         radius: def.radius,
         isBoss: !!def.isBoss,

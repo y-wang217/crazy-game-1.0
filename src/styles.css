@@ -3111,3 +3111,351 @@ h2 {
 .info-ability.on {
   opacity: 1;
 }
+
+/* ---- Sell cat (long-press panel) ---- */
+.sell-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  border-top: 1px dashed var(--line);
+  padding-top: 8px;
+  margin-top: 4px;
+  text-align: center;
+}
+.sell-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 8px 18px;
+}
+.sell-actions {
+  display: flex;
+  gap: 8px;
+}
+.sell-actions .btn {
+  min-height: 40px;
+  min-width: 96px;
+}
+.btn-danger {
+  background: #d8504a;
+  color: #fff;
+  box-shadow: 0 4px 0 #9a2a2a;
+}
+:root[data-theme='moonlit'] .btn-danger {
+  background: #b0485a;
+  box-shadow: 0 4px 0 #6a2234;
+}
+
+/* =====================================================================
+   Chapter transition cutscene (always moonlit, whatever the theme)
+   ===================================================================== */
+.cutscene {
+  --moon: #f5e9d5;
+  --moon-shade: #ddd0b8;
+  --scene-star: #f5e9d5;
+  --scene-far: #2f3a45;
+  --scene-near: #1f2730;
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  background: #17152a;
+  color: #f5e9d5;
+  overflow: hidden;
+  touch-action: none;
+}
+.cs-scene {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.9s ease;
+  pointer-events: none;
+}
+.cs-scene.on {
+  opacity: 1;
+}
+.cs-forest {
+  background: linear-gradient(#2f2c4a, #252439 70%);
+}
+.cs-sky {
+  position: absolute;
+  inset: 0;
+}
+.cs-kicker {
+  position: absolute;
+  top: 18%;
+  width: 100%;
+  text-align: center;
+  font-weight: 900;
+  font-size: 1.6rem;
+  color: #d9ad72;
+  text-shadow: 0 0 18px rgba(217, 173, 114, 0.5);
+  animation: riseIn 0.7s 0.2s backwards;
+}
+.cs-cats {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 22%;
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+}
+.cs-cat {
+  animation: csHop 0.9s ease-in-out infinite;
+}
+@keyframes csHop {
+  50% {
+    transform: translateY(-10px);
+  }
+}
+.cs-sparkles span,
+.cs-spores span {
+  position: absolute;
+  bottom: 20%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ffd36a;
+  opacity: 0;
+  animation: csFloat 2.8s ease-out infinite;
+}
+.cs-spores span {
+  background: #9fe0d0;
+  bottom: 10%;
+  animation-duration: 3.6s;
+}
+@keyframes csFloat {
+  0% {
+    opacity: 0;
+    transform: translateY(0) scale(0.6);
+  }
+  20% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-220px) scale(1.1);
+  }
+}
+.cs-bubble {
+  position: absolute;
+  max-width: 64%;
+  background: rgba(245, 233, 213, 0.95);
+  color: #2a2440;
+  border-radius: 14px;
+  padding: 7px 11px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.3;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.3);
+  animation: riseIn 0.45s backwards;
+}
+.cs-bubble b {
+  display: block;
+  font-size: 0.72rem;
+  color: #6d5590;
+}
+.cs-bubble.left {
+  left: 6%;
+  bottom: 40%;
+}
+.cs-bubble.right {
+  right: 6%;
+  bottom: 50%;
+}
+.cs-threat {
+  background: radial-gradient(ellipse at 50% 85%, #2b3a48, #121020 70%);
+}
+.cs-layer {
+  position: absolute;
+  left: -20%;
+  right: -20%;
+  bottom: 0;
+}
+.cs-far {
+  height: 46%;
+  background:
+    radial-gradient(ellipse 18% 60% at 10% 100%, #232c38 60%, transparent 61%),
+    radial-gradient(ellipse 16% 70% at 32% 100%, #232c38 60%, transparent 61%),
+    radial-gradient(ellipse 20% 55% at 58% 100%, #232c38 60%, transparent 61%),
+    radial-gradient(ellipse 15% 65% at 82% 100%, #232c38 60%, transparent 61%);
+  animation: csPan 4s linear both;
+}
+.cs-near {
+  height: 30%;
+  background:
+    radial-gradient(ellipse 22% 70% at 5% 100%, #0e0c18 60%, transparent 61%),
+    radial-gradient(ellipse 25% 80% at 45% 100%, #0e0c18 60%, transparent 61%),
+    radial-gradient(ellipse 22% 75% at 88% 100%, #0e0c18 60%, transparent 61%);
+  animation: csPan 4s linear both;
+  animation-duration: 3s;
+}
+@keyframes csPan {
+  from {
+    transform: translateX(6%);
+  }
+  to {
+    transform: translateX(-6%);
+  }
+}
+.cs-glow span {
+  position: absolute;
+  bottom: 36%;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(159, 224, 208, 0.9), rgba(159, 224, 208, 0));
+  animation: csGlow 2.4s ease-in-out infinite backwards;
+}
+@keyframes csGlow {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.4);
+  }
+}
+.cs-king {
+  position: absolute;
+  left: 50%;
+  bottom: 34%;
+  width: 140px;
+  transform: translateX(-50%);
+  opacity: 0;
+  animation: csAppear 1.6s 1.2s ease forwards;
+}
+.cs-eye {
+  animation: csBlink 2.6s 2.2s infinite;
+}
+@keyframes csAppear {
+  to {
+    opacity: 0.95;
+  }
+}
+@keyframes csBlink {
+  0%,
+  92%,
+  100% {
+    opacity: 1;
+  }
+  95% {
+    opacity: 0;
+  }
+}
+.cs-reveal {
+  background: radial-gradient(ellipse at 50% 40%, #3a3560, #1f2234 75%);
+}
+.cs-mushrooms {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 42%;
+}
+.cs-title {
+  position: absolute;
+  top: 26%;
+  width: 100%;
+  text-align: center;
+  padding: 0 16px;
+}
+.cs-chapter {
+  font-weight: 900;
+  letter-spacing: 4px;
+  color: #9fe0d0;
+  animation: riseIn 0.8s 0.2s backwards;
+}
+.cs-name {
+  font-size: clamp(1.8rem, 9vw, 2.6rem);
+  font-weight: 900;
+  color: #f5e9d5;
+  text-shadow: 0 0 22px rgba(181, 138, 214, 0.6);
+  animation: csTitle 1.4s 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) backwards;
+}
+@keyframes csTitle {
+  from {
+    opacity: 0;
+    letter-spacing: 0.6em;
+  }
+}
+.cs-sub {
+  margin-top: 8px;
+  font-weight: 700;
+  color: #c7b9a3;
+  animation: riseIn 0.8s 1.5s backwards;
+}
+.cs-skip {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  right: 12px;
+  z-index: 2;
+  min-height: 40px;
+  min-width: 84px;
+  background: rgba(245, 233, 213, 0.92);
+  color: #2a2440;
+}
+.cs-dots {
+  position: absolute;
+  bottom: 18px;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+.cs-dots span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(245, 233, 213, 0.3);
+}
+.cs-dots span.on {
+  background: #d9ad72;
+}
+/* Reduced motion: no movement, only the gentle scene fades. */
+.cutscene.reduced *:not(.cs-scene) {
+  animation: none !important;
+}
+.cutscene.reduced .cs-king {
+  opacity: 0.95;
+}
+.cutscene.reduced .cs-sparkles,
+.cutscene.reduced .cs-spores {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cutscene *:not(.cs-scene) {
+    animation: none !important;
+  }
+  .cutscene .cs-king {
+    opacity: 0.95;
+  }
+}
+.story-btn {
+  margin-top: 6px;
+}
+/* bubble placement per scene (no overlap, never over the silhouette) */
+.cs-forest .cs-bubble.left {
+  bottom: 34%;
+}
+.cs-forest .cs-bubble.right {
+  bottom: auto;
+  top: 30%;
+}
+.cs-threat .cs-bubble.left {
+  bottom: auto;
+  top: 14%;
+}
+.cs-threat .cs-bubble.right {
+  bottom: auto;
+  top: 29%;
+}
+.cs-king path {
+  stroke: rgba(159, 224, 208, 0.45);
+  stroke-width: 1.5;
+}

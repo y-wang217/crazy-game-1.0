@@ -14,6 +14,18 @@ export const BALANCE = {
     perTier: 1,
     maxCost: 30,
   },
+  /**
+   * Selling a cat in battle (long-press panel). Refund per in-battle level (index = Lv − 1).
+   * Checked against the summon curve: a Lv.N cat needs 2^(N−1) summons, so even at the
+   * cheapest prices (1,1,1,2,2,2,…) Lv.2 costs ≥2, Lv.3 ≥5, Lv.4 ≥15, Lv.5 ≥51 dried fish.
+   * Refunds stay well below that, and every summon raises the summon counter, so
+   * summon → sell can never gain fish (it only frees the tile).
+   */
+  sell: {
+    refund: [1, 1, 3, 5, 9] as readonly number[],
+    /** Ask for confirmation before selling cats at or above this level. */
+    confirmFromLevel: 3,
+  },
   skillRoll: {
     baseCost: 20,
     /** Cost increase per skill bought this stage. */
@@ -26,7 +38,7 @@ export const BALANCE = {
    */
   rewardScaleExponent: 0.3,
   /** Dried fish bonus when a wave is fully cleared. */
-  waveClearBonus: 3,
+  waveClearBonus: 4,
   /** Dried fish given instead of a chest reward when every skill is maxed. */
   maxedChestFish: 15,
   chest: {
@@ -45,11 +57,22 @@ export const BALANCE = {
     /** Simulation speed of the "1×" setting relative to the original (V1.2) pace. */
     baseline: 1.2,
     /** Selectable multipliers, relative to the baseline above. */
-    options: [0.75, 1, 1.5, 2] as readonly number[],
+    options: [0.5, 0.75, 1, 1.5, 2] as readonly number[],
     default: 1,
   },
 
   // ---- Waves ----
+  waves: {
+    /**
+     * Every stage plan in chapters.ts is written at its original length; the game plays
+     * round(waves × countScale) waves (min 3). The enemy mix, wave sizes and HP ramp are
+     * stretched over the shorter stage, so variety, chests and bosses all remain — the
+     * stage simply has ~30% fewer waves (and ~30% fewer mice).
+     */
+    countScale: 0.7,
+    /** Dried fish per defeated mouse is multiplied by this, so fewer mice still pay for frequent summons. */
+    fishMult: 1.25,
+  },
   /** Max seconds between end of a wave's spawns and the next wave (skipped early if field is clear). */
   waveGap: 4.5,
   /** Short breather when the field is cleared before the next wave. */

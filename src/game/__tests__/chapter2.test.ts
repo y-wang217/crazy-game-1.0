@@ -37,7 +37,7 @@ describe('20 stages in two chapters', () => {
       const map = MAPS[ch.mapId];
       const ids = new Set(map.tiles.map((t) => t.id));
       for (const s of ch.stages) {
-        expect(s.waves.length, s.id).toBeGreaterThan(5);
+        expect(s.waves.length, s.id).toBeGreaterThanOrEqual(4);
         expect(
           s.waves.every((w) => w.groups.length > 0),
           s.id,
@@ -234,5 +234,41 @@ describe('progression & saves', () => {
     expect(Object.keys(a.skills).length).toBeGreaterThan(0);
     const b = new Battle(ch2.stages[0], mapOf(ch2.stages[0]), 1);
     expect(Object.keys(b.skills).length).toBe(0);
+  });
+});
+
+describe('shorter stages (~30% fewer waves)', () => {
+  it('plays round(plan × 0.7) waves: e.g. 1-10 21 → 15, 1-3 10 → 7', () => {
+    expect(BALANCE.waves.countScale).toBeCloseTo(0.7);
+    expect(ch1.stages.map((s) => s.waves.length)).toEqual([4, 6, 7, 10, 10, 11, 12, 12, 13, 15]);
+    expect(ch2.stages.map((s) => s.waves.length)).toEqual([8, 9, 10, 11, 11, 11, 12, 13, 13, 15]);
+  });
+
+  it('keeps every chest and puts each boss in the final wave', () => {
+    // chest counts per stage from the original plans
+    const chestCount = (s: StageDef) => s.waves.flatMap((w) => w.groups).filter((g) => 'chest' in g).length;
+    expect(ch1.stages.map(chestCount)).toEqual([0, 0, 3, 3, 3, 3, 4, 4, 5, 5]);
+    expect(ch2.stages.map(chestCount)).toEqual([3, 3, 3, 4, 4, 4, 4, 5, 5, 5]);
+    for (const s of [ch1.stages[9], ch2.stages[9]]) {
+      const last = s.waves[s.waves.length - 1].groups;
+      expect(last.some((g) => 'enemy' in g && ENEMIES[g.enemy].isBoss)).toBe(true);
+    }
+  });
+
+  it('does not cram the removed mice into the remaining waves', () => {
+    for (const s of [...ch1.stages, ...ch2.stages]) {
+      const sizes = s.waves.map((w) => w.groups.reduce((a, g) => a + ('enemy' in g ? g.count : 0), 0));
+      // biggest wave is no bigger than the original plan's last wave would be (count + growth × (plan−1))
+      expect(Math.max(...sizes), s.id).toBeLessThanOrEqual(60);
+      for (let i = 1; i < sizes.length; i++) expect(sizes[i], s.id).toBeGreaterThanOrEqual(sizes[i - 1] - 3);
+    }
+    // total mice ≈ 70% of before: 1-10 used to send ~630
+    const total = (s: StageDef) => s.waves.flatMap((w) => w.groups).reduce((a, g) => a + ('enemy' in g ? g.count : 0), 0);
+    expect(total(ch1.stages[9])).toBeLessThan(500);
+  });
+
+  it('wave indicator total follows the shorter stage', () => {
+    const b = new Battle(ch1.stages[9], mapOf(ch1.stages[9]), 1);
+    expect(b.totalWaves).toBe(15);
   });
 });

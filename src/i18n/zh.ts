@@ -696,4 +696,20 @@ export const zh: Record<string, string> = {
   'battle.focusClear': '取消集火',
   'battle.ultFired': '{cat}：{name}！',
   'battle.ult': '奧義',
+  // Sell cat
+  'sell.button': '出售貓咪',
+  'sell.confirm': '用 {n} 條魚乾仔出售這隻 Lv.{lv} 的{cat}？',
+  'sell.yes': '出售',
+  'sell.cancel': '保留',
+  'sell.note': '會空出格子。永久星級和碎片不受影響。',
+  'sell.done': '已出售！魚乾仔 +{n}',
+  // Chapter cutscene
+  'story.title': '章節過場',
+  'story.skip': '略過 ›',
+  'story.replay': '故事',
+  'story.s1.a': '我哋贏咗！新手森林安全喇！',
+  'story.s1.b': '開慶功宴！人人有魚乾！',
+  'story.s2.a': '……樹林後面，有啲嘢喺度發光。',
+  'story.s2.b': '好失禮呀，竟然搶咗我嘅風頭。',
+  'story.s3.sub': '小路一圈圈繞進發光的蘑菇環……',
 };
