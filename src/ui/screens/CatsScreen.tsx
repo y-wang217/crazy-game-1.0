@@ -8,6 +8,7 @@ import { CatPreview } from '../components/CatPreview';
 import { CHAPTER_REWARDS } from '../../config/collection';
 import { GameIcon } from '../components/GameIcon';
 import { Stars } from '../components/Stars';
+import { feature } from '../../config/features';
 
 /** First stage where a cat can appear (for "Meet in Stage N"). */
 export function firstStageOf(cat: CatId): number {
@@ -95,7 +96,7 @@ export function CatsScreen({ go }: { go: (s: Screen) => void }) {
             ))}
           </li>
           <li>{t('guide.chest')}</li>
-          <li>{t('info.hint')}</li>
+          <li>{t(feature('focusTargeting') ? 'info.hint' : 'info.hintBasic')}</li>
         </ul>
       </div>
     </div>

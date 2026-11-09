@@ -113,10 +113,10 @@ describe('V1.3 preparation phase', () => {
 });
 
 describe('V1.3 speed system', () => {
-  it('five options (0.5× added) with 1× = the old 1.2×', () => {
+  it('five options (0.5× added); 1× is the V1.3 1.2× pace slowed by 10% (pacing update)', () => {
     expect(BALANCE.speed.options).toEqual([0.5, 0.75, 1, 1.5, 2]);
     expect(BALANCE.speed.default).toBe(1);
-    expect(BALANCE.speed.baseline).toBe(1.2);
+    expect(BALANCE.speed.baseline).toBeCloseTo(1.2 * 0.9, 10);
   });
 
   it('the whole simulation scales with speed (2× reaches the same state in half the frames)', () => {

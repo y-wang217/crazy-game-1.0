@@ -12,6 +12,7 @@ import { GameIcon } from './GameIcon';
 import { FishIcon } from './Icons';
 import { Stars } from './Stars';
 import { fmt, specialStats } from './statText';
+import { feature } from '../../config/features';
 
 
 /** Skills currently boosting this cat (its own skills + general combat skills). */
@@ -181,7 +182,7 @@ export function CatInfoPanel({
             <div className="muted tiny">{t('sell.note')}</div>
           </div>
         )}
-        <div className="muted tiny center">{t('info.hint')}</div>
+        <div className="muted tiny center">{t(feature('focusTargeting') ? 'info.hint' : 'info.hintBasic')}</div>
       </div>
     </div>
   );

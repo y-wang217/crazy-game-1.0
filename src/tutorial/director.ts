@@ -4,12 +4,14 @@
 
 import type { Battle } from '../game/battle';
 import type { CatId, ChestTier, EnemyId } from '../game/types';
-import { STAGE_STEPS, type StepDef } from './steps';
+import { GLOBAL_STEPS, STAGE_STEPS, type StepDef } from './steps';
 
-export type TutAction = 'summon' | 'skill' | 'tap' | 'moved' | 'swapped' | 'merged' | 'speed';
+export type TutAction = 'summon' | 'skill' | 'tap' | 'moved' | 'swapped' | 'merged' | 'speed' | 'pause' | 'resume';
+
+export type ButtonId = 'summon' | 'skill' | 'speed' | 'start' | 'tpause' | 'resume';
 
 export type Focus =
-  | { kind: 'button'; id: 'summon' | 'skill' | 'speed' | 'start' }
+  | { kind: 'button'; id: ButtonId }
   | { kind: 'cat'; uid: number }
   | { kind: 'tile'; id: string }
   | { kind: 'foe'; uid: number }
@@ -26,8 +28,8 @@ export type Panel =
 
 export interface StepView {
   panel: Panel;
-  /** Interactive steps wait for `expect`; passive steps wait for Continue. */
-  expect?: TutAction;
+  /** Interactive steps wait for `expect` (any of them, if a list); passive steps wait for Continue. */
+  expect?: TutAction | TutAction[];
   hintKey?: string;
   focus: Focus[];
   pointer?: Pointer;
@@ -52,29 +54,58 @@ export interface SeenStore {
 let activationCounter = 1;
 /** Foes are introduced once they have walked this far onto the visible road (world px). */
 const INTRO_MIN_DIST = 45;
+/**
+ * After an interactive step succeeds, the battle stays frozen this long (visual seconds) while
+ * the "Nice!" confirmation shows, before the next lesson may appear.
+ */
+export const SUCCESS_HOLD = 1.0;
+
+export const expects = (e: StepView['expect'], action: TutAction): boolean => (Array.isArray(e) ? e.includes(action) : e === action);
+
+/** Every scripted lesson id (all stages + global lessons). Used by "Skip tutorial". */
+export const ALL_LESSON_IDS: string[] = [...new Set([...Object.values(STAGE_STEPS).flat(), ...GLOBAL_STEPS].map((s) => s.id))];
 
 export class TutorialDirector {
   active: ActiveStep | null = null;
+  /** Increments every time an interactive step is completed by the player (drives "Nice!"). */
+  successCount = 0;
   private steps: StepDef[];
+  private holdUntil = -1;
 
   constructor(
     stageId: string,
     private seen: SeenStore,
   ) {
-    this.steps = STAGE_STEPS[stageId] ?? [];
+    // Stage lessons first, then lessons that apply to any stage (each still only once ever).
+    this.steps = [...(STAGE_STEPS[stageId] ?? []), ...GLOBAL_STEPS];
+  }
+
+  /** Is the short success beat after a completed action still running? (battle stays frozen) */
+  holding(b: Battle): boolean {
+    return b.vtime < this.holdUntil;
   }
 
   /** Call once per frame. Returns the active step (if any). */
   update(b: Battle): ActiveStep | null {
-    if (this.active?.doneWhen?.(b)) this.complete(b);
+    if (this.active?.doneWhen?.(b)) this.complete(b, true);
     if (this.active) {
       b.frozen = true;
       return this.active;
     }
+    if (this.holding(b) && (b.status === 'playing' || b.status === 'paused')) {
+      b.frozen = true; // timers stay stopped during the confirmation beat
+      return null;
+    }
     b.frozen = false;
+    // Tactical Pause: only lessons written for the paused state may appear (no intros).
+    if (b.status === 'paused') {
+      const next = this.findScripted(b, true);
+      if (next) this.active = { ...next, key: activationCounter++ };
+      return this.active;
+    }
     if (b.status !== 'playing') return null;
 
-    const next = this.findIntro(b) ?? this.findScripted(b);
+    const next = this.findIntro(b) ?? this.findScripted(b, false);
     if (next) {
       this.active = { ...next, key: activationCounter++ };
       b.frozen = true;
@@ -87,24 +118,46 @@ export class TutorialDirector {
     const a = this.active;
     if (!a) return true;
     if (!a.expect) return false; // passive: only the Continue button
-    return a.expect === action;
+    return expects(a.expect, action);
   }
 
-  /** Report a successful player action. Completes an interactive step that expected it. */
-  onAction(action: TutAction, b: Battle): void {
+  /** Report a successful player action. Completes an interactive step that expected it. Returns true if it did. */
+  onAction(action: TutAction, b: Battle): boolean {
     const a = this.active;
-    if (!a || a.expect !== action) return;
-    if (a.doneWhen) {
-      if (a.doneWhen(b)) this.complete(b);
-    } else this.complete(b);
+    if (!a || !expects(a.expect, action)) return false;
+    if (a.doneWhen && !a.doneWhen(b)) return false;
+    this.complete(b, true);
+    return true;
   }
 
   /** Finish the current step (Continue button, or the expected action). */
-  complete(b: Battle): void {
+  complete(b: Battle, bySuccess = false): void {
     if (!this.active) return;
     this.seen.mark(this.active.id);
+    if (bySuccess && this.active.expect) {
+      this.successCount++;
+      this.holdUntil = b.vtime + SUCCESS_HOLD;
+    }
     this.active = null;
     b.frozen = false;
+  }
+
+  /**
+   * "Skip tutorial": closes the current step and marks every scripted lesson as seen (this
+   * stage and all later ones). First-time cat / enemy / chest introductions are kept — they
+   * are one-tap info cards. "Replay tutorials" on the home screen brings everything back.
+   */
+  skipAll(b: Battle): void {
+    for (const id of ALL_LESSON_IDS) this.seen.mark(id);
+    if (this.active) this.seen.mark(this.active.id);
+    this.active = null;
+    this.holdUntil = -1;
+    b.frozen = false;
+  }
+
+  /** Is the active step a scripted lesson (skippable) rather than a first-time intro? */
+  get isLesson(): boolean {
+    return !!this.active && this.active.panel.kind === 'text';
   }
 
   // ---- First-time introductions (global, saved across stages) ----
@@ -128,14 +181,15 @@ export class TutorialDirector {
   }
 
   // ---- Scripted per-stage lessons (run in order; each only once ever) ----
-  private findScripted(b: Battle): Omit<ActiveStep, 'key'> | null {
+  private findScripted(b: Battle, paused: boolean): Omit<ActiveStep, 'key'> | null {
     let step = this.steps.find((s) => !this.seen.has(s.id));
     // Lessons a returning player has effectively covered are marked done silently.
-    while (step?.skip?.(this.seen)) {
+    while (step && (step.skip?.(this.seen) || step.doneIf?.(b))) {
       this.seen.mark(step.id);
       step = this.steps.find((s) => !this.seen.has(s.id));
     }
     if (!step) return null;
+    if (paused !== !!step.whilePaused) return null;
     if (step.when && !step.when(b, this.seen)) return null;
     step.setup?.(b);
     // A setup may place a cat the player has never met: introduce it first.

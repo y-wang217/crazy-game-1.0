@@ -4,6 +4,11 @@ import { MAPS } from '../../config/maps';
 import { Battle } from '../../game/battle';
 import { TutorialDirector, type ActiveStep, type SeenStore } from '../director';
 
+/** Let the short "Nice!" beat after a successful action pass (visual time only). */
+function pastHold(d: TutorialDirector, b: Battle) {
+  for (let i = 0; i < 50 && d.holding(b); i++) b.tickVisual(0.1);
+}
+
 const map = MAPS[CHAPTERS[0].mapId];
 const stage = (n: number) => CHAPTERS[0].stages[n - 1];
 
@@ -16,7 +21,10 @@ function memSeen(initial: string[] = []): SeenStore & { ids: Set<string> } {
 function frame(d: TutorialDirector, b: Battle, dt = 0.1) {
   const s = d.update(b);
   if (b.running) b.update(dt);
-  else if (b.preparing && !d.active) b.tickPrep(dt); // real-time prep countdown, paused by lessons
+  else {
+    b.tickVisual(dt);
+    if (b.preparing && !d.active) b.tickPrep(dt); // real-time prep countdown, paused by lessons
+  }
   return s;
 }
 
@@ -58,9 +66,16 @@ describe('tutorial director', () => {
     const b = new Battle(stage(1), map, 3);
     const d = new TutorialDirector('1-1', seen);
     const shown: string[] = [];
-    for (let i = 0; i < 200; i++) {
+    for (let i = 0; i < 400; i++) {
+      const hold = d.holding(b);
       const s = frame(d, b);
-      if (!s) break;
+      if (!s) {
+        if (hold) {
+          expect(b.frozen).toBe(true); // the success beat keeps everything stopped too
+          continue;
+        }
+        break;
+      }
       expect(b.frozen).toBe(true);
       expect(b.time).toBe(0); // nothing advances during lessons
       if (shown[shown.length - 1] !== s.id) shown.push(s.id);
@@ -124,6 +139,7 @@ describe('tutorial director', () => {
     let s = d.update(b)!;
     expect(s.id).toBe('tut:swap');
     perform(s, d, b);
+    pastHold(d, b);
     s = d.update(b)!;
     expect(s.id).toBe('tut:merge');
     perform(s, d, b);
@@ -208,6 +224,9 @@ describe('tutorial director', () => {
     expect(b.fish).toBeGreaterThanOrEqual(b.skillCost);
     expect(b.buySkill().ok).toBe(true);
     d.onAction('skill', b);
+    expect(d.update(b)).toBeNull(); // "Nice!" first
+    expect(b.frozen).toBe(true);
+    pastHold(d, b);
     expect(d.update(b)?.id).toBe('tut:skillDup');
   });
 

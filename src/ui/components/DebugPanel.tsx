@@ -1,5 +1,7 @@
 import type { Tuning } from '../../config/debug';
 import type { BattleStats } from '../../game/battle';
+import { useState } from 'react';
+import { feature, setFeatureOverride } from '../../config/features';
 import { debugStore, useDebug } from '../debugStore';
 
 // Developer-only balancing panel (English only, never shown to normal players).
@@ -27,6 +29,7 @@ export function DebugPanel({
   extraFish: (n: number) => void;
 }) {
   const { tuning } = useDebug();
+  const [focusOn, setFocusOn] = useState(feature('focusTargeting'));
   return (
     <div className="debug-panel" onPointerDown={(e) => e.stopPropagation()}>
       <div className="debug-head">
@@ -67,6 +70,17 @@ export function DebugPanel({
           ))}
         </div>
       </div>
+      <label className="debug-row">
+        <span>Experimental: tap-to-focus (next battle)</span>
+        <input
+          type="checkbox"
+          checked={focusOn}
+          onChange={(e) => {
+            setFeatureOverride('focusTargeting', e.target.checked);
+            setFocusOn(e.target.checked);
+          }}
+        />
+      </label>
       <div className="debug-btns wide">
         <button onClick={() => extraFish(50)}>+50 fish</button>
         <button onClick={() => debugStore.resetTuning()}>Reset</button>

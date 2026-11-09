@@ -17,6 +17,10 @@ export interface StepDef {
   when?: (b: Battle, seen: SeenStore) => boolean;
   /** If true, the step is marked as seen without being shown. */
   skip?: (seen: SeenStore) => boolean;
+  /** Runtime version of `skip`: the player already did this on their own, so mark it done silently. */
+  doneIf?: (b: Battle) => boolean;
+  /** Shown only during Tactical Pause (all other lessons only while the battle is playing). */
+  whilePaused?: boolean;
   /** Controlled setup so the lesson can't get stuck on bad luck. Must be idempotent. */
   setup?: (b: Battle) => void;
   build: (b: Battle) => StepView | null;
@@ -151,6 +155,72 @@ const SPEED_TIP: StepDef = {
   }),
 };
 
+// ---- Tactical Pause (any stage from 1-3 on, once ever; new and existing players) ----
+const tacticalEligible = (b: Battle) => (b.stage.order ?? b.stage.number) >= 3 && !b.sandbox;
+
+/** Drag lesson used while paused: move to an empty tile if there is one, otherwise swap/merge. */
+function pausedDrag(b: Battle): StepView | null {
+  const m = mergePair(b);
+  const cat = b.cats.find((c) => nearestEmpty(b, c));
+  let from: CatUnit | undefined;
+  let to: { kind: 'tile'; id: string } | { kind: 'cat'; uid: number } | undefined;
+  if (cat) {
+    from = cat;
+    to = { kind: 'tile', id: nearestEmpty(b, cat).id };
+  } else if (m) {
+    from = m[0];
+    to = { kind: 'cat', uid: m[1].uid };
+  } else {
+    const s = swapPair(b);
+    if (!s) return null;
+    from = s[0];
+    to = { kind: 'cat', uid: s[1].uid };
+  }
+  return {
+    panel: text('tpauseMove'),
+    expect: ['moved', 'swapped', 'merged'],
+    hintKey: 'tut.hint.tpauseMove',
+    focus: [{ kind: 'cat', uid: from.uid }, to],
+    pointer: { type: 'drag', from: { kind: 'cat', uid: from.uid }, to },
+  };
+}
+
+export const GLOBAL_STEPS: StepDef[] = [
+  {
+    id: 'tut:tpause',
+    // Already used it on their own → no need to teach the button.
+    doneIf: (b) => tacticalEligible(b) && b.stats.tacticalPauses > 0,
+    when: (b) => tacticalEligible(b) && !b.preparing && b.cats.length >= 2 && b.foes.some((f) => f.alive && f.kind === 'enemy' && f.dist > 80),
+    build: () => ({
+      panel: text('tpause'),
+      expect: 'pause',
+      hintKey: 'tut.hint.tpause',
+      focus: [{ kind: 'button', id: 'tpause' }],
+      pointer: { type: 'tap', at: { kind: 'button', id: 'tpause' } },
+    }),
+  },
+  {
+    id: 'tut:tpauseMove',
+    whilePaused: true,
+    // Resumed before we got here (e.g. from the menu): don't trap them in a paused lesson later.
+    doneIf: (b) => b.status === 'playing' && !b.preparing,
+    when: (b) => b.cats.length >= 2,
+    build: pausedDrag,
+  },
+  {
+    id: 'tut:tpauseResume',
+    whilePaused: true,
+    doneIf: (b) => b.status === 'playing' && !b.preparing,
+    build: () => ({
+      panel: text('tpauseResume'),
+      expect: 'resume',
+      hintKey: 'tut.hint.tpauseResume',
+      focus: [{ kind: 'button', id: 'resume' }],
+      pointer: { type: 'tap', at: { kind: 'button', id: 'resume' } },
+    }),
+  },
+];
+
 export const STAGE_STEPS: Record<string, StepDef[]> = {
   // Stage 1: every basic control, one lesson at a time.
   '1-1': [
@@ -249,11 +319,7 @@ export const STAGE_STEPS: Record<string, StepDef[]> = {
 
   // Stage 4: targeting in practice, right after meeting Zippy Mice.
   '1-4': [
-    {
-      id: 'tut:targetTips',
-      when: (_b, seen) => seen.has('enemy:fast'),
-      build: () => ({ panel: text('targetTips', 'targetTips'), focus: [] }),
-    },
+    { id: 'tut:targetTips', when: (_b, seen) => seen.has('enemy:fast'), build: () => ({ panel: text('targetTips', 'targetTips'), focus: [] }) },
   ],
 
   // Stage 5: the Random Skill button unlocks.

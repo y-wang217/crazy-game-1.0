@@ -30,9 +30,44 @@ npm run build        # type-check + production build into dist/
 | Cat details (effective stats, active skills); pauses the battle | Long-press the cat (~0.5 s) · desktop: right-click · close with ✕, backdrop or Esc |
 | Pick a chest reward (combat is paused) | Tap one of the 3 cards |
 | Start the fight early | **Start Battle** in the 20 s preparation bar (or let the countdown run out) |
-| Pause / speed | pause button and the speed button (cycles 0.75× → 1× → 1.5× → 2×) in the top bar |
+| **Tactical Pause / 策略暫停** (freeze combat, keep editing the formation) | **Tactical Pause** button next to Summon/Skill · **Resume Battle / 繼續戰鬥** to continue · desktop: Space or P |
+| Menu (Resume / Restart / Stage select / Home) | ☰ button in the top bar · desktop: Esc |
+| Speed | speed button in the top bar (cycles 0.5× → 0.75× → 1× → 1.5× → 2×) |
+| Focus a mouse *(experimental, feature flag)* | Tap the mouse or chest; tap again to cancel |
 
 While dragging, tiles are tinted to show what the drop will do: green = move, gold = merge, blue = swap. A press only becomes a drag after the pointer moves 10 px, so a tap never moves a cat by accident.
+
+## What's new in V1.6 — Combat pacing, Tactical Pause, clearer tutorials
+
+- **Combat is 10% slower.** `BALANCE.speed.baseline` 1.2 → 1.08 (the old 1.2× pace minus 10%). The 0.5× / 0.75× / 1× / 1.5× / 2× options all scale from it. Enemy HP, armor, cat damage, wave counts, composition and bosses are unchanged. Because only the real-time pace changed, sim (game-time) balance is identical. The earlier "10% difficulty reduction" was not applied.
+- **More breathing room between waves.**
+  - When you clear the field you always get `clearedWaveGap + waveBreather` = 1.2 + 3 = 4.2 s of calm (about 3.9 real seconds at 1×), counted from the moment the last mouse falls. During it the HUD shows **「第 N 波：X 秒後」/ "Wave N in Xs"**. The countdown lives in the HUD label, so it never overlaps the wave banner or toasts.
+  - When mice are still on the road, the next wave comes at the pressure cap `waveGap + waveBreatherHostile` = 4.5 + 1.5 s.
+  - Sim results (naive bot, 10 seeds):
+    - 0 restores the V1.5 results exactly.
+    - 1.5 is slightly gentler in early Chapter 1 for weak play (1-4: 4 → 6/10 wins); smart-bot results are unchanged.
+    - 3 on both gaps made 1-4 9/10, a clear difficulty drop, so it was not used.
+  - All three values are in `src/config/balance.ts`.
+- **Tactical Pause / 策略暫停.**
+  - Freezes the entire simulation: movement, spawns, wave timers, cooldowns, wind-ups, projectiles, poison/marks and ultimate charge. While paused you can still move, swap and merge (full board and Lv.5 included), change targeting, open details and sell (same refund table).
+  - Summoning and buying skills wait until you resume, so there are no free summons and no extra fish.
+  - On screen: a slim 「策略暫停中」 badge and an outlined field. The Summon/Skill row turns into one big **繼續戰鬥** button in the thumb zone. There is no modal over the field.
+  - The old pause is now the ☰ menu (Resume / Restart / Stage select / **Home**). Leaving the app opens the menu.
+  - Moving a cat cancels its wind-up, so it re-targets from its new tile on resume.
+  - Tests:
+    - A combat-state snapshot is byte-identical after 600 paused updates.
+    - Mashing pause/resume between frames gives exactly the same battle as never pausing: no duplicate damage, kills or fish.
+  - Not available during the 20 s preparation phase, which is unchanged.
+- **Tutorial clarity.**
+  - New one-time **Tactical Pause lesson**, from stage 1-3 on, for new and existing players. It runs in three steps, and each one needs the real action: press 策略暫停 → drag a cat while paused → press 繼續戰鬥. If you already paused on your own, the first step is skipped.
+  - Every completed action shows **「做得好！」/ "Nice!"**, and timers stay frozen for that 1 s beat.
+  - Info cards ignore taps for the first 0.9 s, and cat reveal cards for 0.7 s, so a fast tap can't dismiss them unread.
+  - **略過教學 / Skip tutorial** is on every lesson, with a confirm. It skips all scripted lessons; first-meeting cat/enemy/chest cards stay, and Home → Replay tutorials brings everything back.
+  - Lessons can now run while paused (`whilePaused`), complete silently if the player already did the thing (`doneIf`), and accept several actions (`expect: [...]`).
+- **Focus Targeting is experimental.**
+  - Tap-to-focus sits behind `src/config/features.ts` → `focusTargeting`. It is on by default; override it with localStorage `catdefense.feature.focusTargeting` = `0`/`1` or the debug panel checkbox.
+  - When it's off, taps on mice do nothing, no crosshair is drawn, and the hint text drops the focus line. The original five targeting modes are untouched.
+  - Nothing in progression or the tutorials depends on it.
 
 ## What's new in V1.5.1 — Chapter 2 space fix, Hong Kong Chinese
 
@@ -231,7 +266,7 @@ With debug on, the results screen also shows battle stats: duration, base HP lef
 | 2-7 – 2-9 | 9/10 | 10/10 | 6.4–7.7 min | 57–74 |
 | 2-10 (boss) | 9/10 | 9/10 | 8.3 min | 66 |
 
-Chapter 2 is tuned by *headroom*: how much extra enemy HP the smart bot can still beat 7/10 times. Chapter 1's late stages sit at about +15–20%. Chapter 2 starts gentler on its new map (2-1 ≈ +45%), then tightens steadily to about +10% at 2-10. Lengths are simulation time; at the default 1× (= old 1.2×) a real battle takes about 1/1.2 of that, plus up to 20 s of preparation. The bots open nearly every chest, so chests are reachable without perfect targeting.
+Chapter 2 is tuned by *headroom*: how much extra enemy HP the smart bot can still beat 7/10 times. Chapter 1's late stages sit at about +15–20%. Chapter 2 starts gentler on its new map (2-1 ≈ +45%), then tightens steadily to about +10% at 2-10. Lengths are simulation time; at the default 1× (= 1.08× sim speed since V1.6) a real battle takes about 1/1.08 of that, plus up to 20 s of preparation. The bots open nearly every chest, so chests are reachable without perfect targeting.
 
 ## Project layout
 

@@ -4,7 +4,7 @@ import { CHESTS } from '../../config/enemies';
 import type { Battle } from '../../game/battle';
 import { t, useLang } from '../../i18n';
 import type { Renderer } from '../../render/renderer';
-import type { ActiveStep, Focus } from '../../tutorial/director';
+import type { ActiveStep, ButtonId, Focus } from '../../tutorial/director';
 import type { CosmeticLoadout } from '../../game/types';
 import { CatReveal } from './CatReveal';
 import { FoePreview } from './CatPreview';
@@ -18,6 +18,9 @@ interface Rect {
   h: number;
   round: number;
 }
+
+/** Passive cards can't be dismissed for this long, so a fast tap that was meant for the battle doesn't skip them. */
+export const MIN_READ_MS = 900;
 
 /**
  * Tutorial / introduction overlay: dims the screen with spotlight holes over
@@ -33,16 +36,25 @@ export function TutorialOverlay({
   buttons,
   loadout,
   onContinue,
+  onSkip,
 }: {
   step: ActiveStep;
   battle: Battle;
   renderer: Renderer | null;
   appRef: React.RefObject<HTMLElement>;
-  buttons: Record<'summon' | 'skill' | 'speed' | 'start', React.RefObject<HTMLElement>>;
+  buttons: Partial<Record<ButtonId, React.RefObject<HTMLElement>>>;
   loadout: CosmeticLoadout;
   onContinue: () => void;
+  /** "Skip tutorial" (only offered for scripted lessons, not first-time intros). */
+  onSkip?: () => void;
 }) {
   useLang();
+  const [ready, setReady] = useState(false);
+  const [confirmSkip, setConfirmSkip] = useState(false);
+  useEffect(() => {
+    const id = window.setTimeout(() => setReady(true), MIN_READ_MS);
+    return () => window.clearTimeout(id);
+  }, []);
   const [rects, setRects] = useState<Rect[]>([]);
   const [hand, setHand] = useState<{ from: Rect; to?: Rect } | null>(null);
   const [box, setBox] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
@@ -55,7 +67,7 @@ export function TutorialOverlay({
       const app = appRef.current?.getBoundingClientRect();
       if (!app) return null;
       if (f.kind === 'button') {
-        const r = buttons[f.id].current?.getBoundingClientRect();
+        const r = buttons[f.id]?.current?.getBoundingClientRect();
         return r ? { x: r.left - app.left - 4, y: r.top - app.top - 4, w: r.width + 8, h: r.height + 8, round: 20 } : null;
       }
       if (!renderer) return null;
@@ -119,6 +131,24 @@ export function TutorialOverlay({
   const focusY = rects.length ? rects.reduce((a, r) => a + r.y + r.h / 2, 0) / rects.length : 0;
   const panelAtTop = interactive && rects.length > 0 && focusY > box.h * 0.45;
 
+  const skip = onSkip ? (
+    confirmSkip ? (
+      <div className="tut-skip-confirm" role="group">
+        <span>{t('tut.skipConfirm')}</span>
+        <button className="btn btn-small btn-danger" onClick={onSkip}>
+          {t('tut.skipYes')}
+        </button>
+        <button className="btn btn-small btn-secondary" onClick={() => setConfirmSkip(false)}>
+          {t('tut.skipNo')}
+        </button>
+      </div>
+    ) : (
+      <button className="tut-skip" onClick={() => setConfirmSkip(true)}>
+        {t('tut.skip')}
+      </button>
+    )
+  ) : null;
+
   return (
     <div className={`tut-root ${interactive ? 'interactive' : 'passive'}`}>
       <svg className="tut-dim" width={box.w} height={box.h} aria-hidden>
@@ -142,7 +172,12 @@ export function TutorialOverlay({
         <div className={`tut-bar ${panelAtTop ? 'top' : 'bottom'}`}>
           <div className="tut-bar-title">{t(step.panel.kind === 'text' ? step.panel.titleKey : '')}</div>
           {step.panel.kind === 'text' && <div className="tut-bar-body">{t(step.panel.bodyKey)}</div>}
-          {step.hintKey && <div className="tut-hint"><GameIcon name="next" size={14} /> {t(step.hintKey)}</div>}
+          {step.hintKey && (
+            <div className="tut-hint">
+              <GameIcon name="next" size={14} /> {t(step.hintKey)}
+            </div>
+          )}
+          {skip}
         </div>
       ) : step.panel.kind === 'cat' ? (
         // First summon of a species: entrance animation, then the profile (battle stays paused).
@@ -151,9 +186,10 @@ export function TutorialOverlay({
         <div className="tut-card-wrap">
           <div className="tut-card" key={step.key}>
             <PanelBody step={step} loadout={loadout} />
-            <button className="btn btn-primary tut-continue" onClick={onContinue}>
+            <button className={`btn btn-primary tut-continue ${ready ? '' : 'arming'}`} disabled={!ready} onClick={() => ready && onContinue()}>
               {step.panel.kind === 'text' ? t('tut.continue') : t('tut.gotIt')}
             </button>
+            {skip}
           </div>
         </div>
       )}
@@ -211,11 +247,15 @@ function PanelBody({ step }: { step: ActiveStep; loadout: CosmeticLoadout }) {
         <h2 className="intro-name">{t(`chest.${p.tier}.name`)}</h2>
         <div className="intro-sub">{t(`chest.${p.tier}.desc`)}</div>
         <ul className="intro-list">
-          <li><GameIcon name="gift" size={16} /> {t('intro.chestSkills')}</li>
+          <li>
+            <GameIcon name="gift" size={16} /> {t('intro.chestSkills')}
+          </li>
           <li>
             <CoinIcon size={16} /> {t('intro.chestCoins', { min: def.coins[0], max: def.coins[1] })}
           </li>
-          <li><GameIcon name="speed" size={16} /> {t('intro.chestTip')}</li>
+          <li>
+            <GameIcon name="speed" size={16} /> {t('intro.chestTip')}
+          </li>
         </ul>
       </div>
     );

@@ -33,6 +33,14 @@ export function CatReveal({
     const id = window.setTimeout(() => setPhase('card'), 2400);
     return () => window.clearTimeout(id);
   }, [cat]);
+  // The card's button ignores taps for a moment, so tapping through the entrance can't dismiss it unread.
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    if (phase !== 'card') return;
+    setReady(false);
+    const id = window.setTimeout(() => setReady(true), 700);
+    return () => window.clearTimeout(id);
+  }, [phase]);
 
   if (phase === 'entrance') {
     return (
@@ -58,7 +66,7 @@ export function CatReveal({
       <div className="tut-card reveal-card" key={cat}>
         <CatIntroCard cat={cat} loadout={loadout} />
         {extra}
-        <button className="btn btn-primary tut-continue" onClick={onClose}>
+        <button className={`btn btn-primary tut-continue ${ready ? '' : 'arming'}`} disabled={!ready} onClick={() => ready && onClose()}>
           {closeLabel ?? t('tut.gotIt')}
         </button>
       </div>

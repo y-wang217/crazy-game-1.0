@@ -54,8 +54,12 @@ export const BALANCE = {
    */
   prepSeconds: 20,
   speed: {
-    /** Simulation speed of the "1×" setting relative to the original (V1.2) pace. */
-    baseline: 1.2,
+    /**
+     * Simulation speed of the "1×" setting relative to the original (V1.2) pace.
+     * V1.3 made it 1.2; the pacing update slowed combat by 10% (1.2 × 0.9 = 1.08) so players
+     * have more time to think. Every option (0.5×–2×) is relative to this.
+     */
+    baseline: 1.08,
     /** Selectable multipliers, relative to the baseline above. */
     options: [0.5, 0.75, 1, 1.5, 2] as readonly number[],
     default: 1,
@@ -73,10 +77,27 @@ export const BALANCE = {
     /** Dried fish per defeated mouse is multiplied by this, so fewer mice still pay for frequent summons. */
     fishMult: 1.25,
   },
-  /** Max seconds between end of a wave's spawns and the next wave (skipped early if field is clear). */
+  /**
+   * Max seconds between the end of a wave's spawns and the next wave while mice are still on
+   * the road (the pressure cap — unchanged by the pacing update so difficulty stays the same).
+   */
   waveGap: 4.5,
   /** Short breather when the field is cleared before the next wave. */
   clearedWaveGap: 1.2,
+  /**
+   * Pacing update: extra calm time (game seconds) added after the field is CLEARED, counted
+   * from the moment the last mouse falls, so a cleared field always gets
+   * clearedWaveGap + waveBreather (= 4.2 s) to inspect, reposition and merge. A "next wave
+   * in N" countdown shows during it. Only added when the field is empty, so it doesn't make
+   * waves easier (no passive income, no extra shooting time on live mice).
+   */
+  waveBreather: 3,
+  /**
+   * Extra seconds added to the pressure cap (waveGap) when mice are still alive. Sim (naive bot,
+   * 10 seeds): 0 = V1.4 results exactly; 1.5 = slightly gentler early Chapter 1 for weak play
+   * (1-4: 4→6/10 wins), smart play unchanged; 3 = clearly easier (1-4: 9/10). 0 restores the old pressure.
+   */
+  waveBreatherHostile: 1.5,
   /**
    * Enemy HP ramp inside a stage: toughness = hpScale × (1 + growth × waveIndex^curve).
    * curve > 1 keeps early waves gentle and makes late waves demand a stronger formation.

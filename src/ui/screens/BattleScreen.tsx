@@ -24,6 +24,7 @@ import type { ChapterGrant } from '../../game/collection';
 import { CatHead } from '../components/CatPreview';
 import { TutorialOverlay } from '../components/TutorialOverlay';
 import { debugStore, useDebug } from '../debugStore';
+import { feature } from '../../config/features';
 import { loadSpeed, saveSpeed } from '../speedPref';
 
 interface Toast {
@@ -51,6 +52,8 @@ interface Hud {
   prepLeft: number;
   /** 5★ ultimates: species → readiness (rounded to 5% so the HUD doesn't re-render every frame). */
   ults: [CatId, number][];
+  /** Whole seconds until the next wave (between waves only). */
+  nextWave: number | null;
 }
 
 interface Result {
@@ -87,6 +90,7 @@ function hudOf(b: Battle): Hud {
     preparing: b.preparing,
     prepLeft: Math.ceil(b.prepRemaining),
     ults: (Object.keys(b.ultCharge) as CatId[]).map((id) => [id, Math.floor((b.ultReadiness(id) ?? 0) * 20) / 20]),
+    nextWave: b.nextWaveIn === null ? null : Math.ceil(b.nextWaveIn),
   };
 }
 
@@ -138,6 +142,14 @@ export function BattleScreen({
   const speedRef = useRef<number>(loadSpeed());
   const speedBtnRef = useRef<HTMLButtonElement>(null);
   const startBtnRef = useRef<HTMLButtonElement>(null);
+  const tpauseBtnRef = useRef<HTMLButtonElement>(null);
+  const resumeBtnRef = useRef<HTMLButtonElement>(null);
+  /** Experimental tap-to-focus (feature flag, read once per battle screen). */
+  const focusEnabled = useRef(feature('focusTargeting')).current;
+  /** Pause menu (Resume / Restart / Stage select / Home). Tactical Pause has no menu. */
+  const [menuOpen, setMenuOpen] = useState(false);
+  /** "Nice!" confirmation after a tutorial action succeeds. */
+  const [success, setSuccess] = useState(0);
   const dragRef = useRef<DragView | null>(null);
   const pressRef = useRef<{ uid: number; pointerId: number; sx: number; sy: number; dragging: boolean; long: boolean; timer: number | null } | null>(
     null,
@@ -240,7 +252,8 @@ export function BattleScreen({
               // First clear of Chapter 1: the story transition plays first (once; replayable from
               // Stage Select), then the chapter reward cat is revealed. The reward is claimed
               // right now and saved, so nothing can award it twice.
-              if (r.firstClear && chapter.id === 'ch1' && found.index === chapter.stages.length - 1 && !saveStore.hasSeen(CUTSCENE_ID)) setCutscene(true);
+              if (r.firstClear && chapter.id === 'ch1' && found.index === chapter.stages.length - 1 && !saveStore.hasSeen(CUTSCENE_ID))
+                setCutscene(true);
               const g = saveStore.claimChapterRewards();
               if (g.length) setGrants(g);
             } else {
@@ -271,6 +284,7 @@ export function BattleScreen({
     let last = performance.now();
     let alive = true;
     let stepKey = -1;
+    let successSeen = directorRef.current.successCount;
     const frame = (now: number) => {
       if (!alive) return;
       const dt = Math.min(0.1, Math.max(0, (now - last) / 1000));
@@ -290,6 +304,10 @@ export function BattleScreen({
       if (ev.length) handleEventsRef.current(ev);
       const focusUids = active ? active.focus.flatMap((f) => (f.kind === 'cat' ? [f.uid] : [])) : undefined;
       renderer.draw(b, dragRef.current, loadoutRef.current, { focusUids });
+      if (directorRef.current.successCount !== successSeen) {
+        successSeen = directorRef.current.successCount;
+        setSuccess((n) => n + 1);
+      }
       const k = active?.key ?? 0;
       if (k !== stepKey) {
         stepKey = k;
@@ -306,7 +324,8 @@ export function BattleScreen({
     raf = requestAnimationFrame(frame);
 
     const onVis = () => {
-      if (document.hidden) battleRef.current.pause();
+      // Leaving the app: freeze the battle and show the menu when the player returns.
+      if (document.hidden && battleRef.current.pause()) setMenuOpen(true);
     };
     document.addEventListener('visibilitychange', onVis);
     return () => {
@@ -329,6 +348,7 @@ export function BattleScreen({
     battleRef.current = newBattle();
     directorRef.current = new TutorialDirector(stage.id, seenStore);
     setInspectUid(null);
+    setMenuOpen(false);
     dragRef.current = null;
     pressRef.current = null;
     resultLoggedRef.current = null;
@@ -373,10 +393,33 @@ export function BattleScreen({
       bump('skill');
     } else directorRef.current.onAction('skill', b);
   };
-  const togglePause = () => {
+  /**
+   * Tactical Pause: freezes the whole battle (no menu) so the formation can be reorganised —
+   * move / swap / merge / targeting / details / sell all keep working. Summon and skills wait.
+   */
+  const onTacticalPause = () => {
     const b = battleRef.current;
-    if (b.status === 'playing') b.pause();
-    else if (b.status === 'paused') b.resume();
+    if (b.preparing || result) return;
+    if (!gate('pause')) return;
+    if (b.pause(true)) directorRef.current.onAction('pause', b);
+  };
+  const onResume = () => {
+    const b = battleRef.current;
+    if (b.status !== 'paused') return;
+    if (!gate('resume')) return;
+    b.resume();
+    directorRef.current.onAction('resume', b);
+  };
+  const openMenu = () => {
+    const b = battleRef.current;
+    if (result) return;
+    b.pause();
+    if (b.status === 'paused') setMenuOpen(true);
+  };
+  /** Menu "Resume": close the menu and continue the battle. */
+  const menuResume = () => {
+    setMenuOpen(false);
+    battleRef.current.resume();
   };
   const setGameSpeed = (s: number) => {
     speedRef.current = s;
@@ -395,6 +438,27 @@ export function BattleScreen({
     if (directorRef.current.active) return;
     battleRef.current.startBattle(); // idempotent: only the first call starts combat
   };
+
+  // Desktop shortcuts: Space / P = Tactical Pause ↔ Resume, Esc = menu.
+  const keysRef = useRef({ onTacticalPause, onResume, openMenu, menuResume, menuOpen });
+  keysRef.current = { onTacticalPause, onResume, openMenu, menuResume, menuOpen };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      // Ignore auto-repeat, text fields and focused buttons (Space would also click them).
+      if (e.repeat || e.target instanceof HTMLInputElement || (e.key === ' ' && e.target instanceof HTMLButtonElement)) return;
+      const k = keysRef.current;
+      if (e.key === 'Escape') {
+        if (k.menuOpen) k.menuResume();
+        else k.openMenu();
+      } else if ((e.key === ' ' || e.key === 'p' || e.key === 'P') && !k.menuOpen) {
+        e.preventDefault();
+        if (battleRef.current.status === 'paused') k.onResume();
+        else k.onTacticalPause();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   // ---- Pointer input: tap = cycle target, drag = move / swap / merge ----
   const tileAtWorld = (x: number, y: number): string | null => {
@@ -432,7 +496,7 @@ export function BattleScreen({
     if (!cat) {
       // Tap-to-focus: tap a mouse or chest (forgiving hit area for fingers) to focus it,
       // tap it again to cancel. Cats that can reach it attack it first.
-      if (!directorRef.current.active) {
+      if (focusEnabled && !directorRef.current.active) {
         let best: { uid: number; d: number } | null = null;
         for (const f of b.foes) {
           if (!f.alive) continue;
@@ -532,6 +596,9 @@ export function BattleScreen({
   const next = nextStageId(stage.id);
   const hpPct = hud.baseHp / hud.maxHp;
   const skillDisabled = !hud.skillUnlocked || hud.fish < hud.skillCost || hud.skillsMaxed;
+  /** Tactical Pause is on: battle frozen, formation editable, no menu. */
+  const tactical = hud.status === 'paused' && !menuOpen && !result && !hud.preparing;
+  const canTacticalPause = hud.status === 'playing' && !hud.preparing && !result;
 
   return (
     <div className="screen battle" ref={rootRef}>
@@ -544,7 +611,13 @@ export function BattleScreen({
           <div className="hud-stage">
             {t('battle.stage', { id: stage.id })} · {t(`stage.${stage.id}`)}
           </div>
-          <div className="hud-wave">{hud.preparing ? t('battle.prepShort') : t('battle.wave', { n: hud.wave, total: hud.totalWaves })}</div>
+          <div className={`hud-wave ${hud.nextWave !== null ? 'countdown' : ''}`}>
+            {hud.preparing
+              ? t('battle.prepShort')
+              : hud.nextWave !== null
+                ? t('battle.nextWaveIn', { n: hud.wave + 1, s: hud.nextWave })
+                : t('battle.wave', { n: hud.wave, total: hud.totalWaves })}
+          </div>
           <div className="wave-progress">
             <div style={{ width: `${(hud.wave / hud.totalWaves) * 100}%` }} />
           </div>
@@ -558,8 +631,8 @@ export function BattleScreen({
         <button ref={speedBtnRef} className={`hud-btn speed-btn ${speed !== 1 ? 'on' : ''}`} onClick={toggleSpeed} aria-label={t('battle.speed')}>
           {speed}×
         </button>
-        <button className="hud-btn" onClick={togglePause} aria-label={t('pause.title')}>
-          <GameIcon name={hud.status === 'paused' ? 'play' : 'pause'} size={16} />
+        <button className="hud-btn menu-btn" onClick={openMenu} aria-label={t('pause.menu')}>
+          <GameIcon name="list" size={16} />
         </button>
         {debug.enabled && (
           <button className="hud-btn" onClick={() => setShowDebug((v) => !v)} aria-label="debug">
@@ -569,12 +642,27 @@ export function BattleScreen({
       </div>
 
       {/* Battlefield */}
-      <div className="field" ref={fieldRef}>
+      <div className={`field ${tactical ? 'tactical' : ''}`} ref={fieldRef}>
+        {tactical && (
+          <div className="tactical-badge" role="status">
+            <GameIcon name="pause" size={14} /> {t('tpause.on')}
+          </div>
+        )}
+        {success > 0 && (
+          <div key={success} className="tut-success" aria-live="polite">
+            {t('tut.nice')}
+          </div>
+        )}
         {/* Compact 5★ ultimate readiness: one ring per species (fires automatically). */}
         {hud.ults.length > 0 && (
           <div className="ult-strip" aria-label={t('battle.ult')}>
             {hud.ults.map(([id, r]) => (
-              <span key={id} className={`ult-chip ${r >= 1 ? 'ready' : ''}`} style={{ ['--p' as string]: `${Math.round(r * 100)}%` }} title={`${t(`ability.${id}.ult.name`)} · ${r >= 1 ? t('info.ultReady') : t('info.ultCharging', { p: Math.round(r * 100) })}`}>
+              <span
+                key={id}
+                className={`ult-chip ${r >= 1 ? 'ready' : ''}`}
+                style={{ ['--p' as string]: `${Math.round(r * 100)}%` }}
+                title={`${t(`ability.${id}.ult.name`)} · ${r >= 1 ? t('info.ultReady') : t('info.ultCharging', { p: Math.round(r * 100) })}`}
+              >
                 <CatHead type={id} loadout={save.equipped} size={22} />
               </span>
             ))}
@@ -633,6 +721,8 @@ export function BattleScreen({
               <GameIcon name="flag" size={18} /> {t('battle.start')}
             </button>
           </div>
+        ) : tactical ? (
+          <div className="skill-row tactical-hint">{t('tpause.hint')}</div>
         ) : (
           <div className="skill-row">
             {hud.skills.length === 0 ? (
@@ -653,58 +743,80 @@ export function BattleScreen({
             )}
           </div>
         )}
-        <div className="action-row">
-          <button
-            ref={summonRef}
-            className={`action-btn summon ${hud.fish < hud.summonCost || hud.boardFull ? 'disabled' : ''} ${shake === 'summon' ? 'shake' : ''}`}
-            onClick={onSummon}
-          >
-            <span className="action-label">{hud.boardFull ? t('battle.boardFull') : t('battle.summon')}</span>
-            <span className="action-cost">
-              <FishIcon size={18} />{' '}
-              <span key={hud.summonCost} className="cost-num">
-                {hud.summonCost}
+        {tactical ? (
+          <div className="action-row">
+            <button ref={resumeBtnRef} className="action-btn resume-btn" onClick={onResume}>
+              <span className="action-label">
+                <GameIcon name="play" size={18} /> {t('tpause.resume')}
               </span>
-              {costBump && (
-                <span key={costBump.key} className="cost-bump">
-                  {t('battle.costUp', { n: costBump.n })}
+            </button>
+          </div>
+        ) : (
+          <div className="action-row">
+            <button
+              ref={summonRef}
+              className={`action-btn summon ${hud.fish < hud.summonCost || hud.boardFull ? 'disabled' : ''} ${shake === 'summon' ? 'shake' : ''}`}
+              onClick={onSummon}
+            >
+              <span className="action-label">{hud.boardFull ? t('battle.boardFull') : t('battle.summon')}</span>
+              <span className="action-cost">
+                <FishIcon size={18} />{' '}
+                <span key={hud.summonCost} className="cost-num">
+                  {hud.summonCost}
                 </span>
-              )}
-            </span>
-          </button>
-          <button
-            ref={skillRef}
-            className={`action-btn skill ${skillDisabled ? 'disabled' : ''} ${!hud.skillUnlocked ? 'locked' : ''} ${shake === 'skill' ? 'shake' : ''}`}
-            onClick={onSkill}
-          >
-            <span className="action-label">
-              {!hud.skillUnlocked ? <GameIcon name="lock" size={14} /> : null}
-              {hud.skillsMaxed ? t('battle.skillsMaxed') : t('battle.skill')}
-            </span>
-            <span className="action-cost">
-              {hud.skillUnlocked ? (
-                <>
-                  <FishIcon size={18} /> {hud.skillCost}
-                </>
-              ) : (
-                <span className="tiny">{t('battle.skillLocked', { n: BALANCE.unlocks.skillShopFromStage })}</span>
-              )}
-            </span>
-          </button>
-        </div>
+                {costBump && (
+                  <span key={costBump.key} className="cost-bump">
+                    {t('battle.costUp', { n: costBump.n })}
+                  </span>
+                )}
+              </span>
+            </button>
+            <button
+              ref={skillRef}
+              className={`action-btn skill ${skillDisabled ? 'disabled' : ''} ${!hud.skillUnlocked ? 'locked' : ''} ${shake === 'skill' ? 'shake' : ''}`}
+              onClick={onSkill}
+            >
+              <span className="action-label">
+                {!hud.skillUnlocked ? <GameIcon name="lock" size={14} /> : null}
+                {hud.skillsMaxed ? t('battle.skillsMaxed') : t('battle.skill')}
+              </span>
+              <span className="action-cost">
+                {hud.skillUnlocked ? (
+                  <>
+                    <FishIcon size={18} /> {hud.skillCost}
+                  </>
+                ) : (
+                  <span className="tiny">{t('battle.skillLocked', { n: BALANCE.unlocks.skillShopFromStage })}</span>
+                )}
+              </span>
+            </button>
+            {!hud.preparing && (
+              <button
+                ref={tpauseBtnRef}
+                className={`action-btn tpause-btn ${canTacticalPause ? '' : 'disabled'}`}
+                onClick={onTacticalPause}
+                aria-label={t('tpause.button')}
+              >
+                <GameIcon name="pause" size={20} />
+                <span className="tpause-label">{t('tpause.button')}</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Overlays */}
-      {step && hud.status === 'playing' && !result && (
+      {step && (hud.status === 'playing' || hud.status === 'paused') && !menuOpen && !result && (
         <TutorialOverlay
           key={step.key}
           step={step}
           battle={b}
           renderer={rendererRef.current}
           appRef={rootRef}
-          buttons={{ summon: summonRef, skill: skillRef, speed: speedBtnRef, start: startBtnRef }}
+          buttons={{ summon: summonRef, skill: skillRef, speed: speedBtnRef, start: startBtnRef, tpause: tpauseBtnRef, resume: resumeBtnRef }}
           loadout={save.equipped}
           onContinue={() => directorRef.current.complete(battleRef.current)}
+          onSkip={directorRef.current.isLesson ? () => directorRef.current.skipAll(battleRef.current) : undefined}
         />
       )}
 
@@ -714,7 +826,7 @@ export function BattleScreen({
           battle={battleRef.current}
           loadout={save.equipped}
           onClose={() => setInspectUid(null)}
-          canSell={battleRef.current.status === 'playing' && !directorRef.current.active}
+          canSell={(battleRef.current.status === 'playing' || battleRef.current.status === 'paused') && !directorRef.current.active}
           onSell={() => {
             const r = battleRef.current.sellCat(inspectUid);
             if (r.ok) {
@@ -725,7 +837,16 @@ export function BattleScreen({
         />
       )}
 
-      {offer && <RewardModal key={hud.rewardId} offer={offer} owned={b.skills} cats={b.cats} roster={b.roster} onChoose={(i) => battleRef.current.chooseReward(i)} />}
+      {offer && (
+        <RewardModal
+          key={hud.rewardId}
+          offer={offer}
+          owned={b.skills}
+          cats={b.cats}
+          roster={b.roster}
+          onChoose={(i) => battleRef.current.chooseReward(i)}
+        />
+      )}
       {result && cutscene && (
         <ChapterCutscene
           cats={battleRef.current.roster}
@@ -755,18 +876,21 @@ export function BattleScreen({
         />
       )}
 
-      {hud.status === 'paused' && !result && (
+      {menuOpen && hud.status === 'paused' && !result && (
         <div className="overlay">
           <div className="panel">
             <h2>{t('pause.title')}</h2>
-            <button className="btn btn-primary" onClick={togglePause}>
-              ▶ {t('pause.resume')}
+            <button className="btn btn-primary" onClick={menuResume}>
+              <GameIcon name="play" size={18} /> {t('pause.resume')}
             </button>
             <button className="btn btn-secondary" onClick={restart}>
               <GameIcon name="replay" size={18} /> {t('pause.restart')}
             </button>
             <button className="btn btn-secondary" onClick={onExit}>
               <GameIcon name="list" size={18} /> {t('pause.stages')}
+            </button>
+            <button className="btn btn-secondary" onClick={onHome}>
+              <GameIcon name="home" size={18} /> {t('pause.home')}
             </button>
           </div>
         </div>

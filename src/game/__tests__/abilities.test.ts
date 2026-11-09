@@ -375,11 +375,17 @@ describe('selling cats', () => {
     }
   });
 
-  it('only during an active battle or preparation; never touches permanent progress', () => {
+  it('only during an active battle, preparation or Tactical Pause; never touches permanent progress', () => {
     const b = new Battle(stage, map, { seed: 1, stars: { kitten: 4 } });
     const c = b.placeCat('kitten', 2, b.emptyTiles()[0].id)!;
+    const p = b.placeCat('kitten', 2, b.emptyTiles()[0].id)!;
     expect(b.preparing).toBe(true);
-    b.status = 'paused';
+    b.status = 'paused'; // Tactical Pause: same refund rules
+    const fish = b.fish;
+    const r = b.sellCat(p.uid);
+    expect(r.ok).toBe(true);
+    expect(b.fish - fish).toBe(BALANCE.sell.refund[1]);
+    b.status = 'reward';
     expect(b.sellCat(c.uid).ok).toBe(false);
     b.status = 'victory';
     expect(b.sellCat(c.uid).ok).toBe(false);

@@ -233,6 +233,8 @@ export interface BattleStats {
   /** Damage actually removed from enemies/chests (excludes overkill). */
   damageDealt: number;
   sells: number;
+  /** Times the player used Tactical Pause (the menu doesn't count). */
+  tacticalPauses: number;
 }
 
 export interface BattleOptions {
@@ -321,6 +323,7 @@ export class Battle {
     slamHits: 0,
     damageDealt: 0,
     sells: 0,
+    tacticalPauses: 0,
   };
 
   /** -1 while waiting for the first wave. */
@@ -334,6 +337,8 @@ export class Battle {
   prepLeft: number = BALANCE.prepSeconds;
   private waveTimer = 0;
   private gapTimer = 0;
+  /** Seconds the field has been clear of mice during the current between-wave gap. */
+  private clearTimer = 0;
   private spawnQueue: { time: number; group: SpawnGroup }[] = [];
   private spawnPtr = 0;
   private waveSpawnDone: boolean[];
@@ -437,6 +442,18 @@ export class Battle {
   get running(): boolean {
     return this.status === 'playing' && !this.frozen && !this.preparing;
   }
+  /**
+   * Game seconds until the next wave starts, while between waves (all of the current wave has
+   * spawned and it isn't the last one); null otherwise. Drives the HUD countdown.
+   */
+  get nextWaveIn(): number | null {
+    if (this.preparing || this.sandbox || this.waveIndex < 0 || this.waveIndex >= this.stage.waves.length - 1) return null;
+    if (this.spawnPtr < this.spawnQueue.length) return null;
+    // Only during the calm after a cleared field (while mice remain, the wave banner/label is enough).
+    if (this.foes.some((f) => f.alive && f.kind === 'enemy')) return null;
+    const until = (BALANCE.clearedWaveGap + BALANCE.waveBreather) * this.tuning.waveIntervalMult;
+    return Math.max(0, until - this.clearTimer);
+  }
   /** Seconds left in the preparation phase. */
   get prepRemaining(): number {
     return this.preparing ? Math.max(0, this.prepLeft) : 0;
@@ -517,8 +534,18 @@ export class Battle {
 
   // ---------------- Player actions ----------------
 
-  pause(): void {
-    if (this.status === 'playing') this.status = 'paused';
+  /**
+   * Freeze the battle. While 'paused' nothing in the simulation advances (update() is a no-op:
+   * movement, spawns, wave timers, cooldowns, wind-ups, projectiles, statuses and ultimate
+   * charge all use the sim clock), but the formation can still be edited: move / swap / merge
+   * (dropCat), target modes (cycleTarget), details and selling. Summoning and buying skills
+   * need a running battle. `tactical` marks the in-battle Tactical Pause (vs. the menu).
+   */
+  pause(tactical = false): boolean {
+    if (this.status !== 'playing') return false;
+    this.status = 'paused';
+    if (tactical) this.stats.tacticalPauses++;
+    return true;
   }
   resume(): void {
     if (this.status === 'paused') this.status = 'playing';
@@ -651,12 +678,12 @@ export class Battle {
   }
 
   /**
-   * Sell a cat: removes it, frees its tile and refunds a little dried fish. Only during an
-   * active battle or the preparation phase. Never touches permanent progress (stars,
+   * Sell a cat: removes it, frees its tile and refunds a little dried fish. During an active
+   * battle, the preparation phase or Tactical Pause (same refund either way). Never touches permanent progress (stars,
    * fragments, collection) — those live in the save, not in the battle.
    */
   sellCat(uid: number): ActionResult & { refund?: number } {
-    if (this.status !== 'playing') return { ok: false, reason: 'notNow' };
+    if (this.status !== 'playing' && this.status !== 'paused') return { ok: false, reason: 'notNow' };
     const cat = this.catByUid(uid);
     if (!cat) return { ok: false, reason: 'notNow' };
     const refund = this.sellValue(uid);
@@ -731,7 +758,11 @@ export class Battle {
         this.gapTimer += dt;
         const hostile = this.foes.some((f) => f.alive && f.kind === 'enemy');
         const gapMult = this.tuning.waveIntervalMult;
-        if ((!hostile && this.gapTimer >= BALANCE.clearedWaveGap * gapMult) || this.gapTimer >= BALANCE.waveGap * gapMult) {
+        this.clearTimer = hostile ? 0 : this.clearTimer + dt;
+        // Cleared field: a full calm breather. Mice still alive: the usual pressure cap.
+        const calm = !hostile && this.clearTimer >= (BALANCE.clearedWaveGap + BALANCE.waveBreather) * gapMult;
+        const cap = hostile && this.gapTimer >= (BALANCE.waveGap + BALANCE.waveBreatherHostile) * gapMult;
+        if (calm || cap) {
           this.startWave(this.waveIndex + 1);
         }
       }
@@ -752,6 +783,7 @@ export class Battle {
     this.waveIndex = i;
     this.waveTimer = 0;
     this.gapTimer = 0;
+    this.clearTimer = 0;
     this.spawnPtr = 0;
     const T = this.tuning;
     const q: { time: number; group: SpawnGroup }[] = [];
