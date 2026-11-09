@@ -651,7 +651,7 @@ export const en: Record<string, string> = {
   'recruit.notOwned': 'Not yet',
   'team.title': 'Battle Team',
   'team.edit': 'Edit team',
-  'team.hint': 'Pick {n} cat species. Summons in battle choose randomly from these.',
+  'team.hint': 'Bring {min}–{n} cat species; summons pick randomly from them. With {min}, matching pairs (and merges) come more often; with {n}, you get more variety.',
   'team.tutorialNote': 'Stages 1-1 to 1-6 always use their own starter cats.',
   'team.tapSlot': 'Tap a team member, then tap a cat below to swap it in.',
   'team.saved': 'Team saved!',
@@ -712,4 +712,6 @@ export const en: Record<string, string> = {
   'story.s2.a': '…Something is glowing beyond the trees.',
   'story.s2.b': 'How rude. It’s stealing my spotlight.',
   'story.s3.sub': 'The road spirals toward a glowing ring of mushrooms…',
+  'team.remove': 'Remove {cat} from the team',
+  'battle.boardFullHint': 'Board full — merge two matching cats, or long-press a cat to sell it.',
 };

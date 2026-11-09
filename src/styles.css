@@ -63,7 +63,7 @@
   --prep-bg: rgba(255, 253, 247, 0.96);
   --prep-ink: #5a3e2b;
   --good-ink: #3e9a48;
-  --font: 'Baloo 2', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', ui-rounded, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font: 'Baloo 2', 'Noto Sans HK', 'PingFang HK', 'Microsoft JhengHei', ui-rounded, system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
 /* ---- Moonlit Gothic: dark cute / cozy gothic / moonlit fantasy ----
@@ -3458,4 +3458,45 @@ h2 {
 .cs-king path {
   stroke: rgba(159, 224, 208, 0.45);
   stroke-width: 1.5;
+}
+.team-slot-wrap {
+  position: relative;
+  display: flex;
+}
+.team-slot-wrap .team-slot {
+  flex: 1;
+}
+.team-remove {
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 900;
+  font-size: 0.7rem;
+  box-shadow: 0 1px 3px var(--shadow-ink);
+}
+.team-slot.empty {
+  display: grid;
+  place-items: center;
+  font-size: 1.6rem;
+  color: var(--text-soft);
+  border: 2px dashed var(--line);
+  background: transparent;
+  box-shadow: none;
+  min-height: 90px;
+}
+/* Home: three equal buttons in one row — icon above a single-line label so CJK labels never wrap. */
+.home-menu .row .btn {
+  flex: 1 1 0;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 4px;
+  font-size: 0.95rem;
+  white-space: nowrap;
 }

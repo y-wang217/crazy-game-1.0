@@ -359,7 +359,8 @@ export function BattleScreen({
     const b = battleRef.current;
     const r = b.summon();
     if (!r.ok) {
-      toast(errText(r.reason), 'warn');
+      // A full board is never a dead end: merging or selling always frees a tile.
+      toast(r.reason === 'boardFull' ? t('battle.boardFullHint') : errText(r.reason), 'warn');
       bump('summon');
     } else directorRef.current.onAction('summon', b);
   };

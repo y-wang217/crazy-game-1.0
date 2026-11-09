@@ -34,6 +34,13 @@ npm run build        # type-check + production build into dist/
 
 While dragging, tiles are tinted to show what the drop will do: green = move, gold = merge, blue = swap. A press only becomes a drag after the pointer moves 10 px, so a tap never moves a cat by accident.
 
+## What's new in V1.5.1 — Chapter 2 space fix, Hong Kong Chinese
+
+- **Chapter 2 placement capacity.** The spiral map was 5 columns wide with only 19 buildable cells in total, so stages opened just 11 → 16 tiles. The map is now **6 × 8** (same 50 px cells, same spiral into the central cat house; the road and house moved one column right). On portrait phones the board is limited by its height, so the extra column fits in the spare width: measured tile size is unchanged on iPhone SE (46.5 px) and iPhone 13 (58.2 px); on very tall/narrow screens like Pixel 7 tiles go from 80 to ~69 px. Chapter 2 now opens **17, 18, 19, 19, 20, 21, 21, 22, 23, 23** tiles (2-1 … 2-10; Chapter 1 ends at 21). Enemy HP re-tuned with the bots; merges per stage roughly doubled.
+- **Team of 4 or 5 species** (`TEAM_MIN` 4, `TEAM_SIZE` 5): optional — fewer species means more matching pairs. Default and existing teams stay at five.
+- **Full board is never a dead end:** tapping Summon on a full board explains the options (merge, or long-press → Sell). Tests cover no-pair full boards (swap, sell, summon only into the freed tile, nothing overwritten) and that no tile can sit on the road or the house.
+- **Chinese is now Chinese (Hong Kong), `zh-HK`, shown as 中文（香港）.** Every string was reviewed: consistent 魚乾 / 魚幣 / 召喚 / 合成 / 出售貓咪 / 特技（3★）/ 必殺技（5★）/ 集中攻擊 / 返回主頁, 虎紋戰士 (was 虎斑), 首領 (was 頭目), 芝士大王 (was 起司), HK wording (按 for taps, 甚麼, 姐姐, 繁忙時間…). Cantonese stays in character and story dialogue; instructions use concise written Hong Kong Chinese. Noto Sans HK / PingFang HK fonts. A saved `zh-TW` preference migrates automatically.
+
 ## What's new in V1.5 — Shorter stages, selling, story, 0.5×
 
 - **~30% fewer waves everywhere** (`BALANCE.waves.countScale = 0.7`): e.g. 1-1 6 → 4, 1-3 10 → 7, 1-10 21 → 15, 2-10 21 → 15. Stage plans in `chapters.ts` keep their original length; the game stretches each plan's arc over the shorter stage, so wave sizes still run from the first to the last original size (~30% fewer mice in total, nothing crammed), every enemy type still appears, **every chest is kept** (same skill chances) and bosses stay in the final wave. The HP ramp follows the same progress. Dried fish per mouse ×1.25 and wave-clear bonus 3 → 4 keep summoning and Lv.5 reachable; the bots' win rates are unchanged.

@@ -2,24 +2,30 @@ import { useSyncExternalStore } from 'react';
 import { en } from './en';
 import { zh } from './zh';
 
-export type Lang = 'en' | 'zh-TW';
+/** Chinese is written for Hong Kong players (zh-HK): Traditional characters, HK terms. */
+export type Lang = 'en' | 'zh-HK';
 export const LANGS: { id: Lang; label: string }[] = [
-  { id: 'zh-TW', label: '繁體中文' },
+  { id: 'zh-HK', label: '中文（香港）' },
   { id: 'en', label: 'English' },
 ];
 
-const DICTS: Record<Lang, Record<string, string>> = { en, 'zh-TW': zh };
+const DICTS: Record<Lang, Record<string, string>> = { en, 'zh-HK': zh };
 const KEY = 'catdefense.lang';
 
 function detect(): Lang {
   try {
     const saved = localStorage.getItem(KEY);
-    if (saved === 'en' || saved === 'zh-TW') return saved;
+    if (saved === 'en' || saved === 'zh-HK') return saved;
+    // Older versions stored generic Traditional Chinese as "zh-TW": keep that choice.
+    if (saved === 'zh-TW') {
+      localStorage.setItem(KEY, 'zh-HK');
+      return 'zh-HK';
+    }
   } catch {
     /* ignore */
   }
   const nav = typeof navigator !== 'undefined' ? navigator.language || '' : '';
-  return nav.toLowerCase().startsWith('zh') ? 'zh-TW' : 'en';
+  return nav.toLowerCase().startsWith('zh') ? 'zh-HK' : 'en';
 }
 
 let current: Lang = detect();
@@ -67,6 +73,6 @@ export function useLang(): Lang {
 if (typeof document !== 'undefined') document.documentElement.lang = current;
 
 /** Font stack with Traditional Chinese fallbacks (used by canvas text too). */
-export const FONT_STACK = `"Baloo 2", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", ui-rounded, system-ui, sans-serif`;
+export const FONT_STACK = `"Baloo 2", "Noto Sans HK", "PingFang HK", "Microsoft JhengHei", ui-rounded, system-ui, sans-serif`;
 
 export { en, zh };

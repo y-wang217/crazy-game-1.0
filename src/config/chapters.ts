@@ -265,9 +265,9 @@ const STAGES: StageDef[] = [
 // tougher HP/armor, more speed variety and fewer (but better-covering) tiles, so
 // positioning and merging matter more. Tile ids refer to MUSHROOM_MAP.
 const ALL_CATS: StageDef['roster'] = ['kitten', 'tabby', 'orange', 'black', 'white'];
-const RING = ['1-1', '1-2', '1-3', '1-4', '1-5', '3-2', '3-3', '3-4', '3-5', '2-5'];
+const RING = ['1-1', '1-2', '1-3', '1-4', '1-5', '2-1', '2-2', '2-3', '2-4', '2-5', '4-2', '4-3', '4-4', '4-5', '3-5'];
 /** Extra tiles in the order they open across Chapter 2. */
-const RING_EXTRA = ['2-0', '2-7', '1-0', '3-7', '3-0', '1-7'];
+const RING_EXTRA = ['2-0', '2-7', '3-0', '3-7', '1-0', '1-7', '4-0', '4-7'];
 const ring = (extra: number) => [...RING, ...RING_EXTRA.slice(0, extra)];
 
 const CH2_STAGES: StageDef[] = [
@@ -275,10 +275,10 @@ const CH2_STAGES: StageDef[] = [
     id: '2-1',
     number: 1,
     roster: ALL_CATS,
-    tiles: ring(1),
+    tiles: ring(2),
     startFish: 16,
     baseHp: 10,
-    hpScale: 4.6,
+    hpScale: 4.14,
     waveHpGrowth: 0.062,
     waves: buildWaves({
       waves: 12,
@@ -294,10 +294,10 @@ const CH2_STAGES: StageDef[] = [
     id: '2-2',
     number: 2,
     roster: ALL_CATS,
-    tiles: ring(1),
+    tiles: ring(3),
     startFish: 16,
     baseHp: 10,
-    hpScale: 4.4,
+    hpScale: 3.77,
     waveHpGrowth: 0.061,
     waves: buildWaves({
       waves: 13,
@@ -313,10 +313,10 @@ const CH2_STAGES: StageDef[] = [
     id: '2-3',
     number: 3,
     roster: ALL_CATS,
-    tiles: ring(2),
+    tiles: ring(4),
     startFish: 16,
     baseHp: 10,
-    hpScale: 5.5,
+    hpScale: 4.89,
     waveHpGrowth: 0.06,
     waves: buildWaves({
       waves: 14,
@@ -333,10 +333,10 @@ const CH2_STAGES: StageDef[] = [
     id: '2-4',
     number: 4,
     roster: ALL_CATS,
-    tiles: ring(2),
+    tiles: ring(4),
     startFish: 16,
     baseHp: 10,
-    hpScale: 4.67,
+    hpScale: 3.95,
     waveHpGrowth: 0.06,
     armorBonus: 1,
     waves: buildWaves({
@@ -353,10 +353,10 @@ const CH2_STAGES: StageDef[] = [
     id: '2-5',
     number: 5,
     roster: ALL_CATS,
-    tiles: ring(3),
+    tiles: ring(5),
     startFish: 16,
     baseHp: 10,
-    hpScale: 4.25,
+    hpScale: 3.55,
     waveHpGrowth: 0.059,
     armorBonus: 1,
     waves: buildWaves({
@@ -373,10 +373,10 @@ const CH2_STAGES: StageDef[] = [
     id: '2-6',
     number: 6,
     roster: ALL_CATS,
-    tiles: ring(4),
+    tiles: ring(6),
     startFish: 16,
     baseHp: 10,
-    hpScale: 5.6,
+    hpScale: 4.26,
     waveHpGrowth: 0.059,
     armorBonus: 1,
     waves: buildWaves({
@@ -394,10 +394,10 @@ const CH2_STAGES: StageDef[] = [
     id: '2-7',
     number: 7,
     roster: ALL_CATS,
-    tiles: ring(4),
+    tiles: ring(6),
     startFish: 16,
     baseHp: 10,
-    hpScale: 3.7,
+    hpScale: 2.78,
     waveHpGrowth: 0.059,
     armorBonus: 2,
     waves: buildWaves({
@@ -415,10 +415,10 @@ const CH2_STAGES: StageDef[] = [
     id: '2-8',
     number: 8,
     roster: ALL_CATS,
-    tiles: ring(5),
+    tiles: ring(7),
     startFish: 16,
     baseHp: 10,
-    hpScale: 4.03,
+    hpScale: 3.39,
     waveHpGrowth: 0.058,
     armorBonus: 2,
     waves: buildWaves({
@@ -435,10 +435,10 @@ const CH2_STAGES: StageDef[] = [
     id: '2-9',
     number: 9,
     roster: ALL_CATS,
-    tiles: ring(6),
+    tiles: ring(8),
     startFish: 16,
     baseHp: 10,
-    hpScale: 4.0,
+    hpScale: 3.65,
     waveHpGrowth: 0.058,
     armorBonus: 2,
     waves: buildWaves({
@@ -455,10 +455,10 @@ const CH2_STAGES: StageDef[] = [
     id: '2-10',
     number: 10,
     roster: ALL_CATS,
-    tiles: ring(6),
+    tiles: ring(8),
     startFish: 16,
     baseHp: 10,
-    hpScale: 4.25,
+    hpScale: 3.48,
     waveHpGrowth: 0.05,
     armorBonus: 2,
     isBoss: true,

@@ -1,6 +1,6 @@
 import { CAT_ORDER, NEW_CATS, STARTER_CATS } from '../config/cats';
 import { CHAPTERS } from '../config/chapters';
-import { CHAPTER_REWARDS, RECRUIT, STARS, TEAM_SIZE, starCost } from '../config/collection';
+import { CHAPTER_REWARDS, RECRUIT, STARS, TEAM_MIN, TEAM_SIZE, starCost } from '../config/collection';
 import type { CatId } from './types';
 
 // Pure functions for the permanent cat collection (recruitment, fragments, stars,
@@ -48,13 +48,18 @@ export function sanitizeCollection(raw: unknown): Partial<Record<CatId, OwnedCat
   return out;
 }
 
-/** A valid team: owned, unique, exactly TEAM_SIZE species (filled from the collection if short). */
+/**
+ * A valid team: owned, unique, TEAM_MIN–TEAM_SIZE species. A missing or too-small team
+ * is filled up to TEAM_SIZE (the starter five first).
+ */
 export function sanitizeTeam(raw: unknown, collection: Partial<Record<CatId, OwnedCat>>): CatId[] {
   const owned = CAT_ORDER.filter((id) => collection[id]);
   const team: CatId[] = [];
   if (Array.isArray(raw)) for (const id of raw) if (owned.includes(id) && !team.includes(id)) team.push(id);
+  // A deliberate 4–5 species team is kept; anything smaller (missing/corrupt) becomes the default five.
+  const want = Math.min(team.length >= TEAM_MIN ? team.length : TEAM_SIZE, TEAM_SIZE, owned.length);
   for (const id of [...STARTER_CATS, ...owned]) {
-    if (team.length >= Math.min(TEAM_SIZE, owned.length)) break;
+    if (team.length >= want) break;
     if (owned.includes(id) && !team.includes(id)) team.push(id);
   }
   return team.slice(0, TEAM_SIZE);
@@ -156,7 +161,10 @@ export function exchangeFragments(s: CollectionState, id: CatId): { ok: boolean;
 export function setTeam(s: CollectionState, team: CatId[]): { ok: boolean; state: CollectionState } {
   const owned = CAT_ORDER.filter((id) => isOwned(s, id)).length;
   const valid =
-    team.length === Math.min(TEAM_SIZE, owned) && new Set(team).size === team.length && team.every((id) => isOwned(s, id));
+    team.length >= Math.min(TEAM_MIN, owned) &&
+    team.length <= Math.min(TEAM_SIZE, owned) &&
+    new Set(team).size === team.length &&
+    team.every((id) => isOwned(s, id));
   if (!valid) return { ok: false, state: s };
   return { ok: true, state: { ...s, team: [...team] } };
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { CAT_ORDER } from '../../config/cats';
-import { TEAM_SIZE } from '../../config/collection';
+import { TEAM_MIN, TEAM_SIZE } from '../../config/collection';
 import type { CatId } from '../../game/types';
 import { t, useLang } from '../../i18n';
 import { saveStore, useSave } from '../../save/store';
@@ -29,6 +29,10 @@ export function TeamScreen({ go, back }: { go: (s: Screen) => void; back: Screen
     const at = team.indexOf(id);
     if (slot === null) {
       if (at >= 0) setSlot(at);
+      else if (team.length < TEAM_SIZE) {
+        // An empty slot: add this species.
+        if (saveStore.setTeam([...team, id])) flash(t('team.saved'));
+      }
       return;
     }
     if (at === slot) {
@@ -41,6 +45,13 @@ export function TeamScreen({ go, back }: { go: (s: Screen) => void; back: Screen
     setSlot(null);
   };
 
+  const remove = (i: number) => {
+    const team = save.team.filter((_, k) => k !== i);
+    if (saveStore.setTeam(team)) flash(t('team.saved'));
+    setSlot(null);
+  };
+  const canRemove = save.team.length > TEAM_MIN;
+
   return (
     <div className="screen team">
       <div className="topbar">
@@ -49,15 +60,23 @@ export function TeamScreen({ go, back }: { go: (s: Screen) => void; back: Screen
         </button>
       </div>
       <h2 className="center">{t('team.title')}</h2>
-      <p className="muted small center">{t('team.hint', { n: TEAM_SIZE })}</p>
+      <p className="muted small center">{t('team.hint', { min: TEAM_MIN, n: TEAM_SIZE })}</p>
       <div className="team-slots">
         {save.team.map((id, i) => (
-          <button key={id} className={`team-slot ${slot === i ? 'on' : ''}`} onClick={() => setSlot(slot === i ? null : i)}>
-            <CatPreview type={id} level={1} loadout={save.equipped} size={56} animate={slot === i} />
-            <span className="team-slot-name">{t(`cat.${id}.name`)}</span>
-            <Stars n={save.collection[id]?.stars ?? 1} size={10} />
-          </button>
+          <div key={id} className="team-slot-wrap">
+            <button className={`team-slot ${slot === i ? 'on' : ''}`} onClick={() => setSlot(slot === i ? null : i)}>
+              <CatPreview type={id} level={1} loadout={save.equipped} size={56} animate={slot === i} />
+              <span className="team-slot-name">{t(`cat.${id}.name`)}</span>
+              <Stars n={save.collection[id]?.stars ?? 1} size={10} />
+            </button>
+            {canRemove && (
+              <button className="team-remove" onClick={() => remove(i)} aria-label={t('team.remove', { cat: t(`cat.${id}.name`) })}>
+                ✕
+              </button>
+            )}
+          </div>
         ))}
+        {save.team.length < TEAM_SIZE && <div className="team-slot empty">＋</div>}
       </div>
       <p className="muted tiny center">{t('team.tapSlot')}</p>
       <div className="team-pool">

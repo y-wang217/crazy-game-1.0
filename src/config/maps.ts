@@ -86,40 +86,42 @@ export const FOREST_COMPACT_MAP: MapDef = {
 };
 
 /**
- * Moonlit Mushroom Forest (Chapter 2): same 5 x 8 portrait grid, but the road
- * enters from the TOP and spirals inward to a cat house in the middle of a
- * mushroom ring:
- *   down col 0, right along row 6, up col 4, left along row 1, down col 2 to the house.
- * The inner columns (1 and 3) sit between two or three road passes, so a few
- * well-placed, well-merged cats matter more than filling every tile.
+ * Moonlit Mushroom Forest (Chapter 2): 6 x 8 grid at the same 50px cell size as
+ * Chapter 1. On portrait phones the board is limited by its HEIGHT (8 rows), so the
+ * sixth column fits in the spare width without shrinking tiles. The road enters from
+ * the TOP and spirals inward to a cat house in the middle of a mushroom ring:
+ *   down col 0, right along row 6, up col 5, left along row 1, down col 3 to the house.
+ * The two inner columns (1–2) and column 4 sit between road passes; the top and bottom
+ * edges add more (weaker) space. 23 placement tiles in total.
  */
 export const MUSHROOM_MAP: MapDef = {
   id: 'mushroom',
   name: 'Moonlit Mushroom Forest',
-  cols: 5,
+  cols: 6,
   rows: 8,
   cell: 50,
   path: [
     [0, -0.9],
     [0, 6],
-    [4, 6],
-    [4, 1],
-    [2, 1],
-    [2, 3.75],
+    [5, 6],
+    [5, 1],
+    [3, 1],
+    [3, 3.75],
   ],
-  base: [2, 4],
+  base: [3, 4],
   environment: 'mushroom',
   tiles: [
-    // Inner ring, left: between the first descent and the final approach
+    // Inner ring, left (two columns between the first descent and the final approach)
     t(1, 1), t(1, 2), t(1, 3), t(1, 4), t(1, 5),
+    t(2, 1), t(2, 2), t(2, 3), t(2, 4), t(2, 5),
     // Inner ring, right: between the final approach and the climb
-    t(3, 2), t(3, 3), t(3, 4), t(3, 5),
+    t(4, 2), t(4, 3), t(4, 4), t(4, 5),
     // Under the cat house
-    t(2, 5),
+    t(3, 5),
     // Top edge (beside the entrance and the upper pass)
-    t(1, 0), t(2, 0), t(3, 0),
+    t(1, 0), t(2, 0), t(3, 0), t(4, 0),
     // Bottom edge (below the long bottom pass)
-    t(1, 7), t(2, 7), t(3, 7),
+    t(1, 7), t(2, 7), t(3, 7), t(4, 7),
   ],
   theme: {
     grass: '#b8dcb4',

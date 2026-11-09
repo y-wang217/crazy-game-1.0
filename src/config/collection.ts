@@ -42,8 +42,13 @@ export const RECRUIT = {
   maxedFragmentCoins: 5,
 } as const;
 
-/** How many cat species a player brings into a battle (random summons pick from these). */
+/** Most cat species a player can bring into a battle (random summons pick from these). */
 export const TEAM_SIZE = 5;
+/**
+ * Fewest species allowed. Bringing 4 instead of 5 is optional: fewer species means
+ * more matching pairs (easier merges) but less variety.
+ */
+export const TEAM_MIN = 4;
 
 /**
  * First clear of a chapter's final stage grants a cat (once per chapter, also retroactively).

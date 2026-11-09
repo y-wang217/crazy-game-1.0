@@ -51,17 +51,36 @@ describe('i18n', () => {
     setLang('en');
     expect(t('battle.wave', { n: 2, total: 9 })).toBe('Wave 2/9');
     expect(t('battle.summon')).toBe('Summon Cat');
-    setLang('zh-TW');
+    setLang('zh-HK');
     expect(t('battle.summon')).toBe('召喚貓咪');
     expect(t('battle.skill')).toBe('隨機技能');
     expect(t('cat.orange.name')).toBe('肥橘');
-    expect(t('cat.tabby.name')).toBe('虎斑戰士');
+    expect(t('cat.tabby.name')).toBe('虎紋戰士');
     expect(t('currency.coins')).toBe('魚幣');
-    expect(t('currency.fish')).toBe('魚乾仔');
+    expect(t('currency.fish')).toBe('魚乾');
     expect(t('mode.treasure')).toBe('優先寶箱');
     expect(t('skill.bellySlam.name')).toBe('肉球震地');
     expect(t('skill.flurryPaws.name')).toBe('連環貓拳');
     expect(t('battle.wave', { n: 2, total: 9 })).toBe('第 2/9 波');
     setLang(before);
+  });
+});
+
+describe('zh-HK', () => {
+  it('is offered as 中文（香港） and uses Hong Kong terms consistently', async () => {
+    const { LANGS } = await import('../index');
+    const { zh } = await import('../zh');
+    expect(LANGS.find((l) => l.id === 'zh-HK')?.label).toBe('中文（香港）');
+    const all = Object.values(zh).join('\n');
+    // Old / Taiwan-style terms that must not come back.
+    for (const bad of ['魚乾仔', '合體', '虎斑', '奧義', '集火', '起司', '頭目', '點擊', '喔', '台灣']) expect(all, bad).not.toContain(bad);
+    expect(zh['cat.tabby.name']).toBe('虎紋戰士');
+    expect(zh['ability.special']).toBe('特技（3★）');
+    expect(zh['ability.ultimate']).toBe('必殺技（5★）');
+    expect(zh['sell.button']).toBe('出售貓咪');
+    expect(zh['result.home']).toBe('返回主頁');
+    expect(zh['currency.fish']).toBe('魚乾');
+    expect(zh['currency.coins']).toBe('魚幣');
+    expect(zh['battle.focusSet']).toContain('集中攻擊');
   });
 });

@@ -147,12 +147,15 @@ describe('star upgrades', () => {
 });
 
 describe('battle team', () => {
-  it('has exactly five owned species; swaps keep it valid', () => {
+  it('has 4–5 owned species (5 by default); swaps keep it valid', () => {
     expect(TEAM_SIZE).toBe(5);
+    expect(sanitizeTeam(['kitten', 'tabby', 'orange', 'black'], defaultCollection())).toEqual(['kitten', 'tabby', 'orange', 'black']); // a 4-team is kept
     const s = base({ collection: { ...defaultCollection(), whiskers: { stars: 1, fragments: 0 } } });
     const ok = setTeam(s, ['whiskers', 'tabby', 'orange', 'black', 'white']);
     expect(ok.ok).toBe(true);
-    expect(setTeam(s, ['whiskers', 'tabby', 'orange', 'black']).ok).toBe(false); // too few
+    expect(setTeam(s, ['whiskers', 'tabby', 'orange', 'black']).ok).toBe(true); // 4 species: allowed (optional)
+    expect(setTeam(s, ['whiskers', 'tabby', 'orange']).ok).toBe(false); // too few
+    expect(setTeam(s, ['kitten', 'whiskers', 'tabby', 'orange', 'black', 'white']).ok).toBe(false); // too many
     expect(setTeam(s, ['sable', 'tabby', 'orange', 'black', 'white']).ok).toBe(false); // not owned
     expect(setTeam(s, ['tabby', 'tabby', 'orange', 'black', 'white']).ok).toBe(false); // duplicate
   });

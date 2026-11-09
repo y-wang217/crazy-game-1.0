@@ -63,7 +63,7 @@ export function HomeScreen({ go }: { go: (s: Screen) => void }) {
       </div>
       <div className="home-hero">
         <BrandEmblem />
-        <h1 className={`logo ${lang === 'zh-TW' ? 'zh' : ''}`}>
+        <h1 className={`logo ${lang === 'zh-HK' ? 'zh' : ''}`}>
           <span>{t('logo.1')}</span>
           <span>{t('logo.2')}</span>
         </h1>

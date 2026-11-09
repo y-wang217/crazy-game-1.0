@@ -76,7 +76,10 @@ describe('Chapter 2 map', () => {
   it('uses its own map, environment, route and tiles, with the same portrait grid', () => {
     expect(ch2.mapId).toBe('mushroom');
     expect(m2.environment).toBe('mushroom');
-    expect([m2.cols, m2.rows, m2.cell]).toEqual([m1.cols, m1.rows, m1.cell]);
+    // Same cell size and number of rows (on portrait phones the board is height-limited,
+    // so tiles stay the same size); one extra column for placement space.
+    expect([m2.rows, m2.cell]).toEqual([m1.rows, m1.cell]);
+    expect(m2.cols).toBe(m1.cols + 1);
     expect(JSON.stringify(m2.path)).not.toBe(JSON.stringify(m1.path));
     expect(m2.base).not.toEqual(m1.base);
     const shared = m2.tiles.filter((t) => m1.tiles.some((u) => u.id === t.id)).length;
@@ -108,7 +111,7 @@ describe('Chapter 2 map', () => {
       return n;
     };
     expect(cover('1-3')).toBeGreaterThan(cover('2-0'));
-    expect(cover('3-3')).toBeGreaterThan(cover('2-7'));
+    expect(cover('4-3')).toBeGreaterThan(cover('2-7'));
   });
 
   it('every stage in Chapter 2 shares the map; available tiles only grow', () => {
@@ -270,5 +273,64 @@ describe('shorter stages (~30% fewer waves)', () => {
   it('wave indicator total follows the shorter stage', () => {
     const b = new Battle(ch1.stages[9], mapOf(ch1.stages[9]), 1);
     expect(b.totalWaves).toBe(15);
+  });
+});
+
+describe('Chapter 2 placement capacity', () => {
+  it('opens plenty of tiles from 2-1 (17) up to 23, never fewer than Chapter 1 at the same point', () => {
+    const counts = ch2.stages.map((s) => s.tiles.length);
+    expect(counts).toEqual([17, 18, 19, 19, 20, 21, 21, 22, 23, 23]);
+    expect(counts[0]).toBeGreaterThan(ch1.stages[3].tiles.length); // 2-1 > 1-4
+    expect(counts[9]).toBeGreaterThan(ch1.stages[9].tiles.length); // 2-10 > 1-10
+  });
+
+  it('every tile is off the road, unique and inside the map', () => {
+    const m = MAPS[ch2.mapId];
+    const b = new Battle(ch2.stages[9], m, 1);
+    const ids = new Set(m.tiles.map((t) => t.id));
+    expect(ids.size).toBe(m.tiles.length);
+    for (const t of b.tiles) {
+      expect(t.c).toBeGreaterThanOrEqual(0);
+      expect(t.c).toBeLessThan(m.cols);
+      expect(t.r).toBeLessThan(m.rows);
+      expect(b.path.distanceTo(t.x, t.y)).toBeGreaterThanOrEqual(m.cell * 0.9);
+      const [bc, br] = m.base;
+      expect(t.c === bc && t.r === br).toBe(false);
+    }
+  });
+
+  it('a full board with no merge pair is never a deadlock: swap and sell work, summon fills only the freed tile', () => {
+    const s = ch2.stages[0];
+    const b = new Battle(s, mapOf(s), 3);
+    b.fish = 999;
+    // Fill every tile with cats that can never merge with each other (all different type+level).
+    const types = ['kitten', 'tabby', 'orange', 'black', 'white'] as const;
+    b.tiles.filter((t) => t.unlocked).forEach((t, i) => b.placeCat(types[i % 5], 1 + Math.floor(i / 5), t.id));
+    const before = b.cats.map((c) => `${c.uid}@${c.tileId}`).sort();
+    expect(b.emptyTiles()).toHaveLength(0);
+    const r = b.summon();
+    expect(r).toEqual({ ok: false, reason: 'boardFull' });
+    expect(b.cats.map((c) => `${c.uid}@${c.tileId}`).sort()).toEqual(before); // nothing overwritten
+    // swapping still works on a full board
+    const [x, y] = b.cats;
+    expect(b.dropCat(x.uid, y.tileId).result).toBe('swapped');
+    // selling frees exactly one tile; the next summon goes there
+    const victim = b.cats[2];
+    const freed = victim.tileId;
+    expect(b.sellCat(victim.uid).ok).toBe(true);
+    expect(b.emptyTiles().map((t) => t.id)).toEqual([freed]);
+    const again = b.summon();
+    expect(again.ok).toBe(true);
+    expect(b.catByUid(again.uid!)!.tileId).toBe(freed);
+    expect(b.emptyTiles()).toHaveLength(0);
+  });
+
+  it('a full board with a matching pair can merge (which also frees a tile)', () => {
+    const s = ch2.stages[0];
+    const b = new Battle(s, mapOf(s), 3);
+    for (const t of b.tiles.filter((x) => x.unlocked)) b.placeCat('kitten', 1, t.id);
+    const [p, q] = b.cats;
+    expect(b.dropCat(p.uid, q.tileId).result).toBe('merged');
+    expect(b.emptyTiles()).toHaveLength(1);
   });
 });
