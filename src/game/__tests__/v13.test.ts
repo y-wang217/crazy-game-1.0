@@ -140,7 +140,10 @@ describe('V1.3 speed system', () => {
 describe('V1.3 board and chests', () => {
   it('stage 1-3 opens noticeably more tiles, and tiles never shrink', () => {
     const counts = CHAPTERS[0].stages.map((s) => s.tiles.length);
-    expect(counts[2]).toBeGreaterThanOrEqual(counts[1] + 3);
+    // V1.4 balance fix: the practice stage (1-2) itself got two extra tiles, so 1-3 is
+    // compared against the tutorial board.
+    expect(counts[2]).toBeGreaterThanOrEqual(counts[0] + 3);
+    expect(counts[2]).toBeGreaterThan(counts[1]);
     for (let i = 1; i < counts.length; i++) expect(counts[i]).toBeGreaterThanOrEqual(counts[i - 1]);
   });
 

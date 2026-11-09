@@ -1,5 +1,6 @@
 import type { Tuning } from '../config/debug';
 import { Battle, canMerge } from './battle';
+import { Rng } from './rng';
 import type { CatId, MapDef, SkinBonus, StageDef } from './types';
 
 export interface BotResult {
@@ -113,4 +114,72 @@ function relocateBest(b: Battle, cov: Map<string, number>): void {
     b.dropCat(c.uid, want.id);
     return;
   }
+}
+
+/**
+ * A FIRST-TIME player, for checking beginner stages (much weaker than runBot):
+ * - slow: one decision every 1.5–3.5 s of game time (≈ real seconds at 1× speed);
+ * - summons when it can, but often forgets to merge (only notices a pair ~35% of the time,
+ *   ~65% when the board is full and the game says so), and merges a random pair, not the best;
+ * - never repositions cats, never changes targeting, ignores tap-to-focus;
+ * - picks chest rewards at random and rarely buys skills;
+ * - spends only part of its starting fish during the preparation phase.
+ * Everything random comes from `seed`, so "unlucky summon" runs are part of the sample.
+ */
+export function runBeginnerBot(
+  stage: StageDef,
+  map: MapDef,
+  seed: number,
+  opts: {
+    roster?: CatId[];
+    tuning?: Partial<Tuning>;
+    stars?: Partial<Record<CatId, number>>;
+    /** A struggling player: slower (2.5–5 s per decision) and merges even less. */
+    struggling?: boolean;
+  } = {},
+): BotResult {
+  const b = new Battle(stage, map, { seed, tuning: opts.tuning as Tuning | undefined, roster: opts.roster, stars: opts.stars });
+  const [react, spread, mergeP, mergeFullP] = opts.struggling ? [2.5, 2.5, 0.2, 0.45] : [1.5, 2, 0.35, 0.65];
+  const r = new Rng(seed * 7919 + 17);
+  const mergeRandom = () => {
+    const pairs: [number, string][] = [];
+    for (const x of b.cats) for (const y of b.cats) if (x.uid < y.uid && canMerge(x, y)) pairs.push([x.uid, y.tileId]);
+    if (!pairs.length) return false;
+    const [uid, tile] = r.pick(pairs);
+    b.dropCat(uid, tile);
+    return true;
+  };
+  // Preparation: a few summons (not necessarily all the fish), then start.
+  const prepSummons = r.int(3, 6);
+  for (let i = 0; i < prepSummons && b.emptyTiles().length && b.fish >= b.summonCost; i++) b.summon();
+  b.startBattle();
+  let next = r.next() * 2;
+  let guard = 0;
+  while ((b.status === 'playing' || b.status === 'reward') && guard++ < 60000) {
+    if (b.status === 'reward') {
+      b.chooseReward(r.int(0, 2));
+      continue;
+    }
+    if (b.time >= next) {
+      next = b.time + react + r.next() * spread;
+      const full = b.emptyTiles().length === 0;
+      if (r.next() < (full ? mergeFullP : mergeP)) mergeRandom();
+      if (b.emptyTiles().length && b.fish >= b.summonCost && r.next() < 0.8) b.summon();
+      else if (b.skillShopUnlocked && b.fish >= b.skillCost + b.summonCost && r.next() < 0.25) b.buySkill();
+    }
+    b.update(0.1);
+  }
+  return {
+    win: b.status === 'victory',
+    baseHp: b.baseHp,
+    time: b.time,
+    summons: b.stats.summons,
+    merges: b.stats.merges,
+    skills: Object.values(b.skills).reduce((a, v) => a + (v ?? 0), 0),
+    cats: b.cats.length,
+    topLevel: Math.max(0, ...b.cats.map((c) => c.level)),
+    waveReached: b.waveIndex + 1,
+    chestsOpened: b.stats.chestsOpened,
+    chestsMissed: b.stats.chestsMissed,
+  };
 }

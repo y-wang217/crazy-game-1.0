@@ -44,6 +44,51 @@ While dragging, tiles are tinted to show what the drop will do: green = move, go
 - **Version:** shown from `src/config/version.ts` (`APP_VERSION`, displayed as e.g. `V1.4` via `versionLabel()`), the same constant as the Home footer. Bump the version there only.
 - **No side effects:** it never touches the save. If an interrupted battle was saved, the "Resume previous battle?" prompt appears right after the notice is dismissed.
 
+## Next release — Beginner balance fix (Chapter 1)
+
+**Problem:** Stage 1-2 was far too hard for new players.
+- V1.3 had raised its enemy HP multiplier from 2.0 to 3.7, with a steep per-wave ramp: the last wave had about 900 HP per mouse, 13× Stage 1-1's.
+- Stages 1-3 and 1-4 were tighter still. Even the near-perfect "smart" bot had **0% headroom** there.
+- Stage 1-4 opened with a wave made entirely of Zippy Mice.
+- The existing balance bots never noticed because they play perfectly.
+
+**Fix — stage configuration only, no global multiplier:**
+
+| Stage | Before | After |
+| --- | --- | --- |
+| 1-2 | HP ×3.7, growth 0.23, 10 tiles, 12 fish | HP ×2.0, growth 0.12, **12 tiles, 14 fish** |
+| 1-3 | ×5.0, growth 0.25 | ×4.3, growth 0.12 |
+| 1-4 | ×5.42, growth 0.185, an all-Zippy wave 2 | ×4.5, growth 0.09, Zippy Mice mixed in gradually (never more fast than regular) |
+| 1-5 | ×4.94, growth 0.18 | ×4.6, growth 0.10 |
+| 1-6 | ×5.51, growth 0.10, armored ramp 0.6 + 0.08w | ×4.7, growth 0.075, gentler armored ramp |
+| 1-7 | ×4.95, armored from wave 1 | ×4.6 with the **same final-wave HP**; no armored mice in waves 1–2 |
+| 1-1, 1-8 → 1-10, Chapter 2 | — | unchanged |
+
+**How it was measured:** a new **beginner bot** (`runBeginnerBot` in `bot.ts`) plays like a first-time player:
+- fresh save, only the five original cats at 1★, no skins, 1× speed;
+- one decision every 1.5–3.5 s;
+- summons when it can, but notices a merge only ~35% of the time and then merges a random pair;
+- never repositions or changes targeting;
+- picks chest rewards at random;
+- spends only part of its starting fish during the preparation phase.
+
+A **struggling** variant reacts in 2.5–5 s and merges even less. Each was run 40 times per stage with ordinary random summons, including unlucky ones.
+
+| Stage | Beginner before → after | Struggling after | Strong-player headroom before → after |
+| --- | --- | --- | --- |
+| 1-1 | 40/40 → 40/40 | 40/40 | +130% → +130% |
+| 1-2 | **0/40 → 40/40** | 39/40 | +20% → +130% |
+| 1-3 | **2/40 → 40/40** (some hearts lost) | 18/40 | **+0% → +45%** |
+| 1-4 | **0/40 → 39/40** | 13/40 | **+0% → +45%** |
+| 1-5 | 16/40 → 39/40 | 11/40 | +10% → +45% |
+| 1-6 | 23/40 → 40/40 | 8/40 | +20% → +45% |
+| 1-7 | 32/40 → 38/40 | 21/40 | +30% → +45% |
+| 1-8 → 1-10 | 35–36/40 (unchanged config) | 13–19/40 | +45–60% (unchanged) |
+
+Stages 1-1 and 1-2 are now near-certain wins while learning. Stage 1-3 is a real challenge for weak play (18/40 for the struggling profile) but fair for a normal beginner, and the curve has no cliffs. Late Chapter 1 keeps its difficulty for strong players.
+
+Tutorials never use up preparation or combat time: lessons freeze the battle and the prep countdown (covered by `director.test.ts`). New `beginner.test.ts` guards all of this: win rates, no early fast or armored mice, no all-fast waves, and no HP jumps.
+
 ## What's new in V1.4 (4th public release)
 
 Version numbers follow public releases: each deploy to production gets the next number (V1.3 → Chapter 2 → **V1.4** → V1.5 …). V1.4 bundles everything below. The number is set in `src/config/version.ts`.
