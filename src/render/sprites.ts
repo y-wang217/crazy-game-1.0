@@ -183,11 +183,19 @@ export function drawCat(ctx: Ctx, o: CatDrawOpts) {
     }
   }
   ellipse(ctx, 0, 7, 12 * fat, 10 * (o.type === 'orange' ? 1.1 : 1), p.body, fluffy ? undefined : ol);
-  if (o.type === 'whiskers') ellipse(ctx, 0, 8, 8, 8, p.belly); // tuxedo shirt front
+  if (o.type === 'whiskers')
+    ellipse(ctx, 0, 8, 8, 8, p.belly); // tuxedo shirt front
   else ellipse(ctx, 0, 9, 7 * fat, 6, p.belly);
   if (o.type === 'pounce') {
     // Bengal rosettes
-    for (const [sx, sy] of [[-8, 3], [-5, 11], [8, 4], [6, 12], [-9, 9], [9, 9]] as const) {
+    for (const [sx, sy] of [
+      [-8, 3],
+      [-5, 11],
+      [8, 4],
+      [6, 12],
+      [-9, 9],
+      [9, 9],
+    ] as const) {
       ellipse(ctx, sx, sy, 2.2, 1.6, p.stripe);
       ellipse(ctx, sx + 0.4, sy, 1, 0.7, p.body);
     }
@@ -341,10 +349,24 @@ function drawHead(ctx: Ctx, o: CatDrawOpts) {
     ctx.beginPath();
     ctx.ellipse(0, 0, r, r * 0.92, 0, 0, TAU);
     ctx.clip();
-    ellipse(ctx, 0, r * 0.4, r * (o.type === 'sable' ? 0.42 : 0.45), r * (o.type === 'sable' ? 0.36 : 0.38), o.type === 'sable' ? 'rgba(90,68,52,0.42)' : 'rgba(184,160,140,0.35)');
+    ellipse(
+      ctx,
+      0,
+      r * 0.4,
+      r * (o.type === 'sable' ? 0.42 : 0.45),
+      r * (o.type === 'sable' ? 0.36 : 0.38),
+      o.type === 'sable' ? 'rgba(90,68,52,0.42)' : 'rgba(184,160,140,0.35)',
+    );
     ctx.restore();
   } else if (o.type === 'pounce') {
-    for (const [sx, sy] of [[-5, -r * 0.6], [0, -r * 0.75], [5, -r * 0.6], [-r * 0.75, -1], [r * 0.75, -1]] as const) ellipse(ctx, sx, sy, 1.6, 1.2, p.stripe);
+    for (const [sx, sy] of [
+      [-5, -r * 0.6],
+      [0, -r * 0.75],
+      [5, -r * 0.6],
+      [-r * 0.75, -1],
+      [r * 0.75, -1],
+    ] as const)
+      ellipse(ctx, sx, sy, 1.6, 1.2, p.stripe);
   } else if (o.type === 'devil') {
     // silver shading: dark-tipped fur on the crown
     ctx.save();
@@ -1025,4 +1047,22 @@ export function drawFishIcon(ctx: Ctx, x: number, y: number, s: number) {
   poly(ctx, [5, 0, 9, -3.5, 9, 3.5], '#e0a050', '#8a5a20', 1);
   circle(ctx, -3, -0.8, 0.9, '#3a2a10');
   ctx.restore();
+}
+
+/**
+ * Special-skin sparkle: two small twinkling stars near the head in the skin's colour, so a
+ * special skin is recognisable at a glance (visual only).
+ */
+export function drawSkinGlint(ctx: Ctx, color: string, t: number, seed = 0) {
+  for (let i = 0; i < 2; i++) {
+    const ph = t * 2.2 + seed * 0.7 + i * Math.PI;
+    const k = 0.5 + 0.5 * Math.sin(ph);
+    if (k < 0.15) continue;
+    const x = i === 0 ? -15 : 14;
+    const y = i === 0 ? -22 : -14;
+    ctx.save();
+    ctx.globalAlpha = 0.35 + 0.65 * k;
+    drawStar(ctx, x, y, 1.6 + 2.2 * k, color, 4, 0.35);
+    ctx.restore();
+  }
 }

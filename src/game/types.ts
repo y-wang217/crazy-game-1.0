@@ -270,10 +270,26 @@ export interface ChapterDef {
   stages: StageDef[];
 }
 
+/** Combat bonus of a Special Skin (one stat, a few percent). */
+export interface SkinBonus {
+  stat: 'damage' | 'attackSpeed' | 'range';
+  /** Percent, e.g. 3 = +3%. */
+  pct: number;
+}
+
 export interface CosmeticDef {
   id: string;
   name: string;
   slot: 'hat' | 'skin';
+  /**
+   * Skins only. 'regular' (普通造型) = looks only, no stats — every hat and every skin sold
+   * before V1.7 is regular and stays that way. 'special' (特殊造型) = looks + `bonus`.
+   */
+  kind?: 'regular' | 'special';
+  /** Special skins: the exact combat bonus for that cat species. */
+  bonus?: SkinBonus;
+  /** Special skins: sparkle colour drawn on the cat so it reads as special. */
+  glint?: string;
   /** For skins: which cat it recolours. */
   cat?: CatId;
   price: number;

@@ -1,6 +1,6 @@
 import { CATS } from '../../config/cats';
 import type { CatStats } from '../../game/combat';
-import type { CatId } from '../../game/types';
+import type { CatId, SkinBonus } from '../../game/types';
 import { t } from '../../i18n';
 
 export const fmt = (n: number, d = 1) => (Math.round(n * 10 ** d) / 10 ** d).toString();
@@ -25,4 +25,9 @@ export function specialStats(cat: CatId, st: CatStats, cell: number): [string, s
   if (def.attack === 'execute') out.push([t('info.execute'), t('info.executeVal', { m: fmt(st.executeMult), p: Math.round(st.executeThreshold * 100) })]);
   if (def.attack === 'poison') out.push([t('info.poison'), t('info.poisonVal', { d: fmt(st.poisonDps), s: fmt(st.poisonDuration) })]);
   return out;
+}
+
+/** "Attack +3%" / 「攻擊力 +3%」 for a special skin's bonus. */
+export function skinBonusText(b: SkinBonus): string {
+  return t(`skin.bonus.${b.stat}`, { p: fmt(b.pct, 1) });
 }

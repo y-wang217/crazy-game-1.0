@@ -37,6 +37,37 @@ npm run build        # type-check + production build into dist/
 
 While dragging, tiles are tinted to show what the drop will do: green = move, gold = merge, blue = swap. A press only becomes a drag after the pointer moves 10 px, so a tap never moves a cat by accident.
 
+## What's new in V1.7 — Skin Shop tutorial & Special Skins
+
+- **Two kinds of skins** (`src/config/cosmetics.ts`; every price and bonus is configurable):
+
+  | Type | Label | Effect | Price |
+  | --- | --- | --- | --- |
+  | **Regular / 普通造型** | 外觀限定・無能力加成 / Looks only · no stat bonus | Looks only. Every cat has one: the 5 originals (60) plus 5 new ones for the Chapter 2 cats (80). | 60–80 fish coins |
+  | **Special / 特殊造型** | 附帶能力加成 / Includes a stat bonus | Looks plus one exact bonus for that species: **Attack +3%**, **Attack speed +3%** or **Range +2%**. One per cat (10 total), with a twinkling sparkle so they're recognisable on the field. | 220 (starter cats) / 260 (others) |
+
+  Hats stay looks-only. The five skins sold before V1.7 keep their ids and prices and stay *regular*: no purchase was converted into a stat item. Existing `owned` / `equipped` save data loads unchanged.
+- **Rules:**
+  - One skin per cat species, so bonuses never stack.
+  - The bonus applies to every unit of that species at every Lv. (merging) and ★ rank, through `applySkinBonus` in `Battle.unitStats`. It is fixed for the battle and kept in battle-recovery snapshots (older snapshots restore with no bonus).
+  - A cat's skin can only be bought once you own that cat; it shows as **未解鎖 / Locked** until then.
+  - Any single bonus is capped at `SKIN_RULES.maxBonusPct` (5%), enforced by tests.
+  - Special skins are never needed to clear a stage. With all special skins equipped, bot win rates at normal difficulty are identical to playing without them; they only help near the edge of difficulty (+15–30% enemy HP).
+  - A full team of five special skins costs about 1,100–1,300 fish coins: a real choice next to recruiting (100) and stars (100–800), and well within what Chapters 1–2 pay.
+- **Shop UI:** tabs 特殊造型 / 普通造型 / 帽子 (Special / Regular / Hats). Each card shows:
+  - a preview on the right cat
+  - which cat it's for
+  - the type label and exact bonus
+  - the price, or **裝備中 / 已擁有 / 未解鎖** (Equipped / Owned / Locked)
+
+  Tapping any card opens a **preview** before buying: "now" vs "with this look" (animated), the bonus, and a Buy / Equip / Take-off / Locked message.
+  The long-press details panel in battle shows 「造型加成：攻擊速度 +3%」 and the boosted stats.
+- **Skin Shop intro:**
+  - Shown once on Home after the first clear of Stage 1-3 (`SKIN_RULES.shopIntroAfterStage`), also for existing players already past it.
+  - Kitten says 「儲咗魚幣未？除咗招募新貓，仲可以買靚衫畀貓咪著㗎！」 while a live preview cycles through default → regular skin → special skin. The two skin types are explained in one line each.
+  - The Shop button is spotlighted (the other Home buttons are dimmed), with **去商店看看 / Take a look** or **稍後再看 / Maybe later**. Nothing has to be bought, and the buttons ignore taps for the first 0.7 s.
+  - Revisit it any time with **造型介紹 / About skins** in the shop, or Home → Replay tutorials.
+
 ## What's new in V1.6.1 — Android Back gesture safety & battle recovery
 
 Android's edge Back gesture (and refreshes, app switches and closed tabs) used to throw away the battle in progress. There are now three layers of protection. **Recovery is the one that matters**, because no web page can fully block Android's system Back gesture.

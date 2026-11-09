@@ -2,7 +2,8 @@ import { useEffect, useRef } from 'react';
 import { CATS } from '../../config/cats';
 import { ENEMIES } from '../../config/enemies';
 import { resolvePalette } from '../../render/renderer';
-import { drawCat, drawChest, drawMouse } from '../../render/sprites';
+import { drawCat, drawChest, drawMouse, drawSkinGlint } from '../../render/sprites';
+import { skinGlint } from '../../config/cosmetics';
 import type { CatId, ChestTier, CosmeticLoadout, EnemyId } from '../../game/types';
 
 /** Small animated canvas driven by a paint callback (shared by the preview components). */
@@ -60,6 +61,8 @@ export function CatPreview({
       ctx.scale(scale, scale);
       const attackAge = attackLoop ? (t % 1.6) : 9;
       drawCat(ctx, { type, level, palette, hat: loadout.hat, t, attackAge, aim: 0, seed: type.length });
+      const glint = skinGlint(type, loadout);
+      if (glint) drawSkinGlint(ctx, glint, t, type.length);
     },
     [type, level, key, attackLoop],
     animate,

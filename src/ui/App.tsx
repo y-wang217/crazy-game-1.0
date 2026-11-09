@@ -43,7 +43,7 @@ export function App() {
 
   return (
     <div className="app">
-      {screen.name === 'home' && <HomeScreen go={go} />}
+      {screen.name === 'home' && <HomeScreen go={go} blocked={!!offer || grants.length > 0} />}
       {screen.name === 'stages' && <StageSelect go={go} play={play} />}
       {screen.name === 'shop' && <ShopScreen go={go} />}
       {screen.name === 'cats' && <CatsScreen go={go} />}

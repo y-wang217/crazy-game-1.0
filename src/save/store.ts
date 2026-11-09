@@ -186,6 +186,8 @@ export const saveStore = {
     const c = findCosmetic(id);
     if (!c) return { ok: false, reason: 'Unknown item' };
     if (state.owned.includes(id)) return { ok: false, reason: 'Already owned' };
+    // A skin is for one cat: recruit the cat first (hats fit everyone).
+    if (c.slot === 'skin' && c.cat && !state.collection[c.cat]) return { ok: false, reason: 'locked' };
     if (state.fishCoins < c.price) return { ok: false, reason: 'Not enough fish coins' };
     commit({ ...state, fishCoins: state.fishCoins - c.price, owned: [...state.owned, id] });
     return { ok: true };

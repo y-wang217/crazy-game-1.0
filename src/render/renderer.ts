@@ -1,6 +1,6 @@
 import { BALANCE } from '../config/balance';
 import { CATS, TARGET_MODE_INFO } from '../config/cats';
-import { findCosmetic } from '../config/cosmetics';
+import { findCosmetic, skinGlint } from '../config/cosmetics';
 import type { Battle, CatUnit, Foe, Projectile } from '../game/battle';
 import { cellCenter, worldSize } from '../game/path';
 import { Rng } from '../game/rng';
@@ -9,7 +9,7 @@ import { FONT_STACK, t as tr } from '../i18n';
 import { boardPalette, getTheme } from '../theme';
 import type { Environment } from '../theme/palettes';
 import type { BoardPalette } from '../theme/palettes';
-import { drawCat, drawChest, drawHeart, drawMouse, drawStar } from './sprites';
+import { drawCat, drawChest, drawHeart, drawMouse, drawSkinGlint, drawStar } from './sprites';
 
 export interface DragView {
   uid: number;
@@ -424,6 +424,8 @@ export class Renderer {
         : undefined,
       comboIndex: cat.comboIndex,
     });
+    const glint = skinGlint(cat.type, loadout);
+    if (glint) drawSkinGlint(ctx, glint, t, cat.uid);
     ctx.restore();
 
     if (showBadges) {

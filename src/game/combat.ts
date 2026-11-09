@@ -2,7 +2,7 @@ import { BALANCE } from '../config/balance';
 import { STARS } from '../config/collection';
 import { CAT_ORDER } from '../config/cats';
 import { SKILLS } from '../config/skills';
-import type { CatDef, CatId, SkillId } from './types';
+import type { CatDef, CatId, SkillId, SkinBonus } from './types';
 
 /**
  * Physical damage formula (one rule for everything):
@@ -18,11 +18,7 @@ export function computeDamage(raw: number, armor: number, armorReduction = 0): n
 }
 
 /** Damage applied to shield first, then HP. Returns the new values. */
-export function applyDamageToPools(
-  hp: number,
-  shield: number,
-  dmg: number,
-): { hp: number; shield: number; dealt: number } {
+export function applyDamageToPools(hp: number, shield: number, dmg: number): { hp: number; shield: number; dealt: number } {
   let remaining = dmg;
   let s = shield;
   if (s > 0) {
@@ -60,7 +56,21 @@ export interface SkillMods {
   fishMult: number;
 }
 
-const neutralCat = (): CatMods => ({ dmg: 1, speed: 1, range: 1, combo: 0, splash: 1, splashRatio: 0, slow: 0, slowDur: 0, bounce: 0, buff: 0, execute: 0, poison: 1, poisonDur: 0 });
+const neutralCat = (): CatMods => ({
+  dmg: 1,
+  speed: 1,
+  range: 1,
+  combo: 0,
+  splash: 1,
+  splashRatio: 0,
+  slow: 0,
+  slowDur: 0,
+  bounce: 0,
+  buff: 0,
+  execute: 0,
+  poison: 1,
+  poisonDur: 0,
+});
 
 export function computeSkillMods(skills: Partial<Record<SkillId, number>>): SkillMods {
   const mods: SkillMods = {
@@ -130,6 +140,18 @@ export interface CatStats {
  * (1★–5★, from the collection) × this battle's skills. The two progressions are separate:
  * `level` resets every battle, `star` never does.
  */
+/**
+ * Special-skin bonus (one stat, a few percent). Applied once per unit on top of level, star and
+ * skills; one skin per species, so bonuses never stack.
+ */
+export function applySkinBonus(st: CatStats, bonus: SkinBonus | undefined): CatStats {
+  if (!bonus || !(bonus.pct > 0)) return st;
+  const k = 1 + bonus.pct / 100;
+  if (bonus.stat === 'damage') return { ...st, damage: st.damage * k, poisonDps: st.poisonDps * k };
+  if (bonus.stat === 'attackSpeed') return { ...st, interval: st.interval / k };
+  return { ...st, range: st.range * k };
+}
+
 export function getCatStats(def: CatDef, level: number, mods: SkillMods = NO_MODS, star = 1): CatStats {
   const L = BALANCE.levels;
   const li = Math.max(0, Math.min(L.damageMult.length - 1, level - 1));

@@ -4,11 +4,11 @@ import { ABILITIES, POISON_BOSS_MULT, STARS, ULTIMATE } from '../config/collecti
 import { NEUTRAL_TUNING, type Tuning } from '../config/debug';
 import { CHESTS, ENEMIES } from '../config/enemies';
 import { SKILLS, SKILL_ORDER, SKILL_WEIGHTS } from '../config/skills';
-import { applyDamageToPools, computeDamage, computeSkillMods, getCatStats, type CatStats, type SkillMods } from './combat';
+import { applyDamageToPools, applySkinBonus, computeDamage, computeSkillMods, getCatStats, type CatStats, type SkillMods } from './combat';
 import { PathGeom, cellCenter } from './path';
 import { Rng } from './rng';
 import { nextTargetMode, selectTarget, type TargetCandidate } from './targeting';
-import type { CatId, ChestTier, EnemyId, MapDef, SkillId, SpawnGroup, StageDef, TargetMode } from './types';
+import type { CatId, ChestTier, EnemyId, MapDef, SkillId, SkinBonus, SpawnGroup, StageDef, TargetMode } from './types';
 
 // ---------------------------------------------------------------------------
 // Entities
@@ -242,6 +242,8 @@ export interface BattleOptions {
   sandbox?: boolean;
   /** Scales the ultimate cooldown (demo only). */
   ultCooldownMult?: number;
+  /** Equipped special skins: one small bonus per species (see config/cosmetics skinBonusesFor). */
+  skinBonus?: Partial<Record<CatId, SkinBonus>>;
 }
 
 /** Pure merge rule, exported for tests and UI highlighting. */
@@ -258,7 +260,14 @@ export interface BattleSnapshot {
   v: typeof SNAPSHOT_VERSION;
   stageId: string;
   waves: number;
-  opts: { tuning: Tuning; roster: CatId[]; stars: Partial<Record<CatId, number>>; ultCooldownMult: number };
+  opts: {
+    tuning: Tuning;
+    roster: CatId[];
+    stars: Partial<Record<CatId, number>>;
+    ultCooldownMult: number;
+    /** Added in V1.7 (absent in older snapshots = no skin bonuses). */
+    skinBonus?: Partial<Record<CatId, SkinBonus>>;
+  };
   state: Record<string, unknown>;
 }
 
@@ -307,6 +316,12 @@ export function validateSnapshot(snap: unknown, stage: StageDef, map: MapDef): s
   const o = s.opts;
   if (!o || !isArr(o.roster) || !o.roster.length || !o.roster.every((c) => c in CATS) || typeof o.stars !== 'object' || !isNum(o.ultCooldownMult))
     return false;
+  if (o.skinBonus !== undefined) {
+    if (!o.skinBonus || typeof o.skinBonus !== 'object') return false;
+    for (const [cat, sb] of Object.entries(o.skinBonus)) {
+      if (!(cat in CATS) || !sb || !['damage', 'attackSpeed', 'range'].includes(sb.stat) || !isNum(sb.pct) || sb.pct < 0 || sb.pct > 10) return false;
+    }
+  }
   const st = s.state as Record<string, unknown>;
   if (!st || typeof st !== 'object') return false;
   for (const k of SNAPSHOT_FIELDS) if (!(k in st)) return false;
@@ -382,6 +397,8 @@ export class Battle {
   readonly roster: CatId[];
   /** Permanent star ranks (1★–5★) per species. */
   readonly stars: Partial<Record<CatId, number>>;
+  /** Special-skin bonus per species (fixed for the whole battle). */
+  readonly skinBonus: Partial<Record<CatId, SkinBonus>>;
   readonly sandbox: boolean;
   private readonly ultCooldown: number;
   private rng: Rng;
@@ -466,6 +483,7 @@ export class Battle {
     this.tuning = { ...NEUTRAL_TUNING, ...(o.tuning ?? {}) };
     this.roster = o.roster?.length ? [...o.roster] : [...stage.roster];
     this.stars = { ...(o.stars ?? {}) };
+    this.skinBonus = { ...(o.skinBonus ?? {}) };
     this.sandbox = !!o.sandbox;
     this.ultCooldown = ULTIMATE.cooldown * (o.ultCooldownMult ?? 1);
     for (const c of this.roster) if (this.hasUltimate(c)) this.ultCharge[c] = this.ultCooldown * ULTIMATE.startCharge;
@@ -501,7 +519,13 @@ export class Battle {
         v: SNAPSHOT_VERSION,
         stageId: this.stage.id,
         waves: this.stage.waves.length,
-        opts: { tuning: this.tuning, roster: this.roster, stars: this.stars, ultCooldownMult: this.ultCooldown / ULTIMATE.cooldown },
+        opts: {
+          tuning: this.tuning,
+          roster: this.roster,
+          stars: this.stars,
+          ultCooldownMult: this.ultCooldown / ULTIMATE.cooldown,
+          skinBonus: this.skinBonus,
+        },
         state,
       }),
     ) as BattleSnapshot;
@@ -522,6 +546,7 @@ export class Battle {
         roster: snap.opts.roster,
         stars: snap.opts.stars,
         ultCooldownMult: snap.opts.ultCooldownMult,
+        skinBonus: snap.opts.skinBonus,
       });
       const st = snap.state as Record<string, unknown>;
       const self = b as unknown as Record<string, unknown>;
@@ -560,7 +585,7 @@ export class Battle {
 
   /** Stats for a unit on the board: level × star × skills × active buffs. */
   unitStats(cat: CatUnit): CatStats {
-    const st = getCatStats(CATS[cat.type], cat.level, this.mods, this.starOf(cat.type));
+    const st = applySkinBonus(getCatStats(CATS[cat.type], cat.level, this.mods, this.starOf(cat.type)), this.skinBonus[cat.type]);
     let speed = 1;
     let dmg = 1;
     if (cat.buffSpeedUntil > this.time) speed = Math.max(speed, 1 + cat.buffSpeed);

@@ -25,6 +25,7 @@ import { CatHead } from '../components/CatPreview';
 import { TutorialOverlay } from '../components/TutorialOverlay';
 import { debugStore, useDebug } from '../debugStore';
 import { feature } from '../../config/features';
+import { skinBonusesFor } from '../../config/cosmetics';
 import { computeStars } from '../../game/progression';
 import { newRunId, recovery, RECOVERY_VERSION, type RecoveryRecord } from '../../save/battleRecovery';
 import { loadSpeed, saveSpeed } from '../speedPref';
@@ -166,6 +167,8 @@ export function BattleScreen({
       // Tutorial stages keep their own cats; every other stage summons from the player's team.
       roster: stage.fixedRoster ? undefined : sv.team,
       stars: Object.fromEntries(Object.entries(sv.collection).map(([id, c]) => [id, c!.stars])),
+      // Equipped special skins (one per species, a few percent each).
+      skinBonus: skinBonusesFor(sv.equipped),
     });
   };
   const battleRef = useRef<Battle>(null as unknown as Battle);

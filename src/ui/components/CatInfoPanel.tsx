@@ -11,9 +11,8 @@ import { CatPreview } from './CatPreview';
 import { GameIcon } from './GameIcon';
 import { FishIcon } from './Icons';
 import { Stars } from './Stars';
-import { fmt, specialStats } from './statText';
+import { fmt, skinBonusText, specialStats } from './statText';
 import { feature } from '../../config/features';
-
 
 /** Skills currently boosting this cat (its own skills + general combat skills). */
 export function bonusesFor(cat: CatUnit, b: Battle): [SkillId, number][] {
@@ -80,8 +79,16 @@ export function CatInfoPanel({
   const rows: [string, string, string | null][] = [];
   const dmgText = (s: CatStats) => (s.comboHits > 1 ? t('info.hits', { dmg: fmt(s.damage), n: s.comboHits }) : fmt(s.damage));
   if (!support) rows.push([t('info.damage'), dmgText(eff), nextEff && dmgText(nextEff)]);
-  rows.push([t('info.attackSpeed'), t('info.perSec', { n: fmt(1 / eff.interval, 2) }), nextEff && t('info.perSec', { n: fmt(1 / nextEff.interval, 2) })]);
-  rows.push([support ? t('info.charm') : t('info.range'), t('info.tiles', { n: fmt(eff.range / cell, 2) }), nextEff && t('info.tiles', { n: fmt(nextEff.range / cell, 2) })]);
+  rows.push([
+    t('info.attackSpeed'),
+    t('info.perSec', { n: fmt(1 / eff.interval, 2) }),
+    nextEff && t('info.perSec', { n: fmt(1 / nextEff.interval, 2) }),
+  ]);
+  rows.push([
+    support ? t('info.charm') : t('info.range'),
+    t('info.tiles', { n: fmt(eff.range / cell, 2) }),
+    nextEff && t('info.tiles', { n: fmt(nextEff.range / cell, 2) }),
+  ]);
   if (!support) rows.push([t('info.dps'), fmt(dps(eff)), nextEff && fmt(dps(nextEff))]);
   const cur = specialStats(cat.type, eff, cell);
   const nxt = nextEff ? specialStats(cat.type, nextEff, cell) : [];
@@ -110,6 +117,11 @@ export function CatInfoPanel({
           </span>
         </div>
         <div className="small info-mech">{t(`cat.${cat.type}.attack`)}</div>
+        {battle.skinBonus[cat.type] && (
+          <div className="info-skin">
+            <GameIcon name="star" size={13} /> {t('skin.bonusLine', { bonus: skinBonusText(battle.skinBonus[cat.type]!) })}
+          </div>
+        )}
         <table className="info-stats info-compare">
           <thead>
             <tr>
@@ -123,7 +135,7 @@ export function CatInfoPanel({
               <tr key={k}>
                 <td>{k}</td>
                 <td>{v}</td>
-                <td className={n && n !== v ? 'info-up' : 'muted'}>{maxed ? t('star.max') : n ?? '—'}</td>
+                <td className={n && n !== v ? 'info-up' : 'muted'}>{maxed ? t('star.max') : (n ?? '—')}</td>
               </tr>
             ))}
           </tbody>
@@ -136,7 +148,11 @@ export function CatInfoPanel({
           <div className={`info-ability ${ult !== undefined ? 'on' : ''}`}>
             <GameIcon name="ult" size={16} /> <b>{t('info.ult')}:</b> {t(`ability.${cat.type}.ult.name`)}{' '}
             <span className="muted tiny">
-              {ult === undefined ? t('info.lockedAt', { n: STARS.ultimateAt }) : ult >= 1 ? t('info.ultReady') : t('info.ultCharging', { p: Math.round(ult * 100) })}
+              {ult === undefined
+                ? t('info.lockedAt', { n: STARS.ultimateAt })
+                : ult >= 1
+                  ? t('info.ultReady')
+                  : t('info.ultCharging', { p: Math.round(ult * 100) })}
             </span>
           </div>
         </div>

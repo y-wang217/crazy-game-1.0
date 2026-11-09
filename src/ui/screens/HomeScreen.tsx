@@ -8,10 +8,21 @@ import { BrandEmblem, HomeScenery } from '../components/Brand';
 import { GameIcon } from '../components/GameIcon';
 import { CoinIcon } from '../components/Icons';
 import { debugStore, useDebug } from '../debugStore';
+import { ShopIntro } from '../components/ShopIntro';
+import { SKIN_RULES } from '../../config/cosmetics';
 
-export const APP_VERSION = '1.6.1';
+/** Seen-id of the one-time Skin Shop introduction (Home → Replay tutorials shows it again). */
+export const SHOP_INTRO_ID = 'tut:shop';
 
-export function HomeScreen({ go }: { go: (s: Screen) => void }) {
+export const APP_VERSION = '1.7';
+
+export function HomeScreen({
+  go,
+  blocked = false,
+}: {
+  go: (s: Screen) => void;
+  /** Another popup is open (resume prompt, rewards). */ blocked?: boolean;
+}) {
   const lang = useLang();
   const theme = useTheme();
   const save = useSave();
@@ -19,6 +30,8 @@ export function HomeScreen({ go }: { go: (s: Screen) => void }) {
   const cleared = Object.keys(save.cleared).length;
   const [note, setNote] = useState<string | null>(null);
   const taps = useRef<number[]>([]);
+  // Skin Shop intro: once, after the first clear of Stage 1-3 (also for players already past it).
+  const showShopIntro = !blocked && SKIN_RULES.shopIntroAfterStage in save.cleared && !save.seen.includes(SHOP_INTRO_ID);
 
   const flash = (m: string) => {
     setNote(m);
@@ -74,7 +87,7 @@ export function HomeScreen({ go }: { go: (s: Screen) => void }) {
           ))}
         </div>
       </div>
-      <div className="home-menu">
+      <div className={`home-menu ${showShopIntro ? 'intro-active' : ''}`}>
         <button className="btn btn-big btn-primary" onClick={() => go({ name: 'stages' })}>
           <GameIcon name="play" size={22} /> {t('home.play')}
         </button>
@@ -82,7 +95,13 @@ export function HomeScreen({ go }: { go: (s: Screen) => void }) {
           <button className="btn btn-secondary" onClick={() => go({ name: 'recruit' })}>
             <GameIcon name="recruit" size={22} /> {t('home.recruit')}
           </button>
-          <button className="btn btn-secondary" onClick={() => go({ name: 'shop' })}>
+          <button
+            className={`btn btn-secondary ${showShopIntro ? 'spotlit' : ''}`}
+            onClick={() => {
+              if (showShopIntro) saveStore.markSeen(SHOP_INTRO_ID);
+              go({ name: 'shop' });
+            }}
+          >
             <GameIcon name="shop" size={22} /> {t('home.shop')}
           </button>
           <button className="btn btn-secondary" onClick={() => go({ name: 'cats' })}>
@@ -114,6 +133,15 @@ export function HomeScreen({ go }: { go: (s: Screen) => void }) {
           {debug.enabled ? ' · debug' : ''}
         </button>
       </div>
+      {showShopIntro && (
+        <ShopIntro
+          onClose={() => saveStore.markSeen(SHOP_INTRO_ID)}
+          onGo={() => {
+            saveStore.markSeen(SHOP_INTRO_ID);
+            go({ name: 'shop' });
+          }}
+        />
+      )}
       {note && <div className="toast-inline">{note}</div>}
     </div>
   );
