@@ -41,10 +41,14 @@ While dragging, tiles are tinted to show what the drop will do: green = move, go
 
 - **When:** before the main menu, once per browser session (`sessionStorage` key `catdefense.noticeSeen`; returning to the menu or reloading the tab doesn't show it again, a new browser session does). Its single button dismisses it. It shows **「🐾 喵喵防衛隊（暫定）・開發中！」 / "🐾 Cat Defense (Working Title) — In Development!"** with the exact wording as specified.
 - **Look:** always the Moonlit Gothic style (scoped colour tokens), even when the player uses the Light theme. A language switch sits on the card, and it fits without scrolling on 320 × 568 and 360 × 640 screens.
-- **Version:** shown from `src/config/version.ts` (`APP_VERSION`, displayed as `V1.7` via `versionLabel()`), the same constant as the Home footer. Bump the version there only.
+- **Version:** shown from `src/config/version.ts` (`APP_VERSION`, displayed as e.g. `V1.4` via `versionLabel()`), the same constant as the Home footer. Bump the version there only.
 - **No side effects:** it never touches the save. If an interrupted battle was saved, the "Resume previous battle?" prompt appears right after the notice is dismissed.
 
-## What's new in V1.7 — Skin Shop tutorial & Special Skins
+## What's new in V1.4 (4th public release)
+
+Version numbers follow public releases: each deploy to production gets the next number (V1.3 → Chapter 2 → **V1.4** → V1.5 …). V1.4 bundles everything below. The number is set in `src/config/version.ts`.
+
+### V1.4 · Skin Shop tutorial & Special Skins
 
 - **Two kinds of skins** (`src/config/cosmetics.ts`; every price and bonus is configurable):
 
@@ -53,7 +57,7 @@ While dragging, tiles are tinted to show what the drop will do: green = move, go
   | **Regular / 普通造型** | 外觀限定・無能力加成 / Looks only · no stat bonus | Looks only. Every cat has one: the 5 originals (60) plus 5 new ones for the Chapter 2 cats (80). | 60–80 fish coins |
   | **Special / 特殊造型** | 附帶能力加成 / Includes a stat bonus | Looks plus one exact bonus for that species: **Attack +3%**, **Attack speed +3%** or **Range +2%**. One per cat (10 total), with a twinkling sparkle so they're recognisable on the field. | 220 (starter cats) / 260 (others) |
 
-  Hats stay looks-only. The five skins sold before V1.7 keep their ids and prices and stay *regular*: no purchase was converted into a stat item. Existing `owned` / `equipped` save data loads unchanged.
+  Hats stay looks-only. The five skins sold before the skin update keep their ids and prices and stay *regular*: no purchase was converted into a stat item. Existing `owned` / `equipped` save data loads unchanged.
 - **Rules:**
   - One skin per cat species, so bonuses never stack.
   - The bonus applies to every unit of that species at every Lv. (merging) and ★ rank, through `applySkinBonus` in `Battle.unitStats`. It is fixed for the battle and kept in battle-recovery snapshots (older snapshots restore with no bonus).
@@ -75,7 +79,7 @@ While dragging, tiles are tinted to show what the drop will do: green = move, go
   - The Shop button is spotlighted (the other Home buttons are dimmed), with **去商店看看 / Take a look** or **稍後再看 / Maybe later**. Nothing has to be bought, and the buttons ignore taps for the first 0.7 s.
   - Revisit it any time with **造型介紹 / About skins** in the shop, or Home → Replay tutorials.
 
-## What's new in V1.6.1 — Android Back gesture safety & battle recovery
+### V1.4 · Android Back gesture safety & battle recovery
 
 Android's edge Back gesture (and refreshes, app switches and closed tabs) used to throw away the battle in progress. There are now three layers of protection. **Recovery is the one that matters**, because no web page can fully block Android's system Back gesture.
 
@@ -109,14 +113,14 @@ Android's edge Back gesture (and refreshes, app switches and closed tabs) used t
      - The collection screen still scrolls with a finger.
    - **Not tested on real Android hardware** — please try it on a phone (see the checklist in the release notes).
 
-## What's new in V1.6 — Combat pacing, Tactical Pause, clearer tutorials
+### V1.4 · Combat pacing, Tactical Pause, clearer tutorials
 
 - **Combat is 10% slower.** `BALANCE.speed.baseline` 1.2 → 1.08 (the old 1.2× pace minus 10%). The 0.5× / 0.75× / 1× / 1.5× / 2× options all scale from it. Enemy HP, armor, cat damage, wave counts, composition and bosses are unchanged. Because only the real-time pace changed, sim (game-time) balance is identical. The earlier "10% difficulty reduction" was not applied.
 - **More breathing room between waves.**
   - When you clear the field you always get `clearedWaveGap + waveBreather` = 1.2 + 3 = 4.2 s of calm (about 3.9 real seconds at 1×), counted from the moment the last mouse falls. During it the HUD shows **「第 N 波：X 秒後」/ "Wave N in Xs"**. The countdown lives in the HUD label, so it never overlaps the wave banner or toasts.
   - When mice are still on the road, the next wave comes at the pressure cap `waveGap + waveBreatherHostile` = 4.5 + 1.5 s.
   - Sim results (naive bot, 10 seeds):
-    - 0 restores the V1.5 results exactly.
+    - 0 restores the results from before the pacing update exactly.
     - 1.5 is slightly gentler in early Chapter 1 for weak play (1-4: 4 → 6/10 wins); smart-bot results are unchanged.
     - 3 on both gaps made 1-4 9/10, a clear difficulty drop, so it was not used.
   - All three values are in `src/config/balance.ts`.
@@ -141,21 +145,21 @@ Android's edge Back gesture (and refreshes, app switches and closed tabs) used t
   - When it's off, taps on mice do nothing, no crosshair is drawn, and the hint text drops the focus line. The original five targeting modes are untouched.
   - Nothing in progression or the tutorials depends on it.
 
-## What's new in V1.5.1 — Chapter 2 space fix, Hong Kong Chinese
+### V1.4 · Chapter 2 space fix, Hong Kong Chinese
 
 - **Chapter 2 placement capacity.** The spiral map was 5 columns wide with only 19 buildable cells in total, so stages opened just 11 → 16 tiles. The map is now **6 × 8** (same 50 px cells, same spiral into the central cat house; the road and house moved one column right). On portrait phones the board is limited by its height, so the extra column fits in the spare width: measured tile size is unchanged on iPhone SE (46.5 px) and iPhone 13 (58.2 px); on very tall/narrow screens like Pixel 7 tiles go from 80 to ~69 px. Chapter 2 now opens **17, 18, 19, 19, 20, 21, 21, 22, 23, 23** tiles (2-1 … 2-10; Chapter 1 ends at 21). Enemy HP re-tuned with the bots; merges per stage roughly doubled.
 - **Team of 4 or 5 species** (`TEAM_MIN` 4, `TEAM_SIZE` 5): optional — fewer species means more matching pairs. Default and existing teams stay at five.
 - **Full board is never a dead end:** tapping Summon on a full board explains the options (merge, or long-press → Sell). Tests cover no-pair full boards (swap, sell, summon only into the freed tile, nothing overwritten) and that no tile can sit on the road or the house.
 - **Chinese is now Chinese (Hong Kong), `zh-HK`, shown as 中文（香港）.** Every string was reviewed: consistent 魚乾 / 魚幣 / 召喚 / 合成 / 出售貓咪 / 特技（3★）/ 必殺技（5★）/ 集中攻擊 / 返回主頁, 虎紋戰士 (was 虎斑), 首領 (was 頭目), 芝士大王 (was 起司), HK wording (按 for taps, 甚麼, 姐姐, 繁忙時間…). Cantonese stays in character and story dialogue; instructions use concise written Hong Kong Chinese. Noto Sans HK / PingFang HK fonts. A saved `zh-TW` preference migrates automatically.
 
-## What's new in V1.5 — Shorter stages, selling, story, 0.5×
+### V1.4 · Shorter stages, selling, story, 0.5×
 
 - **~30% fewer waves everywhere** (`BALANCE.waves.countScale = 0.7`): e.g. 1-1 6 → 4, 1-3 10 → 7, 1-10 21 → 15, 2-10 21 → 15. Stage plans in `chapters.ts` keep their original length; the game stretches each plan's arc over the shorter stage, so wave sizes still run from the first to the last original size (~30% fewer mice in total, nothing crammed), every enemy type still appears, **every chest is kept** (same skill chances) and bosses stay in the final wave. The HP ramp follows the same progress. Dried fish per mouse ×1.25 and wave-clear bonus 3 → 4 keep summoning and Lv.5 reachable; the bots' win rates are unchanged.
 - **Sell Cat / 出售貓咪** in the long-press panel: shows the exact refund, removes the cat and frees the tile immediately (refund `BALANCE.sell.refund` = Lv.1 1 · Lv.2 1 · Lv.3 3 · Lv.4 5 · Lv.5 9 dried fish; Lv.3+ ask to confirm). The suggested table (1/2/4/7/12) let Lv.2–3 cats sell back for 80–100% of their cheapest cost, so it was lowered; summon → sell can never gain fish (tested). Only during battle/preparation; never affects stars, fragments or the collection.
 - **Chapter 1 → 2 story transition** (~11 s, three scenes: celebration in the moonlit forest → a mysterious glow beyond the trees → “Chapter 2 · Moonlit Mushroom Forest” reveal) with short Cantonese / English dialogue, Skip button and reduced-motion support. Plays once after the first clear of 1-10, then Sir Sable’s reward reveal; replay any time from Stage Select (Chapter 2 → Story). The reward is claimed and saved before the cutscene, so nothing can be awarded twice and taps underneath are blocked.
 - **0.5× speed** added: 0.5× / 0.75× / 1× / 1.5× / 2× (1× is still the faster V1.3 baseline). The chosen speed is remembered between battles; the 20 s preparation timer is never affected.
 
-## What's new in V1.4 — Cat collection, stars, new cats
+### V1.4 · Cat collection, stars, new cats
 
 **Two separate progressions**
 - **In-battle level Lv.1–Lv.5** (merging, resets every battle) — unchanged.
@@ -338,7 +342,7 @@ With debug on, the results screen also shows battle stats: duration, base HP lef
 | 2-7 – 2-9 | 9/10 | 10/10 | 6.4–7.7 min | 57–74 |
 | 2-10 (boss) | 9/10 | 9/10 | 8.3 min | 66 |
 
-Chapter 2 is tuned by *headroom*: how much extra enemy HP the smart bot can still beat 7/10 times. Chapter 1's late stages sit at about +15–20%. Chapter 2 starts gentler on its new map (2-1 ≈ +45%), then tightens steadily to about +10% at 2-10. Lengths are simulation time; at the default 1× (= 1.08× sim speed since V1.6) a real battle takes about 1/1.08 of that, plus up to 20 s of preparation. The bots open nearly every chest, so chests are reachable without perfect targeting.
+Chapter 2 is tuned by *headroom*: how much extra enemy HP the smart bot can still beat 7/10 times. Chapter 1's late stages sit at about +15–20%. Chapter 2 starts gentler on its new map (2-1 ≈ +45%), then tightens steadily to about +10% at 2-10. Lengths are simulation time; at the default 1× (= 1.08× sim speed since the V1.4 pacing update) a real battle takes about 1/1.08 of that, plus up to 20 s of preparation. The bots open nearly every chest, so chests are reachable without perfect targeting.
 
 ## Project layout
 
