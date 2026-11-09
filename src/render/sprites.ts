@@ -813,12 +813,36 @@ const MOUSE_COLORS: Record<EnemyId, { body: string; belly: string; outline: stri
   shielded: { body: '#a8b8a0', belly: '#e4eede', outline: '#4e6046' },
   boss: { body: '#8a7a9e', belly: '#d8cce6', outline: '#3e3250' },
   mushroomKing: { body: '#7a8a9a', belly: '#dde4ea', outline: '#2e3846' },
+  // Elites: richer, darker coats so the crowned silhouettes stand out from the crowd.
+  brute: { body: '#8f7fa8', belly: '#ddd2ea', outline: '#3e3252' },
+  ironclad: { body: '#8c8f9c', belly: '#d6d8e0', outline: '#3a3c48' },
+  thief: { body: '#c9a46a', belly: '#f4e2c0', outline: '#5e4220' },
+  captain: { body: '#b49a7a', belly: '#f0e2cc', outline: '#5a4228' },
 };
+
+/** Body size per enemy (elites are visibly bigger, except the nimble Thief). */
+const MOUSE_SCALE: Partial<Record<EnemyId, number>> = {
+  boss: 2,
+  mushroomKing: 2,
+  fast: 0.85,
+  armored: 1.08,
+  brute: 1.5,
+  ironclad: 1.3,
+  thief: 0.95,
+  captain: 1.3,
+};
+
+/** Small gold crown: the shared "elite" mark. */
+function eliteCrown(ctx: Ctx, x: number, y: number) {
+  poly(ctx, [x - 4.5, y, x - 4.5, y - 5, x - 2, y - 2.5, x, y - 6, x + 2, y - 2.5, x + 4.5, y - 5, x + 4.5, y], '#ffd84a', '#a07a10', 0.9);
+  circle(ctx, x, y - 6, 0.9, '#ff6a7a');
+}
 
 export function drawMouse(ctx: Ctx, o: MouseDrawOpts) {
   const c = MOUSE_COLORS[o.id];
-  const s = o.id === 'boss' || o.id === 'mushroomKing' ? 2 : o.id === 'fast' ? 0.85 : o.id === 'armored' ? 1.08 : 1;
-  const bob = Math.abs(Math.sin(o.t * (o.id === 'fast' ? 16 : 9))) * 1.5;
+  const s = MOUSE_SCALE[o.id] ?? 1;
+  const quick = o.id === 'fast' || o.id === 'thief';
+  const bob = Math.abs(Math.sin(o.t * (quick ? 16 : 9))) * 1.5;
   ctx.save();
   ellipse(ctx, 0, 9 * s, 10 * s, 3 * s, 'rgba(60,80,40,0.25)');
   ctx.scale(o.dirX * s, s);
@@ -834,7 +858,7 @@ export function drawMouse(ctx: Ctx, o: MouseDrawOpts) {
   ctx.quadraticCurveTo(-16, 6 + Math.sin(o.t * 8) * 2, -18, -2);
   ctx.stroke();
   // feet
-  const step = Math.sin(o.t * (o.id === 'fast' ? 22 : 12));
+  const step = Math.sin(o.t * (quick ? 22 : 12));
   ellipse(ctx, -3 + step * 1.5, 8 + bob, 2.6, 1.8, '#f0a8b8', c.outline, 1);
   ellipse(ctx, 4 - step * 1.5, 8 + bob, 2.6, 1.8, '#f0a8b8', c.outline, 1);
   // body
@@ -982,6 +1006,60 @@ export function drawMouse(ctx: Ctx, o: MouseDrawOpts) {
       ctx.lineTo(3, -11);
       ctx.stroke();
     }
+  } else if (o.id === 'brute') {
+    // HP elite: big belly, cheese-wedge shoulder pad, sturdy brow
+    ellipse(ctx, 2, 3, 6.5, 5.2, c.belly);
+    poly(ctx, [-9, -4, -2, -7, -3, 0], '#ffd060', '#b08a20', 0.8);
+    circle(ctx, -5, -4, 0.8, '#e0a830');
+    ctx.strokeStyle = '#2a2230';
+    ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.moveTo(2.5, -5.4);
+    ctx.lineTo(6.8, -4.6);
+    ctx.stroke();
+    eliteCrown(ctx, 0.5, -12.5);
+  } else if (o.id === 'ironclad') {
+    // Armor elite: full steel helmet with a visor slit and rivets
+    ctx.beginPath();
+    ctx.ellipse(0.5, -4.5, 10, 7.5, 0, Math.PI, TAU);
+    ctx.closePath();
+    ctx.fillStyle = o.hit ? '#ffffff' : '#9aa4b4';
+    ctx.fill();
+    ctx.strokeStyle = '#3a3c48';
+    ctx.lineWidth = 1.3;
+    ctx.stroke();
+    ctx.fillStyle = '#2a2c36';
+    ctx.fillRect(2, -6.5, 8, 1.6);
+    for (const x of [-6, -2, 2]) circle(ctx, x, -9, 0.8, '#e8ecf4');
+    eliteCrown(ctx, 0.5, -12.5);
+  } else if (o.id === 'thief') {
+    // Fast elite: bandit mask, loot bag, speed lines
+    ctx.fillStyle = '#2a2230';
+    ctx.fillRect(1, -4.6, 10, 3.2);
+    circle(ctx, 5, -3, 1.2, '#ffffff');
+    ellipse(ctx, -10, -2, 4.5, 4, '#e8d8b0', '#6a5230', 0.9);
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    for (const y of [-1, 3, 7]) {
+      ctx.moveTo(-15, y);
+      ctx.lineTo(-22, y);
+    }
+    ctx.stroke();
+    eliteCrown(ctx, 0.5, -12);
+  } else if (o.id === 'captain') {
+    // Escort elite: captain's hat and a little banner
+    poly(ctx, [-8, -9, 8, -9, 5, -14, -5, -14], '#3a4a8a', '#1a2450', 0.9);
+    ctx.fillStyle = '#ffd84a';
+    ctx.fillRect(-1.2, -13.2, 2.4, 2.4);
+    ctx.strokeStyle = '#6a4a2a';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(-11, 8);
+    ctx.lineTo(-11, -10);
+    ctx.stroke();
+    poly(ctx, [-11, -10, -4, -8, -11, -5], '#e05a5a', '#7a2020', 0.7);
+    eliteCrown(ctx, 0.5, -15);
   }
   ctx.restore();
 }

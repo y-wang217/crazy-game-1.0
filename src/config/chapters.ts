@@ -23,6 +23,21 @@ interface WavePlan {
   chests?: Record<number, ChestTier>;
   /** Extra hand-made groups for specific waves (1-based), e.g. the boss. */
   extra?: Record<number, SpawnGroup[]>;
+  /**
+   * Elite enemies by original wave number (1-based, same numbering as `chests`). Each appears
+   * once, part-way into its wave; a Mouse Captain always brings an escort of regular mice.
+   */
+  elites?: Record<number, EliteId>;
+}
+
+type EliteId = 'brute' | 'ironclad' | 'thief' | 'captain';
+
+/** Spawn groups for one elite: it walks in ~40% into the wave (Captain + 4-mouse escort). */
+function eliteGroups(id: EliteId, span: number): SpawnGroup[] {
+  const delay = Math.max(2, span * 0.4);
+  const g: SpawnGroup[] = [{ enemy: id, count: 1, interval: 1, delay }];
+  if (id === 'captain') g.push({ enemy: 'normal', count: 4, interval: 0.55, delay: delay + 0.5 });
+  return g;
 }
 
 /** Built waves; `progressScale` = how many original waves one played wave spans. */
@@ -63,6 +78,11 @@ function buildWaves(p: WavePlan): BuiltWaves {
     wave.groups.push({ chest: tier, delay: Math.min(5, span * 0.3) + already * 4 });
   }
   for (const [k, groups] of Object.entries(p.extra ?? {})) out[toNew(Number(k)) - 1].groups.push(...groups);
+  for (const [k, id] of Object.entries(p.elites ?? {})) {
+    const wave = out[toNew(Number(k)) - 1];
+    const span = wave.groups.reduce((m, g) => Math.max(m, 'count' in g ? g.count * g.interval + (g.delay ?? 0) : 0), 0);
+    wave.groups.push(...eliteGroups(id, span));
+  }
   out.progressScale = stretch;
   return out;
 }
@@ -155,6 +175,7 @@ const STAGES: StageDef[] = [
       interval: [1.15, 0.7],
       mix: (w) => ({ normal: 3, fast: w > 0 ? 1.5 : 0 }),
       chests: { 3: 'bronze', 7: 'silver', 11: 'bronze' },
+      elites: { 9: 'brute' },
     }),
     rewards: { firstClear: 50, replay: 16 },
   },
@@ -175,6 +196,7 @@ const STAGES: StageDef[] = [
       interval: [1.15, 0.7],
       mix: (w) => (w === 1 ? { normal: 4, armored: 1 } : { normal: 3, fast: 1, armored: w > 1 ? 0.4 + w * 0.07 : 0 }),
       chests: { 3: 'bronze', 7: 'silver', 11: 'bronze' },
+      elites: { 6: 'brute', 12: 'thief' },
     }),
     rewards: { firstClear: 55, replay: 18 },
   },
@@ -185,8 +207,8 @@ const STAGES: StageDef[] = [
     tiles: [...CORE, '4-1', '4-2', '0-4', '0-5', '1-7', '2-7', '0-2', '4-6', '4-4', '0-1'],
     startFish: 12,
     baseHp: 10,
-    hpScale: 4.6,
-    waveHpGrowth: 0.0442,
+    hpScale: 3.68,
+    waveHpGrowth: 0.1115,
     waves: buildWaves({
       waves: 17,
       count: 11,
@@ -194,6 +216,7 @@ const STAGES: StageDef[] = [
       interval: [1.1, 0.65],
       mix: (w) => (w < 2 ? { normal: 3, fast: 0.8 } : { normal: 3, fast: 1.2, armored: 0.3 + w * 0.075 }),
       chests: { 3: 'bronze', 6: 'silver', 10: 'bronze', 13: 'silver' },
+      elites: { 5: 'thief', 10: 'brute', 15: 'ironclad' },
     }),
     rewards: { firstClear: 60, replay: 20 },
   },
@@ -204,8 +227,8 @@ const STAGES: StageDef[] = [
     tiles: [...CORE, '4-1', '4-2', '0-4', '0-5', '1-7', '2-7', '0-2', '4-6', '4-4', '0-1', '4-7'],
     startFish: 12,
     baseHp: 10,
-    hpScale: 3.6,
-    waveHpGrowth: 0.04,
+    hpScale: 2.88,
+    waveHpGrowth: 0.0852,
     waves: buildWaves({
       waves: 17,
       count: 11,
@@ -213,6 +236,7 @@ const STAGES: StageDef[] = [
       interval: [1.1, 0.62],
       mix: (w) => (w === 1 ? { normal: 3, shielded: 1 } : { normal: 3, fast: 1, armored: 0.8, shielded: w > 1 ? 1 + w * 0.05 : 0 }),
       chests: { 3: 'bronze', 6: 'silver', 10: 'bronze', 13: 'silver' },
+      elites: { 6: 'ironclad', 10: 'captain', 15: 'brute' },
     }),
     rewards: { firstClear: 70, replay: 22 },
   },
@@ -223,8 +247,8 @@ const STAGES: StageDef[] = [
     tiles: [...CORE, '4-1', '4-2', '0-4', '0-5', '1-7', '2-7', '0-2', '4-6', '4-4', '0-1', '4-7', '0-3'],
     startFish: 12,
     baseHp: 10,
-    hpScale: 3.5,
-    waveHpGrowth: 0.04,
+    hpScale: 2.8,
+    waveHpGrowth: 0.0943,
     waves: buildWaves({
       waves: 18,
       count: 12,
@@ -232,6 +256,7 @@ const STAGES: StageDef[] = [
       interval: [1.05, 0.58],
       mix: (w) => ({ normal: 3, fast: 1.5, armored: 1 + w * 0.05, shielded: 1 + w * 0.05 }),
       chests: { 3: 'bronze', 6: 'silver', 9: 'bronze', 12: 'silver', 14: 'bronze' },
+      elites: { 5: 'thief', 9: 'captain', 13: 'ironclad', 17: 'brute' },
     }),
     rewards: { firstClear: 80, replay: 25 },
   },
@@ -242,8 +267,8 @@ const STAGES: StageDef[] = [
     tiles: [...CORE, '4-1', '4-2', '0-4', '0-5', '1-7', '2-7', '0-2', '4-6', '4-4', '0-1', '4-7', '0-3', '4-5'],
     startFish: 12,
     baseHp: 10,
-    hpScale: 3.45,
-    waveHpGrowth: 0.035,
+    hpScale: 2.76,
+    waveHpGrowth: 0.0696,
     isBoss: true,
     waves: buildWaves({
       waves: 21,
@@ -253,6 +278,7 @@ const STAGES: StageDef[] = [
       mix: (w) => (w === 20 ? { normal: 2, shielded: 1 } : { normal: 3, fast: 1.5, armored: 1 + w * 0.05, shielded: 1 + w * 0.05 }),
       chests: { 3: 'bronze', 7: 'silver', 11: 'gold', 15: 'silver', 19: 'bronze' },
       extra: { 21: [{ enemy: 'boss', count: 1, interval: 1, delay: 3 }] },
+      elites: { 4: 'brute', 8: 'thief', 12: 'captain', 16: 'ironclad', 19: 'brute' },
     }),
     rewards: { firstClear: 150, replay: 40 },
   },
@@ -278,8 +304,8 @@ const CH2_STAGES: StageDef[] = [
     tiles: ring(2),
     startFish: 16,
     baseHp: 10,
-    hpScale: 4.14,
-    waveHpGrowth: 0.062,
+    hpScale: 3.105,
+    waveHpGrowth: 0.1276,
     waves: buildWaves({
       waves: 12,
       count: 10,
@@ -287,6 +313,7 @@ const CH2_STAGES: StageDef[] = [
       interval: [1.1, 0.7],
       mix: (w) => ({ normal: 3, fast: 1, armored: w > 2 ? 0.6 : 0 }),
       chests: { 3: 'bronze', 7: 'silver', 10: 'bronze' },
+      elites: { 5: 'brute', 9: 'thief' },
     }),
     rewards: { firstClear: 90, replay: 28 },
   },
@@ -297,8 +324,8 @@ const CH2_STAGES: StageDef[] = [
     tiles: ring(3),
     startFish: 16,
     baseHp: 10,
-    hpScale: 3.77,
-    waveHpGrowth: 0.061,
+    hpScale: 2.828,
+    waveHpGrowth: 0.0893,
     waves: buildWaves({
       waves: 13,
       count: 11,
@@ -306,6 +333,7 @@ const CH2_STAGES: StageDef[] = [
       interval: [1.05, 0.68],
       mix: (w) => ({ normal: 3, fast: 1, shielded: w > 1 ? 1 : 0 }),
       chests: { 3: 'bronze', 7: 'silver', 11: 'bronze' },
+      elites: { 4: 'thief', 8: 'captain', 12: 'brute' },
     }),
     rewards: { firstClear: 95, replay: 30 },
   },
@@ -316,8 +344,8 @@ const CH2_STAGES: StageDef[] = [
     tiles: ring(4),
     startFish: 16,
     baseHp: 10,
-    hpScale: 4.89,
-    waveHpGrowth: 0.06,
+    hpScale: 3.667,
+    waveHpGrowth: 0.1034,
     waves: buildWaves({
       waves: 14,
       count: 12,
@@ -326,6 +354,7 @@ const CH2_STAGES: StageDef[] = [
       // "Rush hour": many Zippy Mice mixed with slow knights — speed variety.
       mix: (w) => ({ normal: 2, fast: 2 + w * 0.1, armored: w > 2 ? 0.8 : 0 }),
       chests: { 3: 'bronze', 7: 'silver', 11: 'silver' },
+      elites: { 5: 'ironclad', 9: 'captain', 13: 'thief' },
     }),
     rewards: { firstClear: 100, replay: 32 },
   },
@@ -336,8 +365,8 @@ const CH2_STAGES: StageDef[] = [
     tiles: ring(4),
     startFish: 16,
     baseHp: 10,
-    hpScale: 3.95,
-    waveHpGrowth: 0.06,
+    hpScale: 2.963,
+    waveHpGrowth: 0.1022,
     armorBonus: 1,
     waves: buildWaves({
       waves: 15,
@@ -346,6 +375,7 @@ const CH2_STAGES: StageDef[] = [
       interval: [1.0, 0.6],
       mix: (w) => ({ normal: 3, fast: 1, armored: 1 + w * 0.08, shielded: w > 3 ? 0.8 : 0 }),
       chests: { 3: 'bronze', 6: 'silver', 10: 'bronze', 13: 'silver' },
+      elites: { 4: 'brute', 8: 'ironclad', 12: 'captain', 14: 'thief' },
     }),
     rewards: { firstClear: 105, replay: 34 },
   },
@@ -356,8 +386,8 @@ const CH2_STAGES: StageDef[] = [
     tiles: ring(5),
     startFish: 16,
     baseHp: 10,
-    hpScale: 3.55,
-    waveHpGrowth: 0.059,
+    hpScale: 2.662,
+    waveHpGrowth: 0.0895,
     armorBonus: 1,
     waves: buildWaves({
       waves: 16,
@@ -366,6 +396,7 @@ const CH2_STAGES: StageDef[] = [
       interval: [0.98, 0.58],
       mix: (w) => ({ normal: 3, fast: 1.2, armored: 1 + w * 0.06, shielded: 1 + w * 0.06 }),
       chests: { 3: 'bronze', 7: 'silver', 11: 'gold', 14: 'bronze' },
+      elites: { 4: 'captain', 8: 'thief', 12: 'ironclad', 15: 'brute' },
     }),
     rewards: { firstClear: 110, replay: 36 },
   },
@@ -376,8 +407,8 @@ const CH2_STAGES: StageDef[] = [
     tiles: ring(6),
     startFish: 16,
     baseHp: 10,
-    hpScale: 4.26,
-    waveHpGrowth: 0.059,
+    hpScale: 3.195,
+    waveHpGrowth: 0.1047,
     armorBonus: 1,
     waves: buildWaves({
       waves: 16,
@@ -387,6 +418,7 @@ const CH2_STAGES: StageDef[] = [
       // Swarm stage: lots of light mice — splash (Orange) and range (Black) shine.
       mix: (w) => ({ normal: 4, fast: 2, shielded: w > 2 ? 0.8 : 0 }),
       chests: { 3: 'bronze', 6: 'silver', 10: 'silver', 14: 'bronze' },
+      elites: { 4: 'ironclad', 7: 'brute', 11: 'captain', 15: 'thief' },
     }),
     rewards: { firstClear: 115, replay: 38 },
   },
@@ -397,8 +429,8 @@ const CH2_STAGES: StageDef[] = [
     tiles: ring(6),
     startFish: 16,
     baseHp: 10,
-    hpScale: 2.78,
-    waveHpGrowth: 0.059,
+    hpScale: 2.085,
+    waveHpGrowth: 0.1257,
     armorBonus: 2,
     waves: buildWaves({
       waves: 17,
@@ -408,6 +440,7 @@ const CH2_STAGES: StageDef[] = [
       // Iron march: knights and guards — Black Cat's piercing shots and Noble White's charm matter.
       mix: (w) => ({ normal: 2, fast: 1, armored: 1.5 + w * 0.08, shielded: 1.2 + w * 0.06 }),
       chests: { 3: 'bronze', 7: 'silver', 11: 'gold', 15: 'bronze' },
+      elites: { 4: 'thief', 8: 'captain', 12: 'brute', 16: 'ironclad' },
     }),
     rewards: { firstClear: 120, replay: 40 },
   },
@@ -418,8 +451,8 @@ const CH2_STAGES: StageDef[] = [
     tiles: ring(7),
     startFish: 16,
     baseHp: 10,
-    hpScale: 3.39,
-    waveHpGrowth: 0.058,
+    hpScale: 2.542,
+    waveHpGrowth: 0.111,
     armorBonus: 2,
     waves: buildWaves({
       waves: 18,
@@ -428,6 +461,7 @@ const CH2_STAGES: StageDef[] = [
       interval: [0.92, 0.52],
       mix: (w) => ({ normal: 3, fast: 1.5 + w * 0.05, armored: 1.2 + w * 0.06, shielded: 1.2 + w * 0.06 }),
       chests: { 3: 'bronze', 6: 'silver', 10: 'silver', 14: 'gold', 17: 'bronze' },
+      elites: { 4: 'brute', 8: 'ironclad', 12: 'captain', 16: 'thief' },
     }),
     rewards: { firstClear: 130, replay: 42 },
   },
@@ -438,8 +472,8 @@ const CH2_STAGES: StageDef[] = [
     tiles: ring(8),
     startFish: 16,
     baseHp: 10,
-    hpScale: 3.65,
-    waveHpGrowth: 0.058,
+    hpScale: 2.737,
+    waveHpGrowth: 0.0959,
     armorBonus: 2,
     waves: buildWaves({
       waves: 19,
@@ -448,6 +482,7 @@ const CH2_STAGES: StageDef[] = [
       interval: [0.9, 0.5],
       mix: (w) => ({ normal: 3, fast: 1.8, armored: 1.4 + w * 0.06, shielded: 1.4 + w * 0.06 }),
       chests: { 3: 'bronze', 7: 'silver', 11: 'gold', 15: 'silver', 18: 'bronze' },
+      elites: { 4: 'captain', 8: 'thief', 12: 'ironclad', 15: 'brute', 18: 'captain' },
     }),
     rewards: { firstClear: 140, replay: 45 },
   },
@@ -458,8 +493,8 @@ const CH2_STAGES: StageDef[] = [
     tiles: ring(8),
     startFish: 16,
     baseHp: 10,
-    hpScale: 3.48,
-    waveHpGrowth: 0.05,
+    hpScale: 2.61,
+    waveHpGrowth: 0.0949,
     armorBonus: 2,
     isBoss: true,
     waves: buildWaves({
@@ -471,6 +506,7 @@ const CH2_STAGES: StageDef[] = [
       mix: (w) => (w === 20 ? { normal: 2, shielded: 1 } : { normal: 3, fast: 1.6, armored: 1.3 + w * 0.05, shielded: 1.3 + w * 0.05 }),
       chests: { 3: 'bronze', 7: 'silver', 11: 'gold', 15: 'silver', 19: 'gold' },
       extra: { 21: [{ enemy: 'mushroomKing', count: 1, interval: 1, delay: 3 }] },
+      elites: { 4: 'ironclad', 8: 'captain', 12: 'thief', 16: 'brute', 19: 'captain' },
     }),
     rewards: { firstClear: 250, replay: 60 },
   },

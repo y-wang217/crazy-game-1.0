@@ -107,6 +107,13 @@ export const BALANCE = {
   waveHpCurve: 1.5,
 
   // ---- Combat ----
+  /** Elite enemies (see config/enemies.ts). */
+  elite: {
+    /** Mouse Captain: mice within this radius (world px; a tile is 50) take less damage… */
+    guardRadius: 70,
+    /** …by this fraction (direct hits only — poison is unaffected). */
+    guardReduction: 0.35,
+  },
   /** Minimum fraction of raw damage that always gets through armor. */
   minDamageRatio: 0.2,
   /** Hard cap on movement slowdown (0.7 = 70% slower). */
@@ -116,10 +123,13 @@ export const BALANCE = {
   levels: {
     maxLevel: 5,
     /**
-     * Damage multiplier per level (index 0 = Lv.1). ×2 per merge means merging never
-     * loses damage (plus the speed/range bonus and a freed tile).
+     * Damage multiplier per level (index 0 = Lv.1). Front-loaded merge payoff (V1.5 review):
+     * merging into Lv.2 / Lv.3 gives a little MORE than the two cats it uses (×2.1 per step),
+     * Lv.4 / Lv.5 give a smaller step (≈ +80% DPS each) so one Lv.5 cat is strong but not
+     * a runaway breakpoint. Lv.5 ≈ 15× Lv.1 DPS (was ≈ 20×); every level still clearly beats
+     * the one before. Was [1, 2, 4, 8, 16].
      */
-    damageMult: [1, 2, 4, 8, 16],
+    damageMult: [1, 2.1, 4.2, 7.6, 13],
     /** Extra range per level above 1 (fraction). */
     rangePerLevel: 0.06,
     /** Extra attack speed per level above 1 (fraction). */

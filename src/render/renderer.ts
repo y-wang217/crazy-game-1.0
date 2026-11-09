@@ -1,5 +1,6 @@
 import { BALANCE } from '../config/balance';
 import { CATS, TARGET_MODE_INFO } from '../config/cats';
+import { ENEMIES } from '../config/enemies';
 import { findCosmetic, skinGlint } from '../config/cosmetics';
 import type { Battle, CatUnit, Foe, Projectile } from '../game/battle';
 import { cellCenter, worldSize } from '../game/path';
@@ -245,7 +246,8 @@ export class Renderer {
 
     // Foes (sorted by y for overlap)
     const foes = [...battle.foes].sort((a, b) => a.y - b.y);
-    for (const f of foes) this.drawFoe(f, t, battle.time, f.uid === battle.focusUid);
+    for (const f of foes)
+      this.drawFoe(f, t, battle.time, f.uid === battle.focusUid, f.kind === 'enemy' && f.defId !== 'captain' && battle.isGuarded(f));
     if (this.trail.size > 200) this.trail.clear();
 
     // Cats
@@ -468,7 +470,7 @@ export class Renderer {
   }
 
   /** t = visual clock (flashes, fades); walkT = simulation clock (walk cycle freezes with the game). */
-  private drawFoe(f: Foe, t: number, walkT: number, focused = false) {
+  private drawFoe(f: Foe, t: number, walkT: number, focused = false, guarded = false) {
     const ctx = this.ctx;
     const hitAge = t - f.hitAt;
     const hit = hitAge < 0.08;
@@ -505,9 +507,53 @@ export class Renderer {
       ctx.fill();
       ctx.restore();
     }
+    // Elites: pulsing gold ring underfoot; the Captain also shows its guard radius.
+    const elite = f.kind === 'enemy' ? ENEMIES[f.defId as EnemyId]?.elite : undefined;
+    if (elite) {
+      ctx.save();
+      const pulse = 0.5 + 0.5 * Math.sin(t * 4 + f.uid);
+      if (elite === 'escort') {
+        ctx.globalAlpha = 0.18 + 0.08 * pulse;
+        ctx.beginPath();
+        ctx.arc(0, 2, BALANCE.elite.guardRadius, 0, TAU);
+        ctx.fillStyle = '#ffd84a';
+        ctx.fill();
+        ctx.globalAlpha = 0.55;
+        ctx.setLineDash([5, 5]);
+        ctx.strokeStyle = '#e0a830';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      ctx.globalAlpha = 0.55 + 0.3 * pulse;
+      ctx.beginPath();
+      ctx.ellipse(0, f.radius * 0.65, f.radius * 1.35, f.radius * 0.55, 0, 0, TAU);
+      ctx.strokeStyle = '#ffd84a';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+      ctx.restore();
+    }
     const walk = f.walk + f.uid * 0.37;
     if (f.kind === 'chest') drawChest(ctx, f.defId as ChestTier, walk, hit);
     else drawMouse(ctx, { id: f.defId as EnemyId, dirX: f.dirX, t: walk, hasShield: f.shield > 0, hit });
+    if (guarded) {
+      // Protected by a Mouse Captain: tiny gold shield badge
+      ctx.save();
+      ctx.translate(f.radius * 0.6, -f.radius - 4);
+      ctx.beginPath();
+      ctx.moveTo(-3.5, -3);
+      ctx.lineTo(3.5, -3);
+      ctx.lineTo(3.5, 0.5);
+      ctx.quadraticCurveTo(0, 4.5, 0, 4.5);
+      ctx.quadraticCurveTo(0, 4.5, -3.5, 0.5);
+      ctx.closePath();
+      ctx.fillStyle = '#ffd84a';
+      ctx.fill();
+      ctx.strokeStyle = '#a07a10';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.restore();
+    }
     void walkT;
     // V1.3: tiny impact spark on every hit (visual only).
     if (hitAge < 0.14) {
@@ -589,7 +635,12 @@ export class Renderer {
       ctx.lineWidth = 1.8;
       ctx.beginPath();
       ctx.arc(0, 0, r, 0, TAU);
-      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+      for (const [dx, dy] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ] as const) {
         ctx.moveTo(dx * (r - 4), dy * (r - 4));
         ctx.lineTo(dx * (r + 4), dy * (r + 4));
       }
@@ -687,7 +738,8 @@ export class Renderer {
       ctx.beginPath();
       ctx.arc(0, 0, r * 0.6, t * 8, t * 8 + 4);
       ctx.stroke();
-      if (size > 1.5) for (let i = 0; i < 3; i++) drawStar(ctx, Math.cos(t * 6 + i * 2) * r * 1.4, Math.sin(t * 6 + i * 2) * r * 1.4, 2, '#ffd36a', 4, 0.4);
+      if (size > 1.5)
+        for (let i = 0; i < 3; i++) drawStar(ctx, Math.cos(t * 6 + i * 2) * r * 1.4, Math.sin(t * 6 + i * 2) * r * 1.4, 2, '#ffd36a', 4, 0.4);
     } else if (p.style === 'venom') {
       // Silver Devil's sweet venom: a violet droplet with a green glint.
       ctx.rotate(ang + Math.PI / 2);
@@ -835,7 +887,9 @@ export class Renderer {
             ctx.lineTo(x2 + (nx / nl) * e.width * 0.5, y2 + (ny / nl) * e.width * 0.5);
             ctx.stroke();
           }
-          if (e.star >= 4) for (let i = 1; i <= 3; i++) drawStar(ctx, e.x1 + (x2 - e.x1) * (i / 4), e.y1 + (y2 - e.y1) * (i / 4), 2.4 * (1 - k), e.star >= 5 ? '#ffd36a' : '#ffffff', 4, 0.4);
+          if (e.star >= 4)
+            for (let i = 1; i <= 3; i++)
+              drawStar(ctx, e.x1 + (x2 - e.x1) * (i / 4), e.y1 + (y2 - e.y1) * (i / 4), 2.4 * (1 - k), e.star >= 5 ? '#ffd36a' : '#ffffff', 4, 0.4);
           break;
         }
         case 'telegraph': {

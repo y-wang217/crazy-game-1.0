@@ -15,7 +15,10 @@ export type CatId =
   | 'devil';
 export type AttackKind = 'projectile' | 'combo' | 'slam' | 'snipe' | 'aura' | 'ricochet' | 'pierce' | 'support' | 'execute' | 'poison';
 export type TargetMode = 'first' | 'nearest' | 'strongest' | 'weakest' | 'treasure';
-export type EnemyId = 'normal' | 'fast' | 'armored' | 'shielded' | 'boss' | 'mushroomKing';
+export type EnemyId = 'normal' | 'fast' | 'armored' | 'shielded' | 'boss' | 'mushroomKing' | 'brute' | 'ironclad' | 'thief' | 'captain';
+
+/** Elite enemy roles: rare, visually distinct, each a focused tactical threat. */
+export type EliteRole = 'hp' | 'armor' | 'fast' | 'escort';
 export type ChestTier = 'bronze' | 'silver' | 'gold';
 export type SkillId =
   // general
@@ -140,6 +143,8 @@ export interface EnemyDef {
   baseDamage: number;
   radius: number;
   isBoss?: boolean;
+  /** Elite enemy (gold crown + ring). The role says what makes it a threat. */
+  elite?: EliteRole;
 }
 
 export interface ChestDef {

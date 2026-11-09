@@ -32,8 +32,11 @@ export function runBot(
     stars?: Partial<Record<CatId, number>>;
     roster?: CatId[];
     skinBonus?: Partial<Record<CatId, SkinBonus>>;
+    /** Never merge above this level (measures how much a stage depends on reaching Lv.5). */
+    levelCap?: number;
   } = {},
 ): BotResult {
+  const cap = opts.levelCap ?? 99;
   const b = new Battle(stage, map, {
     seed,
     tuning: opts.tuning as Tuning | undefined,
@@ -52,8 +55,8 @@ export function runBot(
       b.chooseReward(0);
       continue;
     }
-    if (b.emptyTiles().length === 0) mergeLowest(b);
-    else if (opts.smart && b.emptyTiles().length <= 2) mergeLowest(b);
+    if (b.emptyTiles().length === 0) mergeLowest(b, cap);
+    else if (opts.smart && b.emptyTiles().length <= 2) mergeLowest(b, cap);
     if (b.emptyTiles().length && b.fish >= b.summonCost) b.summon();
     else if (b.skillShopUnlocked && b.fish >= b.skillCost && (!b.emptyTiles().length || b.fish >= b.skillCost + b.summonCost)) b.buySkill();
     if (coverage) relocateBest(b, coverage);
@@ -74,11 +77,11 @@ export function runBot(
   };
 }
 
-function mergeLowest(b: Battle): boolean {
+function mergeLowest(b: Battle, cap = 99): boolean {
   const cats = [...b.cats].sort((x, y) => x.level - y.level);
   for (let i = 0; i < cats.length; i++) {
     for (let j = i + 1; j < cats.length; j++) {
-      if (canMerge(cats[i], cats[j])) {
+      if (canMerge(cats[i], cats[j]) && cats[i].level < cap) {
         b.dropCat(cats[i].uid, cats[j].tileId);
         return true;
       }

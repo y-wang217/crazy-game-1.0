@@ -2,62 +2,33 @@ import type { ChestDef, ChestTier, EnemyDef, EnemyId } from '../game/types';
 
 // HP / shield are Stage 1 values; each stage applies its own hpScale.
 export const ENEMIES: Record<EnemyId, EnemyDef> = {
-  normal: {
-    id: 'normal',
-    name: 'Forest Mouse',
-    hp: 40,
+  normal: { id: 'normal', name: 'Forest Mouse', hp: 40, shield: 0, armor: 0, speed: 38, reward: 2, baseDamage: 1, radius: 11 },
+  fast: { id: 'fast', name: 'Zippy Mouse', hp: 24, shield: 0, armor: 0, speed: 74, reward: 2, baseDamage: 1, radius: 9 },
+  armored: { id: 'armored', name: 'Acorn Knight', hp: 80, shield: 0, armor: 6, speed: 26, reward: 4, baseDamage: 2, radius: 12 },
+  shielded: { id: 'shielded', name: 'Leaf Guard', hp: 55, shield: 55, armor: 1, speed: 33, reward: 4, baseDamage: 2, radius: 11 },
+  boss: { id: 'boss', name: 'Big Cheese King', hp: 1800, shield: 0, armor: 4, speed: 15, reward: 40, baseDamage: 8, radius: 22, isBoss: true },
+  // ---- Elite enemies (rare, crowned): focused threats that create decision moments ----
+  // HP elite: a slow wall of HP — needs concentrated damage (Strongest targeting).
+  brute: { id: 'brute', name: 'Chonky Cheese Guard', hp: 320, shield: 0, armor: 2, speed: 22, reward: 10, baseDamage: 3, radius: 15, elite: 'hp' },
+  // Armor elite: shrugs off small hits — answer with armor piercing (Black Cat, Armor Break,
+  // Orange's slam) or poison, not with more Lv.1 cats.
+  ironclad: {
+    id: 'ironclad',
+    name: 'Iron Helm Mouse',
+    hp: 150,
     shield: 0,
-    armor: 0,
-    speed: 38,
-    reward: 2,
-    baseDamage: 1,
-    radius: 11,
+    armor: 12,
+    speed: 22,
+    reward: 10,
+    baseDamage: 3,
+    radius: 14,
+    elite: 'armor',
   },
-  fast: {
-    id: 'fast',
-    name: 'Zippy Mouse',
-    hp: 24,
-    shield: 0,
-    armor: 0,
-    speed: 74,
-    reward: 2,
-    baseDamage: 1,
-    radius: 9,
-  },
-  armored: {
-    id: 'armored',
-    name: 'Acorn Knight',
-    hp: 80,
-    shield: 0,
-    armor: 6,
-    speed: 26,
-    reward: 4,
-    baseDamage: 2,
-    radius: 12,
-  },
-  shielded: {
-    id: 'shielded',
-    name: 'Leaf Guard',
-    hp: 55,
-    shield: 55,
-    armor: 1,
-    speed: 33,
-    reward: 4,
-    baseDamage: 2,
-    radius: 11,
-  },
-  boss: {
-    id: 'boss',
-    name: 'Big Cheese King',
-    hp: 1800,
-    shield: 0,
-    armor: 4,
-    speed: 15,
-    reward: 40,
-    baseDamage: 8,
-    radius: 22,
-    isBoss: true,
-  },
+  // Fast elite: sprints for the house and steals 3 hearts if it escapes — First targeting.
+  thief: { id: 'thief', name: 'Cheese Thief', hp: 70, shield: 0, armor: 0, speed: 92, reward: 8, baseDamage: 3, radius: 10, elite: 'fast' },
+  // Escort elite: arrives with an escort; nearby mice take less damage while it lives
+  // (BALANCE.elite.guard*). Kill the Captain first — or poison the pack (poison ignores it).
+  captain: { id: 'captain', name: 'Mouse Captain', hp: 200, shield: 0, armor: 3, speed: 30, reward: 12, baseDamage: 3, radius: 14, elite: 'escort' },
   // Chapter 2 boss: the huge mushroom cap is a regenerating-free shield (existing mechanic),
   // the body underneath is armored. Break the cap first, then burn through the HP.
   mushroomKing: {

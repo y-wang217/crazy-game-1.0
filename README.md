@@ -44,6 +44,65 @@ While dragging, tiles are tinted to show what the drop will do: green = move, go
 - **Version:** shown from `src/config/version.ts` (`APP_VERSION`, displayed as e.g. `V1.4` via `versionLabel()`), the same constant as the Home footer. Bump the version there only.
 - **No side effects:** it never touches the save. If an interrupted battle was saved, the "Resume previous battle?" prompt appears right after the notice is dismissed.
 
+## Next release — Cat level scaling vs enemy progression (balance review)
+
+**What playtesting reported:** runs swing between "one Lv.5 cat makes everything trivial" and "didn't merge enough, the run collapses".
+
+**What the measurements showed:**
+- **Merge payoff:** every merge multiplied damage per second (DPS) by about 2.1, so a Lv.5 cat did about 20× a Lv.1.
+- **Armour:** flat armour made the gap about 75× against armoured mice.
+- **Beginner-style runs** (beginner bot, enemy HP ×1.15) that reached a Lv.5 won about 100%. Runs that didn't won 0–30% on later stages.
+- **The real cause:** those losing runs did not die late. They collapsed in the first third of the stage (e.g. 19 of 19 losses on 1-9, 1-10 and 2-10), with only Lv.2–3 cats. From 1-7 on, regular mice started tough from wave 1 and then barely grew, while cat power grows steeply within a stage. So openings were brutal and finals soft: "never reached Lv.5" was a symptom of dying early.
+
+**Fix, on both sides together:**
+
+1. **Smoother merge payoff:** `BALANCE.levels.damageMult` changed from `[1, 2, 4, 8, 16]` to `[1, 2.1, 4.2, 7.6, 13]` (per-level speed and range unchanged).
+
+   | Merge | DPS step before | DPS step after |
+   | --- | --- | --- |
+   | Lv.1 → Lv.2 | ×2.12 | ×2.23 |
+   | Lv.2 → Lv.3 | ×2.11 | ×2.11 |
+   | Lv.3 → Lv.4 | ×2.11 | ×1.91 |
+   | Lv.4 → Lv.5 | ×2.10 | ×1.80 |
+
+   - Lv.5 is now about 15× a Lv.1 instead of about 20×.
+   - Early merges pay a little more than the two cats they use. Late merges trade a little raw power for a free tile.
+   - Poison, ricochets and other effects follow the same curve.
+   - A 35% armour floor was tried and rejected because it erased Tabby's "weak against armour" identity. The floor stays at 20%.
+2. **Elite enemies** (`config/enemies.ts`, `elite` role). Rare and crowned, each a focused threat with a counter:
+
+   | Elite | Role | Threat | Counter |
+   | --- | --- | --- | --- |
+   | **肥芝士守衛 Chonky Cheese Guard** | high HP | about 8× a Forest Mouse | concentrate damage ("Strongest") |
+   | **鐵盔鼠 Iron Helm Mouse** | high armour | armour 12 | big hits, Armor Break, poison |
+   | **芝士小偷 Cheese Thief** | fast | very fast; escaping costs 3 hearts | "First" targeting near the exit |
+   | **老鼠隊長 Mouse Captain** | escort | arrives with 4 escorts; mice in its gold circle take 35% less damage from hits (`BALANCE.elite`) | kill it first; poison ignores the guard |
+
+   - **Looks:** a gold crown and a pulsing ring underfoot. The Captain's guard radius is drawn on the field, and protected mice show a small gold shield.
+   - **Announcements:** first meeting shows an intro card ("精英敵人出現！" with type, threat and counter); every arrival shows a toast.
+   - **Reward:** elites pay a little more dried fish.
+   - **Placement:** none in Stages 1-1 → 1-4. The first is a single Cheese Guard late in 1-5. Later stages have 2–5, always under 6% of a stage's mice (tested). Scheduled per stage with `elites: { wave: id }`.
+3. **Regular mice give steady pressure, elites provide the spikes.** From 1-7 and across Chapter 2:
+   - Opening HP is lowered to ×0.75–0.8 of what it was.
+   - Per-wave growth is steepened so each stage's final HP lands at its tuned target (×1.0–1.7 of before, per stage).
+   - 1-5 and 1-6 keep the beginner fix and only gain elites.
+
+**Results** (40–60 simulated runs per stage, original values vs the new configuration):
+- **Strong players (smart bot headroom):** unchanged on most stages, within one measurement step on the rest. No stage got meaningfully easier or harder for good play.
+- **Beginners (normal difficulty):** win rates are the same or better on most stages; for example 1-8 26 → 29/30 and 1-10 27 → 28/30.
+- **Early collapse (beginner bot, ×1.15 pressure):** early-wave losses dropped a lot. Of all losses, the share in the first third went:
+  - 1-7: 8 of 8 → 2 of 8
+  - 1-9: 19 of 19 → 12 of 17
+  - 1-10: 19 of 19 → 12 of 13
+  - 2-10: 19 of 19 → 7 of 14
+- **Lv.5 is no longer an automatic win:** Lv.5 runs now win 88–96% on the hardest stages instead of 100%.
+- **What hasn't changed:** under ×1.15 pressure, runs that never reach Lv.5 on the two boss stages still mostly lose. Those runs fall behind early, and the bosses still demand a developed team. That is intentional, but worth watching in playtests.
+
+**Tools:**
+- `runBot(..., { levelCap })` measures how much a stage depends on Lv.5. Capping the smart bot at Lv.3 or Lv.4 doesn't change its results, which shows outcomes track total summons, not breakpoints.
+- `runBeginnerBot` (described below) is the other measuring tool.
+- `levelsElites.test.ts` guards the curve shape and the elite rules.
+
 ## Next release — Beginner balance fix (Chapter 1)
 
 **Problem:** Stage 1-2 was far too hard for new players.

@@ -1,3 +1,4 @@
+import { BALANCE } from '../../config/balance';
 import { CATS, CAT_ORDER, STARTER_CATS } from '../../config/cats';
 import { CHAPTERS } from '../../config/chapters';
 import { MAPS } from '../../config/maps';
@@ -71,7 +72,8 @@ describe('character-specific skills', () => {
   };
 
   it('every cat has at least three of its own skills', () => {
-    for (const c of CAT_ORDER) expect(SKILL_ORDER.filter((id) => SKILLS[id].cat === c).length).toBeGreaterThanOrEqual(STARTER_CATS.includes(c) ? 3 : 2);
+    for (const c of CAT_ORDER)
+      expect(SKILL_ORDER.filter((id) => SKILLS[id].cat === c).length).toBeGreaterThanOrEqual(STARTER_CATS.includes(c) ? 3 : 2);
     expect(SKILL_ORDER.filter((id) => !SKILLS[id].cat).length).toBeGreaterThanOrEqual(3);
   });
 
@@ -155,10 +157,19 @@ describe('cat details panel data', () => {
     b.skills = { bravePaws: 2, sharpClaws: 1, championPunch: 1, fishyFortune: 1 };
     b.mods = computeSkillMods(b.skills);
     const { eff, base } = effectiveStats(k, b);
-    expect(base.damage).toBeCloseTo(CATS.kitten.damage * 2);
-    expect(eff.damage).toBeCloseTo(CATS.kitten.damage * 2 * 1.1 * 1.5);
-    expect(bonusesFor(k, b).map(([id]) => id).sort()).toEqual(['bravePaws', 'sharpClaws']);
-    expect(bonusesFor(tb, b).map(([id]) => id).sort()).toEqual(['championPunch', 'sharpClaws']);
+    const lv2 = BALANCE.levels.damageMult[1];
+    expect(base.damage).toBeCloseTo(CATS.kitten.damage * lv2);
+    expect(eff.damage).toBeCloseTo(CATS.kitten.damage * lv2 * 1.1 * 1.5);
+    expect(
+      bonusesFor(k, b)
+        .map(([id]) => id)
+        .sort(),
+    ).toEqual(['bravePaws', 'sharpClaws']);
+    expect(
+      bonusesFor(tb, b)
+        .map(([id]) => id)
+        .sort(),
+    ).toEqual(['championPunch', 'sharpClaws']);
   });
   it('white cat details are about slowing, not damage', () => {
     const b = new Battle(stage(7), map, 1);

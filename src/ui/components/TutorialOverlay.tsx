@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { TARGET_MODES, TARGET_MODE_INFO } from '../../config/cats';
-import { CHESTS } from '../../config/enemies';
+import { CHESTS, ENEMIES } from '../../config/enemies';
 import type { Battle } from '../../game/battle';
 import { t, useLang } from '../../i18n';
 import type { Renderer } from '../../render/renderer';
@@ -220,12 +220,18 @@ function PanelBody({ step }: { step: ActiveStep; loadout: CosmeticLoadout }) {
     const id = p.enemy;
     return (
       <div className="intro">
-        <div className="intro-kicker bad">{t('intro.newEnemy')}</div>
+        <div className={`intro-kicker bad ${ENEMIES[id].elite ? 'elite' : ''}`}>{ENEMIES[id].elite ? t('intro.newElite') : t('intro.newEnemy')}</div>
         <div className="intro-art">
           <FoePreview enemy={id} size={110} />
         </div>
         <h2 className="intro-name">{t(`enemy.${id}.name`)}</h2>
         <dl className="intro-facts">
+          {ENEMIES[id].elite && (
+            <>
+              <dt>{t('intro.eliteRole')}</dt>
+              <dd>{t(`elite.role.${ENEMIES[id].elite}`)}</dd>
+            </>
+          )}
           <dt className="bad">{t('intro.watchOut')}</dt>
           <dd>{t(`enemy.${id}.strength`)}</dd>
           <dt>{t('intro.behavior')}</dt>

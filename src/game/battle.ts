@@ -183,6 +183,7 @@ export type BattleEvent =
   | { type: 'chestAppeared'; tier: ChestTier }
   | { type: 'chestEscaped' }
   | { type: 'bossAppeared'; enemy: EnemyId }
+  | { type: 'eliteAppeared'; enemy: EnemyId }
   | { type: 'bossDefeated'; enemy: EnemyId }
   | { type: 'maxedChestFish'; fish: number }
   | { type: 'ultimate'; cat: CatId }
@@ -1068,6 +1069,7 @@ export class Battle {
         isBoss: !!def.isBoss,
       };
       if (def.isBoss) this.events.push({ type: 'bossAppeared', enemy: def.id });
+      if (def.elite) this.events.push({ type: 'eliteAppeared', enemy: def.id });
     }
     this.foes.push(foe);
     return foe;
@@ -1808,6 +1810,8 @@ export class Battle {
     const armor = Math.max(0, f.armor - shred) * (1 - (opts.armorIgnore ?? 0));
     let dmg = computeDamage(raw, armor, this.mods.armorReduce);
     if (f.vulnUntil > this.time) dmg *= 1 + f.vulnerable;
+    // Mouse Captain's guard: escorts near a living Captain take less damage from hits.
+    if (f.kind === 'enemy' && f.defId !== 'captain' && this.isGuarded(f)) dmg *= 1 - BALANCE.elite.guardReduction;
     // Devil's Pact: allies' hits on the marked mouse deal a little bonus poison damage.
     if (f.markUntil > this.time && raw > 0) {
       const U = ABILITIES.devil.ultimate;
@@ -1823,6 +1827,13 @@ export class Battle {
       this.kill(f);
       return true;
     }
+    return false;
+  }
+
+  /** Is this mouse inside a living Mouse Captain's guard aura? */
+  isGuarded(f: Foe): boolean {
+    const r2 = BALANCE.elite.guardRadius ** 2;
+    for (const c of this.foes) if (c !== f && c.alive && c.defId === 'captain' && (c.x - f.x) ** 2 + (c.y - f.y) ** 2 <= r2) return true;
     return false;
   }
 
