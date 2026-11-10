@@ -44,6 +44,61 @@ While dragging, tiles are tinted to show what the drop will do: green = move, go
 - **Version:** shown from `src/config/version.ts` (`APP_VERSION`, displayed as e.g. `V1.4` via `versionLabel()`), the same constant as the Home footer. Bump the version there only.
 - **No side effects:** it never touches the save. If an interrupted battle was saved, the "Resume previous battle?" prompt appears right after the notice is dismissed.
 
+## Next release — V1.5 follow-up: skin costumes, Edit Team tutorial, Chapter 1 tiles
+
+V1.5 gameplay is kept as is: elites, the level curve, Chapter 2 to 2-20 and both bosses. Saves, purchases and equipped skins load unchanged.
+
+### Skins are real outfits now
+
+Every one of the 20 skins draws a costume on the cat (`src/render/costumes.ts`), on top of its colours. Before this, regular skins were recolours and special skins were recolours with a sparkle.
+
+- **Three layers:** back (capes, wings), body (aprons, collars, belts, bibs), head (hats, masks, headbands).
+- **The same art everywhere.** The battlefield, shop cards and previews, encyclopedia, team screen, recruit and intro cards, and the round head portraits all use the same `drawCat` call.
+- **Readable at battle size:** each outfit has one big silhouette piece on the head (toque, top hat, witch hat, horns…).
+
+| Cat | Regular skin | Special skin |
+|---|---|---|
+| Kitten | Calico: straw hat, red bandana | Starlight: star-wizard hat, night-sky cape |
+| Tabby | Silver: sweatband, track jacket | Golden Champion: laurel crown, red robe, title belt |
+| Chubby Orange | Cream Puff: chef's toque, apron, neckerchief | Grand Sumo: topknot, mawashi |
+| Black Cat | Midnight Ninja: hood, face mask, sash with throwing star | Frost Sniper: beret, scope goggle, tactical vest, cape |
+| Noble White | Sakura: kimono collar, obi, blossom hairpin | Moonlight Princess: moon tiara, starry cape, pendant |
+| Mr. Whiskers | Snowy Showman: bobble beanie, striped scarf | Gala Magician: tall top hat, red-lined cape, bow tie |
+| Sir Sable | Chocolate Point: plumed musketeer hat, lace collar | Crimson Moon: red hachimaki, haori, tattered cape |
+| Captain Mallow | Peach Captain: sailor cap, sailor collar | Blossom Captain: flower wreath, leafy shawl |
+| Shadow Pounce | Ginger Sprinter: sweatband, race bib | Thunder Pounce: lightning visor, storm cape |
+| Silver Devil | Lilac Mischief: witch hat, bow collar | Neon Imp: glowing horns, bat-wing cape |
+
+- **Headwear:** a costume's headwear replaces that cat's own head accessory and the shared shop hat, so two hats never stack. The Hats tab says so, and hat previews use a kitten without its outfit. This is a design decision, open to review.
+- **Stats unchanged:** regular skins are looks only; special skins keep their one bonus (+2–3%, never stacking). Prices are unchanged.
+- **Descriptions** in both languages now name the outfit pieces.
+
+### Edit Team tutorial (action-verified)
+
+The first time a new (non-starter) cat joins (from recruiting or a chapter reward), the player is walked through actually adding it to the team. The rules live in `src/tutorial/teamTutorial.ts`.
+
+1. **Home:** the new cat introduces itself, and the new **編輯隊伍 / Edit team** button on Home is spotlighted. The Edit team button on Stage Select also pulses.
+2. **Team screen, step 1/3:** tap a team slot (highlighted).
+3. **Step 2/3:** tap the new cat (highlighted).
+4. **Step 3/3:** tap **確認隊伍 / Confirm team**.
+
+- During the tutorial, team changes are a draft until Confirm is tapped.
+- It completes only when the confirmed team really contains the new cat.
+- Leaving with **返回 / Back** keeps the old team, and the tutorial comes back.
+- **略過教學 / Skip tutorial** (with a confirm) is the only other way to finish it.
+- Players who already put a new cat in their team on their own are never shown it.
+- Home → Replay tutorials brings it back.
+
+This was verified end to end on a Galaxy S9+ size (zh-HK) and a Pixel 7 (English). The team-slot row now always fits a 320 px-wide screen.
+
+### Chapter 1 tiles
+
+Tiles 4-3, 0-6 and 0-7 of the Chapter 1 board were never unlocked, so they showed a lock forever. Now:
+
+- 1-9 opens 21 tiles, and 1-10 opens all 24.
+- Tests check that no tile is permanently locked and that no tile ever re-locks within a chapter.
+- 1-9 / 1-10 Beginner win rates stay in the 30–38 / 40 target (36.7 and 35.7 at N = 120), so no compensation was needed.
+
 ## Next release (V1.5) — Win-rate targets, Chapter 2 to 2-20, fish-coin economy
 
 ### Three player profiles

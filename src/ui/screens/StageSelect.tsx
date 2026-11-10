@@ -1,4 +1,5 @@
 import { BALANCE } from '../../config/balance';
+import { teamTutorialCat } from '../../tutorial/teamTutorial';
 import { useEffect, useRef, useState } from 'react';
 import { ALL_STAGE_IDS, CHAPTERS } from '../../config/chapters';
 import { t, useLang } from '../../i18n';
@@ -65,7 +66,10 @@ export function StageSelect({ go, play }: { go: (s: Screen) => void; play: (id: 
       <div className="team-strip">
         <div className="team-strip-head">
           <b>{t('stages.team')}</b>
-          <button className="btn btn-small" onClick={() => go({ name: 'team', back: { name: 'stages' } })}>
+          <button
+            className={`btn btn-small ${teamTutorialCat(save) ? 'spotlit' : ''}`}
+            onClick={() => go({ name: 'team', back: { name: 'stages' } })}
+          >
             {t('team.edit')}
           </button>
         </div>

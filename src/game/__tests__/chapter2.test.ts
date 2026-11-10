@@ -305,7 +305,20 @@ describe('Chapter 2 placement capacity', () => {
     const counts = ch2.stages.map((s) => s.tiles.length);
     expect(counts).toEqual([17, 18, 19, 19, 20, 21, 21, 22, 23, 23, ...Array(10).fill(23)]);
     expect(counts[0]).toBeGreaterThan(ch1.stages[3].tiles.length); // 2-1 > 1-4
-    expect(counts[9]).toBeGreaterThan(ch1.stages[9].tiles.length); // 2-10 > 1-10
+    // Each chapter opens its WHOLE map by the end: Chapter 1 all 24 tiles at 1-10,
+    // Chapter 2 all 23 tiles from 2-9 on (its spiral road leaves one tile fewer).
+    expect(ch1.stages[9].tiles.length).toBe(MAPS[ch1.mapId].tiles.length);
+    expect(counts[8]).toBe(MAPS[ch2.mapId].tiles.length);
+  });
+
+  it('no placement tile is permanently locked: every map tile opens somewhere in its chapter', () => {
+    for (const ch of CHAPTERS) {
+      const opened = new Set(ch.stages.flatMap((s) => s.tiles));
+      for (const t of MAPS[ch.mapId].tiles) expect(opened.has(t.id), `${ch.id} tile ${t.id}`).toBe(true);
+      // and a tile never closes again later in the same chapter
+      for (let i = 1; i < ch.stages.length; i++)
+        for (const t of ch.stages[i - 1].tiles) expect(ch.stages[i].tiles, `${ch.stages[i].id} keeps ${t}`).toContain(t);
+    }
   });
 
   it('every tile is off the road, unique and inside the map', () => {

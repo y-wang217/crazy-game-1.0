@@ -1,16 +1,19 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CAT_ORDER } from '../../config/cats';
 import { TEAM_MIN, TEAM_SIZE } from '../../config/collection';
 import type { CatId } from '../../game/types';
 import { t, useLang } from '../../i18n';
 import { saveStore, useSave } from '../../save/store';
+import { setTeam as validTeam } from '../../game/collection';
+import { TEAM_TUTORIAL_ID, teamTutorialCat, teamTutorialStep } from '../../tutorial/teamTutorial';
 import type { Screen } from '../App';
 import { CatPreview } from '../components/CatPreview';
 import { Stars } from '../components/Stars';
 
 /**
  * Battle team: TEAM_SIZE species that random summons choose from. Tap a team member to
- * select it, then tap any owned cat to swap it in. Saved immediately.
+ * select it, then tap any owned cat to swap it in. Saved immediately — except during the
+ * Edit Team tutorial, where changes are a draft until the player taps "Confirm team".
  */
 export function TeamScreen({ go, back }: { go: (s: Screen) => void; back: Screen }) {
   useLang();
@@ -18,6 +21,21 @@ export function TeamScreen({ go, back }: { go: (s: Screen) => void; back: Screen
   const [slot, setSlot] = useState<number | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const owned = CAT_ORDER.filter((id) => save.collection[id]);
+  // Edit Team tutorial (first new cat): fixed for this visit, with a draft team.
+  const [tut, setTut] = useState(() => teamTutorialCat(save));
+  const [draft, setDraft] = useState<CatId[] | null>(() => (tut ? [...save.team] : null));
+  const team = draft ?? save.team;
+  const step = tut ? teamTutorialStep(team, tut, slot) : null;
+  // Bring the highlighted target into view at each tutorial step.
+  useEffect(() => {
+    if (step) document.querySelector('.team .coach-target, .team .team-confirm.spotlit')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [step]);
+  const apply = (next: CatId[]): boolean => {
+    if (!draft) return saveStore.setTeam(next);
+    if (!validTeam({ ...save, team }, next).ok) return false;
+    setDraft(next);
+    return true;
+  };
 
   const flash = (m: string) => {
     setNote(m);
@@ -25,44 +43,77 @@ export function TeamScreen({ go, back }: { go: (s: Screen) => void; back: Screen
   };
 
   const pickCat = (id: CatId) => {
-    const team = [...save.team];
-    const at = team.indexOf(id);
+    const next = [...team];
+    const at = next.indexOf(id);
     if (slot === null) {
       if (at >= 0) setSlot(at);
-      else if (team.length < TEAM_SIZE) {
+      else if (next.length < TEAM_SIZE) {
         // An empty slot: add this species.
-        if (saveStore.setTeam([...team, id])) flash(t('team.saved'));
-      }
+        if (apply([...next, id]) && !draft) flash(t('team.saved'));
+      } else if (tut) flash(t('teamTut.pickSlotFirst'));
       return;
     }
     if (at === slot) {
       setSlot(null);
       return;
     }
-    if (at >= 0) [team[at], team[slot]] = [team[slot], team[at]]; // reorder
-    else team[slot] = id;
-    if (saveStore.setTeam(team)) flash(t('team.saved'));
+    if (at >= 0)
+      [next[at], next[slot]] = [next[slot], next[at]]; // reorder
+    else next[slot] = id;
+    if (apply(next) && !draft) flash(t('team.saved'));
     setSlot(null);
   };
 
   const remove = (i: number) => {
-    const team = save.team.filter((_, k) => k !== i);
-    if (saveStore.setTeam(team)) flash(t('team.saved'));
+    if (apply(team.filter((_, k) => k !== i)) && !draft) flash(t('team.saved'));
     setSlot(null);
   };
-  const canRemove = save.team.length > TEAM_MIN;
+  const canRemove = team.length > TEAM_MIN;
+
+  // Tutorial: complete only when the confirmed team really contains the new cat.
+  const confirm = () => {
+    if (!tut || !draft) return;
+    if (!draft.includes(tut)) {
+      flash(t('teamTut.notYet', { cat: t(`cat.${tut}.name`) }));
+      return;
+    }
+    if (!saveStore.setTeam(draft)) return;
+    saveStore.markSeen(TEAM_TUTORIAL_ID);
+    flash(t('teamTut.done', { cat: t(`cat.${tut}.name`) }));
+    setTut(null);
+    setDraft(null);
+  };
+  const skip = () => {
+    if (!window.confirm(t('teamTut.skipConfirm'))) return;
+    saveStore.markSeen(TEAM_TUTORIAL_ID);
+    if (draft) saveStore.setTeam(draft); // keep any changes already made
+    setTut(null);
+    setDraft(null);
+  };
 
   return (
     <div className="screen team">
       <div className="topbar">
-        <button className="btn btn-small" onClick={() => go(back)}>
-          {t('team.done')}
-        </button>
+        {tut ? (
+          <>
+            {/* Leaving without confirming keeps the old team; the tutorial comes back next time. */}
+            <button className="btn btn-small" onClick={() => go(back)}>
+              {t('common.back')}
+            </button>
+            <button className={`btn btn-small btn-primary team-confirm ${step === 'confirm' ? 'spotlit' : ''}`} onClick={confirm}>
+              {t('teamTut.confirm')}
+            </button>
+          </>
+        ) : (
+          <button className="btn btn-small" onClick={() => go(back)}>
+            {t('team.done')}
+          </button>
+        )}
       </div>
       <h2 className="center">{t('team.title')}</h2>
       <p className="muted small center">{t('team.hint', { min: TEAM_MIN, n: TEAM_SIZE })}</p>
-      <div className="team-slots">
-        {save.team.map((id, i) => (
+      <div className={`team-slots ${step === 'slot' ? 'coach-target' : ''}`}>
+        {team.map((id, i) => (
           <div key={id} className="team-slot-wrap">
             <button className={`team-slot ${slot === i ? 'on' : ''}`} onClick={() => setSlot(slot === i ? null : i)}>
               <CatPreview type={id} level={1} loadout={save.equipped} size={56} animate={slot === i} />
@@ -76,14 +127,18 @@ export function TeamScreen({ go, back }: { go: (s: Screen) => void; back: Screen
             )}
           </div>
         ))}
-        {save.team.length < TEAM_SIZE && <div className="team-slot empty">＋</div>}
+        {team.length < TEAM_SIZE && <div className="team-slot empty">＋</div>}
       </div>
       <p className="muted tiny center">{t('team.tapSlot')}</p>
       <div className="team-pool">
         {owned.map((id) => {
-          const inTeam = save.team.includes(id);
+          const inTeam = team.includes(id);
           return (
-            <button key={id} className={`pool-card owned ${inTeam ? 'in-team' : ''}`} onClick={() => pickCat(id)}>
+            <button
+              key={id}
+              className={`pool-card owned ${inTeam ? 'in-team' : ''} ${step === 'cat' && id === tut ? 'coach-target' : ''}`}
+              onClick={() => pickCat(id)}
+            >
               <div className="pool-art">
                 <CatPreview type={id} level={1} loadout={save.equipped} size={54} animate={false} />
               </div>
@@ -95,6 +150,20 @@ export function TeamScreen({ go, back }: { go: (s: Screen) => void; back: Screen
         })}
       </div>
       <p className="muted tiny center">{t('team.tutorialNote')}</p>
+      {tut && step && (
+        <div className="team-coach" role="status" aria-live="polite">
+          <CatPreview type={tut} level={1} loadout={save.equipped} size={44} />
+          <div className="team-coach-text">
+            <b>
+              {t('teamTut.kicker')} · {['slot', 'cat', 'confirm'].indexOf(step) + 1}/3
+            </b>
+            <span>{t(`teamTut.step.${step}`, { cat: t(`cat.${tut}.name`) })}</span>
+          </div>
+          <button className="link-btn tiny" onClick={skip}>
+            {t('teamTut.skip')}
+          </button>
+        </div>
+      )}
       {note && <div className="toast-inline">{note}</div>}
     </div>
   );

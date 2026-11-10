@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { LANGS, setLang, t, useLang } from '../../i18n';
 import { THEMES, setTheme, useTheme } from '../../theme';
 import { saveStore, useSave } from '../../save/store';
@@ -10,6 +10,9 @@ import { CoinIcon } from '../components/Icons';
 import { debugStore, useDebug } from '../debugStore';
 import { ShopIntro } from '../components/ShopIntro';
 import { SKIN_RULES } from '../../config/cosmetics';
+import { STARTER_CATS } from '../../config/cats';
+import { TEAM_TUTORIAL_ID, teamTutorialCat } from '../../tutorial/teamTutorial';
+import { TeamTutorialIntro } from '../components/TeamTutorialIntro';
 
 /** Seen-id of the one-time Skin Shop introduction (Home → Replay tutorials shows it again). */
 export const SHOP_INTRO_ID = 'tut:shop';
@@ -33,6 +36,14 @@ export function HomeScreen({
   const taps = useRef<number[]>([]);
   // Skin Shop intro: once, after the first clear of Stage 1-3 (also for players already past it).
   const showShopIntro = !blocked && SKIN_RULES.shopIntroAfterStage in save.cleared && !save.seen.includes(SHOP_INTRO_ID);
+  // Edit Team tutorial: the first time a new cat joins (after its reveal), until the team is confirmed with it.
+  const tutCat = teamTutorialCat(save);
+  const showTeamTut = !blocked && !showShopIntro && tutCat !== null;
+  // Players who already put a new cat in their team on their own don't need the lesson.
+  useEffect(() => {
+    if (!save.seen.includes(TEAM_TUTORIAL_ID) && save.team.some((id) => !STARTER_CATS.includes(id))) saveStore.markSeen(TEAM_TUTORIAL_ID);
+  }, [save.seen, save.team]);
+  const editTeam = () => go({ name: 'team', back: { name: 'home' } });
 
   const flash = (m: string) => {
     setNote(m);
@@ -75,7 +86,7 @@ export function HomeScreen({
           <CoinIcon /> {save.fishCoins}
         </span>
       </div>
-      <div className="home-hero">
+      <div className={`home-hero ${showTeamTut ? 'team-tut-active' : ''}`}>
         <BrandEmblem />
         <h1 className={`logo ${lang === 'zh-HK' ? 'zh' : ''}`}>
           <span>{t('logo.1')}</span>
@@ -87,6 +98,9 @@ export function HomeScreen({
             <CatPreview key={c} type={c} loadout={save.equipped} size={60} />
           ))}
         </div>
+        <button className={`btn btn-small home-team-btn ${showTeamTut ? 'spotlit' : ''}`} onClick={editTeam}>
+          <GameIcon name="team" size={16} /> {t('team.edit')}
+        </button>
       </div>
       <div className={`home-menu ${showShopIntro ? 'intro-active' : ''}`}>
         <button className="btn btn-big btn-primary" onClick={() => go({ name: 'stages' })}>
@@ -143,6 +157,7 @@ export function HomeScreen({
           }}
         />
       )}
+      {showTeamTut && tutCat && <TeamTutorialIntro cat={tutCat} loadout={save.equipped} onGo={editTeam} />}
       {note && <div className="toast-inline">{note}</div>}
     </div>
   );

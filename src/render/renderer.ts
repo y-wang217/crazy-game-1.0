@@ -417,6 +417,7 @@ export class Renderer {
       level: cat.level,
       palette: resolvePalette(cat.type, loadout),
       hat: loadout.hat,
+      costume: loadout.skins[cat.type],
       t,
       attackAge: t - cat.attackAt,
       aim: Math.atan2(cat.aimY - cat.y, cat.aimX - cat.x),

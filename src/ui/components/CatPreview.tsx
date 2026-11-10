@@ -4,6 +4,7 @@ import { ENEMIES } from '../../config/enemies';
 import { resolvePalette } from '../../render/renderer';
 import { drawCat, drawChest, drawMouse, drawSkinGlint } from '../../render/sprites';
 import { skinGlint } from '../../config/cosmetics';
+import { costumeHasHeadwear } from '../../render/costumes';
 import type { CatId, ChestTier, CosmeticLoadout, EnemyId } from '../../game/types';
 
 /** Small animated canvas driven by a paint callback (shared by the preview components). */
@@ -58,9 +59,14 @@ export function CatPreview({
     (ctx, t) => {
       const palette = resolvePalette(type, loadout);
       const scale = CATS[type].scale;
+      // Tall costume headwear (toque, top hat, witch hat): frame a little lower so it isn't cropped.
+      if (costumeHasHeadwear(loadout.skins[type])) {
+        ctx.translate(0, 4);
+        ctx.scale(0.94, 0.94);
+      }
       ctx.scale(scale, scale);
-      const attackAge = attackLoop ? (t % 1.6) : 9;
-      drawCat(ctx, { type, level, palette, hat: loadout.hat, t, attackAge, aim: 0, seed: type.length });
+      const attackAge = attackLoop ? t % 1.6 : 9;
+      drawCat(ctx, { type, level, palette, hat: loadout.hat, costume: loadout.skins[type], t, attackAge, aim: 0, seed: type.length });
       const glint = skinGlint(type, loadout);
       if (glint) drawSkinGlint(ctx, glint, t, type.length);
     },
@@ -91,7 +97,7 @@ export function FoePreview({ enemy, chest, size = 96 }: { enemy?: EnemyId; chest
 
 /**
  * Round head portrait cropped from the real in-game cat art (skill cards, chips, pops).
- * Shows the cat's current cosmetic skin; hats are left off so the face stays readable.
+ * Shows the cat's current cosmetic skin and costume; the shared hat is left off so the face stays readable.
  */
 export function CatHead({ type, loadout, size = 28 }: { type: CatId; loadout: CosmeticLoadout; size?: number }) {
   const key = JSON.stringify(loadout.skins[type] ?? '');
@@ -107,7 +113,7 @@ export function CatHead({ type, loadout, size = 28 }: { type: CatId; loadout: Co
       ctx.clip();
       const k = (size / 30) * dpr;
       ctx.setTransform(k, 0, 0, k, (size / 2) * dpr, (size / 2) * dpr + 9 * k);
-      drawCat(ctx, { type, level: 1, palette, hat: null, t: 0, attackAge: 9, aim: 0, seed: 0 });
+      drawCat(ctx, { type, level: 1, palette, hat: null, costume: loadout.skins[type], t: 0, attackAge: 9, aim: 0, seed: 0 });
     },
     [type, key],
     false,

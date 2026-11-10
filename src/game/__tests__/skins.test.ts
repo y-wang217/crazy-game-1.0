@@ -4,6 +4,9 @@ import { COSMETICS, SKIN_RULES, findCosmetic, skinBonusesFor, skinKind } from '.
 import { MAPS } from '../../config/maps';
 import { RECRUIT } from '../../config/collection';
 import { parseSave } from '../../save/store';
+import { COSTUME_IDS, costumeHasHeadwear, drawCostume } from '../../render/costumes';
+import { resolvePalette } from '../../render/renderer';
+import { drawCat } from '../../render/sprites';
 import { Battle } from '../battle';
 import { applySkinBonus, getCatStats } from '../combat';
 import type { CatId } from '../types';
@@ -139,5 +142,63 @@ describe('saves and purchases', () => {
     expect(s.owned).toEqual(['hat_bow', 'skin_calico', 'skin_midnight']);
     expect(s.equipped).toEqual({ hat: 'hat_bow', skins: { kitten: 'skin_calico', black: 'skin_midnight' } });
     expect(skinBonusesFor(s.equipped)).toEqual({}); // nothing converted into stats
+  });
+});
+
+describe('skin costumes (real outfits, not just recolours)', () => {
+  /** A fake 2D context that counts drawing calls, so the art can be checked without a browser. */
+  function countingCtx() {
+    let ops = 0;
+    const ctx: Record<string, unknown> = {};
+    const handler: ProxyHandler<Record<string, unknown>> = {
+      get: (target, key) => {
+        if (key === 'ops') return ops;
+        if (key in target) return target[key as string];
+        return (..._args: unknown[]) => {
+          if (key === 'fill' || key === 'stroke' || key === 'fillRect' || key === 'fillText') ops++;
+        };
+      },
+      set: (target, key, v) => ((target[key as string] = v), true),
+    };
+    return new Proxy(ctx, handler) as unknown as CanvasRenderingContext2D & { ops: number };
+  }
+
+  it('every shop skin has costume art, and it puts something on the head', () => {
+    for (const s of COSMETICS.filter((c) => c.slot === 'skin')) {
+      expect(COSTUME_IDS, s.id).toContain(s.id);
+      expect(costumeHasHeadwear(s.id), s.id).toBe(true);
+    }
+    expect(costumeHasHeadwear(undefined)).toBe(false);
+    expect(costumeHasHeadwear('hat_crown')).toBe(false);
+  });
+
+  it('a skin draws extra outfit pieces on the cat (body and head), on top of its colours', () => {
+    for (const s of COSMETICS.filter((c) => c.slot === 'skin')) {
+      const draw = (costume?: string) => {
+        const ctx = countingCtx();
+        drawCat(ctx, {
+          type: s.cat!,
+          level: 1,
+          palette: resolvePalette(s.cat!, { hat: null, skins: {} }),
+          hat: null,
+          costume,
+          t: 0,
+          attackAge: 9,
+          aim: 0,
+        });
+        return ctx.ops;
+      };
+      expect(draw(s.id), s.id).toBeGreaterThan(draw(undefined) + 3);
+      for (const layer of ['body', 'head'] as const) {
+        const ctx = countingCtx();
+        drawCostume(ctx, s.id, layer, { r: 12, fat: 1, t: 0 });
+        expect(ctx.ops, `${s.id} ${layer}`).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('costumes are looks only: the stat rules are unchanged', () => {
+    for (const s of regularSkins) expect(skinBonusesFor({ hat: null, skins: { [s.cat!]: s.id } })).toEqual({});
+    expect(Object.keys(skinBonusesFor({ hat: null, skins: Object.fromEntries(specials.map((c) => [c.cat, c.id])) })).length).toBe(CAT_ORDER.length);
   });
 });

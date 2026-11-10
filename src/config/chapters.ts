@@ -244,7 +244,7 @@ const STAGES: StageDef[] = [
     id: '1-9',
     number: 9,
     roster: ['kitten', 'tabby', 'orange', 'black', 'white'],
-    tiles: [...CORE, '4-1', '4-2', '0-4', '0-5', '1-7', '2-7', '0-2', '4-6', '4-4', '0-1', '4-7', '0-3'],
+    tiles: [...CORE, '4-1', '4-2', '0-4', '0-5', '1-7', '2-7', '0-2', '4-6', '4-4', '0-1', '4-7', '0-3', '0-6'],
     startFish: 12,
     baseHp: 10,
     hpScale: 2.8,
@@ -264,7 +264,7 @@ const STAGES: StageDef[] = [
     id: '1-10',
     number: 10,
     roster: ['kitten', 'tabby', 'orange', 'black', 'white'],
-    tiles: [...CORE, '4-1', '4-2', '0-4', '0-5', '1-7', '2-7', '0-2', '4-6', '4-4', '0-1', '4-7', '0-3', '4-5'],
+    tiles: [...CORE, '4-1', '4-2', '0-4', '0-5', '1-7', '2-7', '0-2', '4-6', '4-4', '0-1', '4-7', '0-3', '4-5', '0-6', '4-3', '0-7'], // every Chapter 1 tile is open by the finale
     startFish: 12,
     baseHp: 10,
     hpScale: 2.76,

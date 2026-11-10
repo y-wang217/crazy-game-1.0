@@ -3,76 +3,10 @@
 
 import type { CatId, CatPalette, ChestTier, EnemyId } from '../game/types';
 
-type Ctx = CanvasRenderingContext2D;
+import { TAU, circle, drawHeart, drawStar, ellipse, poly, roundRect, type Ctx } from './shapes';
+import { costumeHasHeadwear, drawCostume } from './costumes';
 
-const TAU = Math.PI * 2;
-
-function ellipse(ctx: Ctx, x: number, y: number, rx: number, ry: number, fill: string, stroke?: string, lw = 1.5) {
-  ctx.beginPath();
-  ctx.ellipse(x, y, rx, ry, 0, 0, TAU);
-  ctx.fillStyle = fill;
-  ctx.fill();
-  if (stroke) {
-    ctx.lineWidth = lw;
-    ctx.strokeStyle = stroke;
-    ctx.stroke();
-  }
-}
-
-function circle(ctx: Ctx, x: number, y: number, r: number, fill: string, stroke?: string, lw = 1.5) {
-  ellipse(ctx, x, y, r, r, fill, stroke, lw);
-}
-
-function poly(ctx: Ctx, pts: number[], fill: string, stroke?: string, lw = 1.5) {
-  ctx.beginPath();
-  ctx.moveTo(pts[0], pts[1]);
-  for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]);
-  ctx.closePath();
-  ctx.fillStyle = fill;
-  ctx.fill();
-  if (stroke) {
-    ctx.lineWidth = lw;
-    ctx.strokeStyle = stroke;
-    ctx.lineJoin = 'round';
-    ctx.stroke();
-  }
-}
-
-function roundRect(ctx: Ctx, x: number, y: number, w: number, h: number, r: number, fill: string, stroke?: string, lw = 1.5) {
-  ctx.beginPath();
-  ctx.roundRect(x, y, w, h, r);
-  ctx.fillStyle = fill;
-  ctx.fill();
-  if (stroke) {
-    ctx.lineWidth = lw;
-    ctx.strokeStyle = stroke;
-    ctx.stroke();
-  }
-}
-
-export function drawHeart(ctx: Ctx, x: number, y: number, s: number, color: string) {
-  ctx.beginPath();
-  ctx.moveTo(x, y + s * 0.35);
-  ctx.bezierCurveTo(x - s, y - s * 0.4, x - s * 0.4, y - s, x, y - s * 0.35);
-  ctx.bezierCurveTo(x + s * 0.4, y - s, x + s, y - s * 0.4, x, y + s * 0.35);
-  ctx.fillStyle = color;
-  ctx.fill();
-}
-
-export function drawStar(ctx: Ctx, x: number, y: number, r: number, color: string, points = 5, inner = 0.45) {
-  ctx.beginPath();
-  for (let i = 0; i < points * 2; i++) {
-    const a = (i / (points * 2)) * TAU - Math.PI / 2;
-    const rr = i % 2 === 0 ? r : r * inner;
-    const px = x + Math.cos(a) * rr;
-    const py = y + Math.sin(a) * rr;
-    if (i === 0) ctx.moveTo(px, py);
-    else ctx.lineTo(px, py);
-  }
-  ctx.closePath();
-  ctx.fillStyle = color;
-  ctx.fill();
-}
+export { drawHeart, drawStar };
 
 // ---------------------------------------------------------------------------
 // Cats
@@ -94,7 +28,11 @@ export interface CatDrawOpts {
   windup?: number;
   /** Punch counter for alternating paws (Tabby). */
   comboIndex?: number;
+  /** Equipped skin id: draws that skin's costume (hat, cape, apron…). */
+  costume?: string;
 }
+
+const HEAD_R: Partial<Record<CatId, number>> = { kitten: 12.8, devil: 12.8, orange: 13, pounce: 11.5 };
 
 export function drawCat(ctx: Ctx, o: CatDrawOpts) {
   const p = o.palette;
@@ -174,6 +112,10 @@ export function drawCat(ctx: Ctx, o: CatDrawOpts) {
     poly(ctx, [17 + tailWag, -2, 12 + tailWag, -6, 12 + tailWag, 1], '#ff7fae', '#c04a7a', 1);
   }
 
+  const headR = HEAD_R[o.type] ?? 12;
+  const cg = { r: headR, fat, t: o.t };
+  drawCostume(ctx, o.costume, 'back', cg);
+
   // Body
   const fluffy = o.type === 'white' || o.type === 'mallow';
   if (fluffy) {
@@ -203,6 +145,7 @@ export function drawCat(ctx: Ctx, o: CatDrawOpts) {
 
   // Level accessories on body (under head)
   drawBodyGear(ctx, o, fat);
+  drawCostume(ctx, o.costume, 'body', cg);
 
   // Paws
   const jab = o.type === 'tabby' && a < 0.07;
@@ -271,7 +214,9 @@ export function drawCat(ctx: Ctx, o: CatDrawOpts) {
 function drawHead(ctx: Ctx, o: CatDrawOpts) {
   const p = o.palette;
   const ol = p.outline;
-  const r = o.type === 'kitten' || o.type === 'devil' ? 12.8 : o.type === 'orange' ? 13 : o.type === 'pounce' ? 11.5 : 12;
+  const r = HEAD_R[o.type] ?? 12;
+  // A costume's headwear replaces the cat's own head accessory and the shared hat.
+  const dressed = costumeHasHeadwear(o.costume);
   // Ears
   if (o.type === 'devil') {
     // Folded ears: small rounded flaps folded forward (Scottish-fold silhouette).
@@ -387,7 +332,7 @@ function drawHead(ctx: Ctx, o: CatDrawOpts) {
   }
 
   // Tabby headband (Lv2+)
-  if (o.type === 'tabby' && o.level >= 2) {
+  if (o.type === 'tabby' && o.level >= 2 && !dressed) {
     const col = o.level >= 5 ? '#f2c230' : '#e04848';
     ctx.fillStyle = col;
     ctx.fillRect(-r * 0.98, -r * 0.5, r * 1.96, 3.2);
@@ -505,21 +450,21 @@ function drawHead(ctx: Ctx, o: CatDrawOpts) {
     ctx.stroke();
   }
   // New cats' head accessories
-  if (o.type === 'whiskers') drawMagicianHat(ctx, r, o.level, o.t);
-  if (o.type === 'devil') {
+  if (o.type === 'whiskers' && !dressed) drawMagicianHat(ctx, r, o.level, o.t);
+  if (o.type === 'devil' && !dressed) {
     // plum ribbon (always) — bigger and velvet at higher levels
     const col = o.level >= 4 ? '#6a2a7a' : '#9a5ac8';
     poly(ctx, [r * 0.35, -r * 0.82, r * 0.85, -r * 1.1, r * 0.8, -r * 0.55], col, '#4a1a5a', 0.9);
     poly(ctx, [r * 0.35, -r * 0.82, r * 0.05, -r * 1.15, r * 0.0, -r * 0.6], col, '#4a1a5a', 0.9);
     circle(ctx, r * 0.35, -r * 0.82, 1.6, '#e8b8f0');
   }
-  if (o.type === 'mallow' && o.level >= 2) {
+  if (o.type === 'mallow' && o.level >= 2 && !dressed) {
     // little captain's cap
     roundRect(ctx, -6, -r * 1.12, 12, 4.5, 2, '#8a7ab8', '#4a3a78', 1);
     roundRect(ctx, -7.5, -r * 0.8, 15, 2, 1, '#4a3a78');
     if (o.level >= 5) drawStar(ctx, 0, -r * 0.92, 2, '#ffd36a');
   }
-  if (o.type === 'sable' && o.level >= 4) {
+  if (o.type === 'sable' && o.level >= 4 && !dressed) {
     // plume on the side of the head
     ctx.strokeStyle = o.level >= 5 ? '#ffd36a' : '#bfe0ff';
     ctx.lineWidth = 2.2;
@@ -530,15 +475,16 @@ function drawHead(ctx: Ctx, o: CatDrawOpts) {
   }
 
   // White cat tiara (Lv4+)
-  if (o.type === 'white' && o.level >= 4) {
+  if (o.type === 'white' && o.level >= 4 && !dressed) {
     poly(ctx, [-5, -r * 0.82, -3, -r * 1.12, 0, -r * 0.88, 3, -r * 1.12, 5, -r * 0.82], '#ffd84a', '#c09020', 1);
     circle(ctx, 0, -r * 0.98, 1.4, '#ff6fa8');
   }
   // Orange Lv5 donut crown / kitten Lv5 star on head side
   if (o.type === 'kitten' && o.level >= 5) drawStar(ctx, -r * 0.75, -r * 0.75, 3.5, '#ffd84a');
 
-  // Cosmetic hat
-  if (o.hat) drawHat(ctx, o.hat, r);
+  // Skin costume headwear, else the cosmetic hat
+  if (dressed) drawCostume(ctx, o.costume, 'head', { r, fat: 1, t: o.t });
+  else if (o.hat) drawHat(ctx, o.hat, r);
 }
 
 function drawBodyGear(ctx: Ctx, o: CatDrawOpts, fat: number) {

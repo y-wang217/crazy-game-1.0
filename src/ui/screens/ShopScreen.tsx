@@ -73,7 +73,9 @@ export function ShopScreen({ go }: { go: (s: Screen) => void }) {
           </button>
         ))}
       </div>
-      <p className={`shop-kind-note ${tab === 'special' ? 'special' : ''}`}>{tab === 'special' ? t('shop.specialNote') : t('skin.regular')}</p>
+      <p className={`shop-kind-note ${tab === 'special' ? 'special' : ''}`}>
+        {tab === 'special' ? t('shop.specialNote') : tab === 'hat' ? t('shop.hatNote') : t('skin.regular')}
+      </p>
       <div className="shop-grid">
         {items.map((item) => (
           <ShopCard key={item.id} item={item} status={status(item)} loadout={save.equipped} coins={save.fishCoins} onOpen={() => setPreview(item)} />
@@ -98,7 +100,9 @@ export function ShopScreen({ go }: { go: (s: Screen) => void }) {
 
 /** The loadout used to show an item: current loadout with this one item put on. */
 function tryOn(item: CosmeticDef, loadout: CosmeticLoadout): { cat: CatId; loadout: CosmeticLoadout } {
-  if (item.slot === 'hat') return { cat: 'kitten', loadout: { hat: item.id, skins: loadout.skins } };
+  // Hats are shown on a kitten without its skin: a skin's costume headwear replaces the hat.
+  if (item.slot === 'hat')
+    return { cat: 'kitten', loadout: { hat: item.id, skins: { ...loadout.skins, kitten: undefined } as CosmeticLoadout['skins'] } };
   return { cat: item.cat!, loadout: { hat: loadout.hat, skins: { ...loadout.skins, [item.cat!]: item.id } } };
 }
 
@@ -176,7 +180,7 @@ function PreviewSheet({
   // "Now": without this item (skins: the cat's default look; hats: no hat).
   const now: CosmeticLoadout =
     item.slot === 'hat'
-      ? { hat: null, skins: loadout.skins }
+      ? { hat: null, skins: { ...loadout.skins, kitten: undefined } as CosmeticLoadout['skins'] }
       : { hat: loadout.hat, skins: { ...loadout.skins, [item.cat!]: undefined } as CosmeticLoadout['skins'] };
   return (
     <div className="overlay" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
