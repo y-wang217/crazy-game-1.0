@@ -27,7 +27,7 @@ describe('i18n', () => {
     }
     for (const a of ['projectile', 'combo', 'slam', 'snipe', 'aura']) keys.push(`attack.${a}`);
     keys.push('theme.light', 'theme.moonlit');
-    for (const e of Object.keys(ENEMIES)) for (const f of ['name', 'strength', 'behavior', 'tip']) keys.push(`enemy.${e}.${f}`);
+    for (const e of Object.keys(ENEMIES)) for (const f of ['name', 'strength', 'behavior', ...(e === 'fast' ? [] : ['tip'])]) keys.push(`enemy.${e}.${f}`);
     for (const c of Object.keys(CHESTS)) keys.push(`chest.${c}.name`, `chest.${c}.desc`);
     for (const s of SKILL_ORDER) keys.push(`skill.${s}.name`, `skill.${s}.desc`);
     for (const m of TARGET_MODES) keys.push(`mode.${m}`, `mode.${m}.short`, `mode.${m}.desc`);

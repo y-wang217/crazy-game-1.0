@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { TARGET_MODES, TARGET_MODE_INFO } from '../../config/cats';
 import { CHESTS, ENEMIES } from '../../config/enemies';
 import type { Battle } from '../../game/battle';
-import { t, useLang } from '../../i18n';
+import { has, t, useLang } from '../../i18n';
 import type { Renderer } from '../../render/renderer';
 import type { ActiveStep, ButtonId, Focus } from '../../tutorial/director';
 import type { CosmeticLoadout } from '../../game/types';
@@ -236,8 +236,12 @@ function PanelBody({ step, loadout }: { step: ActiveStep; loadout: CosmeticLoado
           <dd>{t(`enemy.${id}.strength`)}</dd>
           <dt>{t('intro.behavior')}</dt>
           <dd>{t(`enemy.${id}.behavior`)}</dd>
-          <dt className="good">{t('intro.tip')}</dt>
-          <dd>{t(`enemy.${id}.tip`)}</dd>
+          {has(`enemy.${id}.tip`) && (
+            <>
+              <dt className="good">{t('intro.tip')}</dt>
+              <dd>{t(`enemy.${id}.tip`)}</dd>
+            </>
+          )}
         </dl>
       </div>
     );
