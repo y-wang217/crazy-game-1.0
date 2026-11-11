@@ -37,10 +37,19 @@ npm run build        # type-check + production build into dist/
 
 While dragging, tiles are tinted to show what the drop will do: green = move, gold = merge, blue = swap. A press only becomes a drag after the pointer moves 10 px, so a tap never moves a cat by accident.
 
+## Language & theme preferences
+
+- **One source of truth:** `src/settings/preferences.ts` holds the storage keys and resolution rules. The language store (`src/i18n`) and the theme store (`src/theme`) are the only in-memory copies.
+- **Every screen follows them:** the Early Access notice, menus, battle, tutorials, encyclopedia, shop and popups all read `useLang()` / `useTheme()`, so a change anywhere re-renders everything immediately. No screen keeps its own copy.
+- **Saved in localStorage** under `catdefense.lang` (`en` / `zh-HK`) and `catdefense.theme` (`light` / `moonlit`). These are the same keys as every earlier version, so existing choices are kept; the old `zh-TW` value becomes `zh-HK`.
+- **Defaults** (only when nothing is saved): language follows the device (Chinese → zh-HK, anything else → English) and the theme is Original Light.
+- **No flash of the wrong theme:** an inline script in `index.html` applies the saved theme and language before the stylesheet and app load. A test keeps it in step with `preferences.ts`.
+- **Other tabs:** a change in another open tab is picked up through the browser's `storage` event.
+
 ## Early Access notice
 
 - **When:** before the main menu, once per browser session (`sessionStorage` key `catdefense.noticeSeen`; returning to the menu or reloading the tab doesn't show it again, a new browser session does). Its single button dismisses it. It shows **「🐾 喵喵防衛隊（暫定）・開發中！」 / "🐾 Cat Defense (Working Title) — In Development!"** with the exact wording as specified.
-- **Look:** always the Moonlit Gothic style (scoped colour tokens), even when the player uses the Light theme. A language switch sits on the card, and it fits without scrolling on 320 × 568 and 360 × 640 screens.
+- **Look and settings:** the card has a language switch (中文（香港） / English) and a theme switch (Original Light / Moonlit Gothic), and it is drawn in the selected theme. Both switches change the same shared preferences as the main menu (see *Language & theme preferences*). It fits without scrolling on 320 × 568 and 360 × 640 screens.
 - **Version:** shown from `src/config/version.ts` (`APP_VERSION`, displayed as e.g. `V1.4` via `versionLabel()`), the same constant as the Home footer. Bump the version there only.
 - **No side effects:** it never touches the save. If an interrupted battle was saved, the "Resume previous battle?" prompt appears right after the notice is dismissed.
 

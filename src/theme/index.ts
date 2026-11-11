@@ -5,32 +5,25 @@ import { BOARD_PALETTES, ENV_OVERRIDES, type BoardPalette, type Environment } fr
 // UI colors are CSS tokens (styles.css, `:root` and `[data-theme='moonlit']`);
 // the battlefield canvas reads BOARD_PALETTES.
 
-export type ThemeId = 'light' | 'moonlit';
+import { THEME_COLOR, THEME_KEY, onOtherTabChange, readPref, resolveTheme, writePref, type ThemeId } from '../settings/preferences';
+
+export type { ThemeId };
 export const THEMES: { id: ThemeId; icon: string }[] = [
   { id: 'light', icon: '☀️' },
   { id: 'moonlit', icon: '🌙' },
 ];
 
-const KEY = 'catdefense.theme';
-
-function load(): ThemeId {
-  try {
-    const v = localStorage.getItem(KEY);
-    if (v === 'light' || v === 'moonlit') return v;
-  } catch {
-    /* ignore */
-  }
-  return 'light';
-}
-
-let current: ThemeId = load();
+// The one in-memory theme for the whole game (see settings/preferences.ts).
+let current: ThemeId = resolveTheme(readPref(THEME_KEY));
 const listeners = new Set<() => void>();
 
 function apply(): void {
   if (typeof document === 'undefined') return;
   document.documentElement.dataset.theme = current;
+  // The first-paint colour set by index.html is only a placeholder until the stylesheet loads.
+  document.documentElement.style.removeProperty('background');
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', current === 'moonlit' ? '#252439' : '#cfe8b8');
+  if (meta) meta.setAttribute('content', THEME_COLOR[current]);
 }
 apply();
 
@@ -38,16 +31,16 @@ export function getTheme(): ThemeId {
   return current;
 }
 
-export function setTheme(id: ThemeId): void {
+export function setTheme(id: ThemeId, persist = true): void {
+  const changed = id !== current;
   current = id;
-  try {
-    localStorage.setItem(KEY, id);
-  } catch {
-    /* ignore */
-  }
+  if (persist) writePref(THEME_KEY, id);
   apply();
-  listeners.forEach((l) => l());
+  if (changed) listeners.forEach((l) => l());
 }
+
+// Another tab changed the theme: follow it here too.
+onOtherTabChange(THEME_KEY, (v) => setTheme(resolveTheme(v), false));
 
 const envCache = new Map<string, BoardPalette>();
 /** Battlefield palette for the current theme, optionally adjusted for a map environment. */

@@ -10,6 +10,26 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Noto+Sans+HK:wght@500;700;900&display=swap" rel="stylesheet" />
     <title>Cat Defense</title>
+    <script>
+      // Apply the saved language + theme BEFORE anything paints (no flash of the wrong theme).
+      // Same keys and rules as src/settings/preferences.ts (resolveLang / resolveTheme).
+      (function () {
+        var lang = null, theme = null;
+        try {
+          lang = localStorage.getItem('catdefense.lang');
+          theme = localStorage.getItem('catdefense.theme');
+        } catch (e) {}
+        if (lang === 'zh-TW') lang = 'zh-HK';
+        if (lang !== 'en' && lang !== 'zh-HK') lang = /^zh/i.test(navigator.language || '') ? 'zh-HK' : 'en';
+        if (theme !== 'light' && theme !== 'moonlit') theme = 'light';
+        var root = document.documentElement;
+        root.lang = lang;
+        root.setAttribute('data-theme', theme);
+        root.style.background = theme === 'moonlit' ? '#252439' : '#fff8ec';
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute('content', theme === 'moonlit' ? '#252439' : '#cfe8b8');
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

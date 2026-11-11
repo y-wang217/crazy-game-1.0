@@ -2,30 +2,22 @@ import { useSyncExternalStore } from 'react';
 import { en } from './en';
 import { zh } from './zh';
 
+import { LANG_KEY, onOtherTabChange, readPref, resolveLang, writePref, type Lang } from '../settings/preferences';
+
 /** Chinese is written for Hong Kong players (zh-HK): Traditional characters, HK terms. */
-export type Lang = 'en' | 'zh-HK';
+export type { Lang };
 export const LANGS: { id: Lang; label: string }[] = [
   { id: 'zh-HK', label: '中文（香港）' },
   { id: 'en', label: 'English' },
 ];
 
 const DICTS: Record<Lang, Record<string, string>> = { en, 'zh-HK': zh };
-const KEY = 'catdefense.lang';
-
+// The one in-memory language for the whole game (see settings/preferences.ts).
 function detect(): Lang {
-  try {
-    const saved = localStorage.getItem(KEY);
-    if (saved === 'en' || saved === 'zh-HK') return saved;
-    // Older versions stored generic Traditional Chinese as "zh-TW": keep that choice.
-    if (saved === 'zh-TW') {
-      localStorage.setItem(KEY, 'zh-HK');
-      return 'zh-HK';
-    }
-  } catch {
-    /* ignore */
-  }
-  const nav = typeof navigator !== 'undefined' ? navigator.language || '' : '';
-  return nav.toLowerCase().startsWith('zh') ? 'zh-HK' : 'en';
+  const saved = readPref(LANG_KEY);
+  const lang = resolveLang(saved, typeof navigator !== 'undefined' ? navigator.language || '' : '');
+  if (saved === 'zh-TW') writePref(LANG_KEY, lang); // migrate the old value, keep the choice
+  return lang;
 }
 
 let current: Lang = detect();
@@ -35,16 +27,16 @@ export function getLang(): Lang {
   return current;
 }
 
-export function setLang(lang: Lang): void {
+export function setLang(lang: Lang, persist = true): void {
+  const changed = lang !== current;
   current = lang;
-  try {
-    localStorage.setItem(KEY, lang);
-  } catch {
-    /* ignore */
-  }
+  if (persist) writePref(LANG_KEY, lang);
   if (typeof document !== 'undefined') document.documentElement.lang = lang;
-  listeners.forEach((l) => l());
+  if (changed) listeners.forEach((l) => l());
 }
+
+// Another tab changed the language: follow it here too.
+onOtherTabChange(LANG_KEY, (v) => setLang(resolveLang(v, current), false));
 
 /** Translate a key, filling {placeholders}. Falls back to English, then to the key. */
 export function t(key: string, params?: Record<string, string | number>): string {

@@ -1,7 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { versionLabel } from '../../config/version';
 import { LANGS, setLang, t, useLang } from '../../i18n';
+import { THEMES, setTheme, useTheme } from '../../theme';
 import { BrandEmblem } from './Brand';
+import { GameIcon } from './GameIcon';
 
 const KEY = 'catdefense.noticeSeen';
 
@@ -22,12 +24,14 @@ export function markNoticeSeen(): void {
 }
 
 /**
- * Early Access / development notice before the main menu. Always drawn in the Moonlit Gothic
- * style (its own scoped colour tokens), whatever theme the player picked. The version comes
- * from config/version.ts.
+ * Early Access / development notice before the main menu. Its language and theme switches are
+ * the SAME shared preferences as the rest of the game (settings/preferences.ts), and the card
+ * itself is drawn in the selected theme, so what the player picks here is what every screen uses.
+ * The version comes from config/version.ts.
  */
 export function EarlyAccessNotice({ onClose }: { onClose: () => void }) {
   const lang = useLang();
+  const theme = useTheme();
   const btn = useRef<HTMLButtonElement>(null);
   useEffect(() => btn.current?.focus(), []);
   return (
@@ -38,12 +42,21 @@ export function EarlyAccessNotice({ onClose }: { onClose: () => void }) {
         ))}
       </div>
       <div className="ea-card">
-        <div className="ea-lang" role="group" aria-label={t('home.language')}>
-          {LANGS.map((l) => (
-            <button key={l.id} className={lang === l.id ? 'on' : ''} onClick={() => setLang(l.id)}>
-              {l.label}
-            </button>
-          ))}
+        <div className="ea-settings">
+          <div className="ea-lang" role="group" aria-label={t('home.language')}>
+            {LANGS.map((l) => (
+              <button key={l.id} className={lang === l.id ? 'on' : ''} aria-pressed={lang === l.id} data-lang={l.id} onClick={() => setLang(l.id)}>
+                {l.label}
+              </button>
+            ))}
+          </div>
+          <div className="ea-lang ea-theme" role="group" aria-label={t('theme.label')}>
+            {THEMES.map((th) => (
+              <button key={th.id} className={theme === th.id ? 'on' : ''} aria-pressed={theme === th.id} data-theme-id={th.id} onClick={() => setTheme(th.id)}>
+                <GameIcon name={th.id === 'moonlit' ? 'moon' : 'sun'} size={13} /> {t(`theme.${th.id}`)}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="ea-emblem">
           <BrandEmblem />
