@@ -18,7 +18,8 @@ import {
   type UpgradeResult,
 } from '../game/collection';
 import type { CatId, CosmeticLoadout } from '../game/types';
-import { CANS, isFeatureUnlocked } from '../config/unlocks';
+import { CANS, TUTORIALS, TUTORIAL_UNLOCK_STAGE, isFeatureUnlocked } from '../config/unlocks';
+import { CAN_MONSTER, GOLD_CHEST_CAN, MILESTONE_CANS, isCanMonsterStage, milestoneId } from '../config/canRewards';
 
 /** Milestone id of the one-time introductory Cat Food Can gift. */
 export const CANS_INTRO = 'cans:intro';
@@ -36,13 +37,23 @@ export const CANS_INTRO = 'cans:intro';
 //        `milestones` (one-time grants such as the introductory cans, kept separate from
 //        `seen` so "show first-time tips again" can never re-grant anything). Older saves
 //        start with 0 cans; their coins, cats, fragments and recruit counters are kept.
+//   v5 — `attempts` (battles started per stage: the secret Living Cat Food Can always appears on
+//        a stage's first attempt) and `tutorials` (completed / skipped state per tutorial).
+//        Saves from before v5 have their already-passed unlock tours marked "legacy" so old
+//        tutorials never interrupt an advanced player (they stay in the replay menu).
 // parseSave() accepts any older version and fills new fields with safe defaults.
 
 const KEY = 'catdefense.save.v1';
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
+
+export type TutorialState = 'done' | 'skipped' | 'legacy';
 
 export interface SaveData {
-  version: 4;
+  version: 5;
+  /** Battles started per stage id (first attempt ≠ first victory). */
+  attempts: Record<string, number>;
+  /** Unlock tutorials: completed, deliberately skipped, or passed before they existed (legacy). */
+  tutorials: Record<string, TutorialState>;
   fishCoins: number;
   /** Cat Food Cans (貓罐頭): recruitment currency. */
   cans: number;
@@ -70,7 +81,9 @@ export interface SaveData {
 
 export function defaultSave(): SaveData {
   return {
-    version: 4,
+    version: 5,
+    attempts: {},
+    tutorials: {},
     fishCoins: 0,
     cans: 0,
     canDraws: 0,
@@ -131,7 +144,9 @@ export function parseSave(raw: string | null): SaveData {
     const collection = sanitizeCollection(o.collection);
     const int = (v: unknown) => (typeof v === 'number' && v >= 0 ? Math.floor(v) : 0);
     return {
-      version: 4,
+      version: 5,
+      attempts: cleanAttempts(o.attempts),
+      tutorials: migrateTutorials(o, cleared, seen),
       fishCoins: int(o.fishCoins),
       cans: int(o.cans),
       canDraws: int(o.canDraws),
@@ -150,6 +165,31 @@ export function parseSave(raw: string | null): SaveData {
   } catch {
     return d;
   }
+}
+
+function cleanAttempts(raw: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (raw && typeof raw === 'object')
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) if (ALL_STAGE_IDS.includes(k) && typeof v === 'number' && v > 0) out[k] = Math.floor(v);
+  return out;
+}
+
+/**
+ * Tutorial states. Saves from before v5: every unlock tour whose stage was already cleared is
+ * marked 'legacy' (never auto-started again: no interruptions for advanced players; still in
+ * the replay menu), unless an older flag already shows how it ended.
+ */
+function migrateTutorials(o: Record<string, unknown>, cleared: Record<string, number>, seen: string[]): Record<string, TutorialState> {
+  const out: Record<string, TutorialState> = {};
+  if (o.tutorials && typeof o.tutorials === 'object')
+    for (const [k, v] of Object.entries(o.tutorials as Record<string, unknown>)) if (v === 'done' || v === 'skipped' || v === 'legacy') out[k] = v;
+  if (typeof o.version === 'number' && o.version >= 5) return out;
+  for (const [id, stage] of Object.entries(TUTORIAL_UNLOCK_STAGE) as [string, string][]) {
+    if (out[id] || !(stage in cleared)) continue;
+    // The Edit Team lesson already tracked its own completion before v5.
+    out[id] = id === TUTORIALS.team && seen.includes('tut:team') ? 'done' : 'legacy';
+  }
+  return out;
 }
 
 function safeStorage(): Storage | null {
@@ -186,9 +226,9 @@ export const saveStore = {
   },
 
   /** Record a victory. Returns coins awarded and whether it was the first clear. */
-  completeStage(stageId: string, baseHp: number, maxBaseHp: number): { coins: number; firstClear: boolean; stars: number } {
+  completeStage(stageId: string, baseHp: number, maxBaseHp: number): { coins: number; firstClear: boolean; stars: number; cans: number } {
     const found = findStage(stageId);
-    if (!found) return { coins: 0, firstClear: false, stars: 0 };
+    if (!found) return { coins: 0, firstClear: false, stars: 0, cans: 0 };
     const stars = computeStars(baseHp, maxBaseHp);
     const firstClear = !(stageId in state.cleared);
     const coins = stageClearCoins(found.stage, firstClear);
@@ -200,7 +240,64 @@ export const saveStore = {
       unlocked,
       cleared: { ...state.cleared, [stageId]: Math.max(state.cleared[stageId] ?? 0, stars) },
     });
-    return { coins, firstClear, stars };
+    // One-time first-clear Cat Food Cans (2-8, 2-10, …), never twice.
+    const cans = this.claimMilestoneCans(stageId);
+    return { coins, firstClear, stars, cans };
+  },
+
+  /**
+   * Grant the one-time first-clear Cat Food Cans for cleared milestone stages not yet paid
+   * (one stage, or all of them for older saves). Returns how many cans were added.
+   */
+  claimMilestoneCans(only?: string): number {
+    let add = 0;
+    const got: string[] = [];
+    for (const [stage, n] of Object.entries(MILESTONE_CANS)) {
+      if (only && stage !== only) continue;
+      const id = milestoneId.clear(stage);
+      if (!(stage in state.cleared) || state.milestones.includes(id)) continue;
+      add += n;
+      got.push(id);
+    }
+    if (add) commit({ ...state, cans: state.cans + add, milestones: [...state.milestones, ...got] });
+    return add;
+  },
+
+  /** A battle on this stage starts. Returns how many attempts came before it. */
+  recordAttempt(stageId: string): number {
+    const before = state.attempts[stageId] ?? 0;
+    commit({ ...state, attempts: { ...state.attempts, [stageId]: before + 1 } });
+    return before;
+  },
+
+  /** The Living Cat Food Can was defeated: 1 can the first time on this stage, coins after that. */
+  claimCanMonster(stageId: string): { cans: number; coins: number } {
+    if (!isCanMonsterStage(stageId)) return { cans: 0, coins: 0 };
+    const id = milestoneId.canMonster(stageId);
+    if (!state.milestones.includes(id)) {
+      commit({ ...state, cans: state.cans + CAN_MONSTER.rewardCans, milestones: [...state.milestones, id] });
+      return { cans: CAN_MONSTER.rewardCans, coins: 0 };
+    }
+    commit({ ...state, fishCoins: state.fishCoins + CAN_MONSTER.repeatCoins });
+    return { cans: 0, coins: CAN_MONSTER.repeatCoins };
+  },
+
+  /**
+   * A Gold Chest broke: after 2-5 it has a 4% chance of +1 can, at most once per stage per save
+   * (never on the four can-monster stages, which have their own once-per-stage can).
+   */
+  rollGoldChestCan(stageId: string, rand: () => number = Math.random): number {
+    if (!isFeatureUnlocked(state, 'recruit') || isCanMonsterStage(stageId)) return 0;
+    const id = milestoneId.goldChest(stageId);
+    if (state.milestones.includes(id) || !(rand() < GOLD_CHEST_CAN.chance)) return 0;
+    commit({ ...state, cans: state.cans + GOLD_CHEST_CAN.cans, milestones: [...state.milestones, id] });
+    return GOLD_CHEST_CAN.cans;
+  },
+
+  /** Record how an unlock tutorial ended ('done' | 'skipped'). Replays never call this. */
+  setTutorial(id: string, outcome: TutorialState): void {
+    if (state.tutorials[id] === outcome) return;
+    commit({ ...state, tutorials: { ...state.tutorials, [id]: outcome } });
   },
 
   buyCosmetic(id: string): { ok: boolean; reason?: string } {

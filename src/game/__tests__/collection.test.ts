@@ -258,7 +258,7 @@ describe('save migration (v2 → v3)', () => {
       seen: ['tut:welcome', 'cat:kitten', 'enemy:fast'],
     };
     const s = parseSave(JSON.stringify(v2));
-    expect(s.version).toBe(4);
+    expect(s.version).toBe(5);
     expect(s.fishCoins).toBe(432);
     expect(s.unlocked).toEqual(['1-1', '1-2', '1-3']);
     expect(s.cleared).toEqual({ '1-1': 3, '1-2': 2 });

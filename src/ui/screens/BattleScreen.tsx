@@ -12,6 +12,7 @@ import { Renderer, type DragView } from '../../render/renderer';
 import { saveStore, useSave } from '../../save/store';
 import { TutorialDirector, type ActiveStep, type SeenStore, type TutAction } from '../../tutorial/director';
 import { teamTutorialCat } from '../../tutorial/teamTutorial';
+import { rollCanMonster } from '../../config/canRewards';
 import { isFeatureUnlocked } from '../../config/unlocks';
 import { CatInfoPanel } from '../components/CatInfoPanel';
 import { GameIcon } from '../components/GameIcon';
@@ -74,6 +75,23 @@ interface Result {
   maxHp: number;
   stats: BattleStats;
   duration: number;
+  cans?: number;
+  bonusCoins?: number;
+}
+
+/**
+ * One planned attempt per run id (React StrictMode may build the battle twice): records the
+ * attempt once and decides once whether the secret Living Cat Food Can joins it.
+ */
+const attemptPlans = new Map<string, { canMonster: boolean }>();
+function planAttempt(stageId: string, runId: string): { canMonster: boolean } {
+  let p = attemptPlans.get(runId);
+  if (!p) {
+    const before = saveStore.recordAttempt(stageId);
+    p = { canMonster: rollCanMonster(stageId, before) };
+    attemptPlans.set(runId, p);
+  }
+  return p;
 }
 
 function hudOf(b: Battle): Hud {
@@ -101,8 +119,8 @@ function hudOf(b: Battle): Hud {
 
 const seenStore: SeenStore = { has: (id: string) => saveStore.hasSeen(id), mark: (id: string) => saveStore.markSeen(id) };
 /** Tutorial replay: lessons are tracked only in memory, so every one shows again and the save is never touched. */
-const memorySeen = (): SeenStore => {
-  const s = new Set<string>();
+const memorySeen = (preset: string[] = []): SeenStore => {
+  const s = new Set<string>(preset);
   return { has: (id) => s.has(id), mark: (id) => void s.add(id) };
 };
 let toastId = 1;
@@ -124,8 +142,14 @@ export function BattleScreen({
   onPlay,
   onHome,
   onPracticeTeam,
+  onLessonEnd,
+  run,
 }: {
   stageId: string;
+  /** The App's entry stamp for this visit (one stage attempt per entry). */
+  run?: number;
+  /** Scripted lessons: finished (all steps) or deliberately skipped. */
+  onLessonEnd?: (outcome: 'done' | 'skipped') => void;
   /** Tutorial replay (practice stage) only: continue with the Edit Team practice. */
   onPracticeTeam?: () => void;
   /** A saved battle to continue (battle recovery); restored paused. */
@@ -139,7 +163,10 @@ export function BattleScreen({
   const { stage, chapter } = found;
   /** Tutorial replay: a temporary session — no saves, coins, checkpoints or lesson marks. */
   const practice = !!stage.practice;
-  const seenRef = useRef<SeenStore>(practice ? memorySeen() : seenStore);
+  /** A scripted lesson (Sir Sable's piercing lesson): his intro and the mice need no first-time cards. */
+  const lessonPreset = stage.lesson ? ['cat:sable', 'enemy:normal'] : [];
+  const seenRef = useRef<SeenStore>(practice ? memorySeen(lessonPreset) : seenStore);
+  const lessonEndRef = useRef(false);
   const map = MAPS[chapter.mapId];
   const save = useSave();
   const debug = useDebug();
@@ -155,6 +182,11 @@ export function BattleScreen({
   // ---- Battle recovery bookkeeping ----
   /** This attempt's id (restored battles keep theirs; Restart makes a new one). */
   const runIdRef = useRef<string>(resume?.runId ?? newRunId());
+  /**
+   * One attempt per entry into the stage (the App's `run` stamp): stable even if React builds this
+   * screen twice, so an attempt is never counted twice. Restart starts a new attempt.
+   */
+  const attemptKeyRef = useRef<string>(`${stageId}:${run ?? runIdRef.current}`);
   /** This browser tab (if another tab resumes the same run, this one stops). */
   const tabId = useRef(newRunId()).current;
   const lastSaveRef = useRef(0);
@@ -176,8 +208,10 @@ export function BattleScreen({
     }
     const sv = saveStore.get();
     // Practice uses the new-player setup: tutorial cats at 1★, no skin bonuses.
-    if (practice) return new Battle(stage, map, {});
+    if (practice) return new Battle(stage, map, { sandbox: !!stage.lesson });
     return new Battle(stage, map, {
+      // Attempts are counted per stage; on 2-6 / 2-9 / 2-15 / 2-18 this also decides the secret can.
+      canMonster: planAttempt(stage.id, attemptKeyRef.current).canMonster,
       tuning: debugStore.get().enabled ? debugStore.get().tuning : undefined,
       // Tutorial stages keep their own cats; every other stage summons from the player's team.
       roster: stage.fixedRoster ? undefined : sv.team,
@@ -214,6 +248,8 @@ export function BattleScreen({
   const [grants, setGrants] = useState<ChapterGrant[]>([]);
   const [cutscene, setCutscene] = useState(false);
   const [practiceEnd, setPracticeEnd] = useState<'victory' | 'defeat' | null>(null);
+  /** Permanent extras earned during this attempt (already saved the moment they happened). */
+  const earnedRef = useRef({ cans: 0, coins: 0 });
 
   const [hud, setHud] = useState<Hud>(() => hudOf(battleRef.current));
   const hudKeyRef = useRef('');
@@ -277,12 +313,12 @@ export function BattleScreen({
 
   const showStageBanner = useCallback(() => {
     setBanner({
-      text: practice ? t('practice.banner') : t('battle.stageBanner', { id: stage.id, name: t(`stage.${stage.id}`) }),
+      text: stage.lesson ? t('pierce.badge') : practice ? t('practice.banner') : t('battle.stageBanner', { id: stage.id, name: t(`stage.${stage.id}`) }),
       sub: practice ? t('practice.safe') : undefined,
       tone: 'stage',
       key: Date.now(),
     });
-  }, [stage.id, practice]);
+  }, [stage.id, stage.lesson, practice]);
   useEffect(showStageBanner, [showStageBanner]);
 
   // ---- Battle events → UI / persistence ----
@@ -297,6 +333,14 @@ export function BattleScreen({
               break;
             }
             if (staleRef.current) break;
+            // Gold Chest: 4% bonus Cat Food Can after 2-5, at most once per stage (saved at once).
+            if (e.tier === 'gold') {
+              const can = saveStore.rollGoldChestCan(stage.id);
+              if (can) {
+                earnedRef.current.cans += can;
+                toast(t('battle.goldCan', { n: can }), 'good');
+              }
+            }
             saveStore.addCoins(e.amount); // chest coins are kept even if the stage is lost
             // Checkpoint right away: an older save (chest still alive) could otherwise pay twice.
             checkpointRef.current();
@@ -337,6 +381,18 @@ export function BattleScreen({
           case 'ultimate':
             toast(t('battle.ultFired', { cat: t(`cat.${e.cat}.name`), name: t(`ability.${e.cat}.ult.name`) }), 'good');
             break;
+          case 'canMonsterDefeated': {
+            if (practice || staleRef.current) break;
+            const r = saveStore.claimCanMonster(stage.id); // 1 can the first time per stage, coins after
+            earnedRef.current.cans += r.cans;
+            earnedRef.current.coins += r.coins;
+            toast(r.cans ? t('battle.canMonsterCan', { n: r.cans }) : t('battle.canMonsterCoins', { n: r.coins }), 'good');
+            checkpointRef.current();
+            break;
+          }
+          case 'canMonsterLooped':
+            toast(t('battle.canMonsterLooped'), 'warn');
+            break;
           case 'maxedChestFish':
             toast(t('battle.maxedChestFish', { n: e.fish }), 'good');
             break;
@@ -356,6 +412,7 @@ export function BattleScreen({
               chapterId: chapter.id,
               chapterNumber: chapter.number,
               chestCoins: b.chestCoins,
+              bonusCoins: earnedRef.current.coins,
               baseHp: b.baseHp,
               maxHp: b.maxBaseHp,
               stats: { ...b.stats },
@@ -367,6 +424,7 @@ export function BattleScreen({
                 : saveStore.completeStage(stage.id, b.baseHp, b.maxBaseHp);
               setResult({
                 ...common,
+                cans: earnedRef.current.cans + ('cans' in r ? r.cans : 0),
                 victory: true,
                 stars: r.stars,
                 coins: r.coins,
@@ -381,7 +439,7 @@ export function BattleScreen({
               const g = saveStore.claimChapterRewards();
               if (g.length) setGrants(g);
             } else {
-              setResult({ ...common, victory: false, stars: 0, coins: 0, firstClear: false, chapterComplete: false });
+              setResult({ ...common, cans: earnedRef.current.cans, victory: false, stars: 0, coins: 0, firstClear: false, chapterComplete: false });
             }
             break;
           }
@@ -417,6 +475,11 @@ export function BattleScreen({
       last = now;
       const b = battleRef.current;
       const active = directorRef.current.update(b); // freezes the battle while a lesson is shown
+      // A scripted lesson ends after its last step (its own completion panel follows).
+      if (stage.lesson && !lessonEndRef.current && seenRef.current.has('pierce:done')) {
+        lessonEndRef.current = true;
+        setPracticeEnd('victory');
+      }
       if (b.running && inspectRef.current === null) {
         // Game speed scales the whole simulation (movement, cooldowns, projectiles, spawns, waves, slows).
         b.update(dt * BALANCE.speed.baseline * speedRef.current);
@@ -548,10 +611,13 @@ export function BattleScreen({
   // ---- Actions ----
   const restart = () => {
     runIdRef.current = newRunId(); // a new attempt (overwrites the old checkpoint)
+    attemptKeyRef.current = runIdRef.current; // …and a new attempt record
     staleRef.current = false;
     dirtyRef.current = true;
     battleRef.current = newBattle();
-    if (practice) seenRef.current = memorySeen(); // a restarted practice starts the lessons again
+    earnedRef.current = { cans: 0, coins: 0 };
+    if (practice) seenRef.current = memorySeen(lessonPreset); // a restarted practice starts the lessons again
+    lessonEndRef.current = false;
     directorRef.current = new TutorialDirector(stage.id, seenRef.current);
     setPracticeEnd(null);
     setInspectUid(null);
@@ -818,7 +884,7 @@ export function BattleScreen({
   const canTacticalPause = hud.status === 'playing' && !hud.preparing && !result;
 
   return (
-    <div className="screen battle" ref={rootRef}>
+    <div className={`screen battle ${stage.lesson ? 'lesson' : ''}`} ref={rootRef}>
       {/* Top HUD */}
       <div className="hud">
         <div className={`hud-pill hp ${hpPct <= 0.3 ? 'danger' : ''}`}>
@@ -826,7 +892,7 @@ export function BattleScreen({
         </div>
         <div className="hud-center">
           <div className="hud-stage">
-            {practice ? t('practice.badge') : `${t('battle.stage', { id: stage.id })} · ${t(`stage.${stage.id}`)}`}
+            {stage.lesson ? t('pierce.badge') : practice ? t('practice.badge') : `${t('battle.stage', { id: stage.id })} · ${t(`stage.${stage.id}`)}`}
           </div>
           <div className={`hud-wave ${hud.nextWave !== null ? 'countdown' : ''}`}>
             {hud.preparing
@@ -1033,7 +1099,13 @@ export function BattleScreen({
           buttons={{ summon: summonRef, skill: skillRef, speed: speedBtnRef, start: startBtnRef, tpause: tpauseBtnRef, resume: resumeBtnRef }}
           loadout={save.equipped}
           onContinue={() => directorRef.current.complete(battleRef.current)}
-          onSkip={directorRef.current.isLesson ? () => directorRef.current.skipAll(battleRef.current) : undefined}
+          onSkip={
+            stage.lesson
+              ? () => (onLessonEnd ? onLessonEnd('skipped') : onExit()) // a deliberate Skip Tutorial ends the lesson
+              : directorRef.current.isLesson
+                ? () => directorRef.current.skipAll(battleRef.current)
+                : undefined
+          }
         />
       )}
 
@@ -1165,7 +1237,21 @@ export function BattleScreen({
         </div>
       )}
 
-      {practiceEnd && (
+      {practiceEnd && stage.lesson && (
+        <div className="overlay practice-end" role="dialog" aria-modal="true">
+          <div className="panel">
+            <h2>{t('pierce.doneTitle')}</h2>
+            <p className="muted">{t('pierce.doneBody')}</p>
+            <button className="btn btn-primary" onClick={() => (onLessonEnd ? onLessonEnd('done') : onExit())}>
+              <GameIcon name="home" size={18} /> {t('tut.continue')}
+            </button>
+            <button className="btn btn-secondary" onClick={restart}>
+              <GameIcon name="replay" size={18} /> {t('practice.again')}
+            </button>
+          </div>
+        </div>
+      )}
+      {practiceEnd && !stage.lesson && (
         <div className="overlay practice-end" role="dialog" aria-modal="true">
           <div className="panel">
             <h2>{t(practiceEnd === 'victory' ? 'practice.doneTitle' : 'practice.lostTitle')}</h2>

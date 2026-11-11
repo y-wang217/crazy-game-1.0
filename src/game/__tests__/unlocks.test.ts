@@ -75,7 +75,7 @@ describe('Cat Food Cans', () => {
       seen: ['tut:shop', 'tut:team'],
     };
     const s = parseSave(JSON.stringify(v3));
-    expect(s.version).toBe(4);
+    expect(s.version).toBe(5);
     expect(s.fishCoins).toBe(4321);
     expect(s.collection.whiskers).toEqual({ stars: 1, fragments: 20 });
     expect(s.collection.sable).toEqual({ stars: 2, fragments: 0 });
@@ -94,5 +94,27 @@ describe('Cat Food Cans', () => {
     expect(saveStore.get().collection.sable).toEqual({ stars: 1, fragments: 0 });
     expect(saveStore.claimChapterRewards()).toEqual([]);
     expect(isFeatureUnlocked(saveStore.get(), 'team')).toBe(true);
+  });
+});
+
+describe('unlock tutorials: saved state per tutorial, no interruptions for older saves', () => {
+  it('fresh saves start with no tutorial state; outcomes are saved separately', () => {
+    saveStore.reset();
+    expect(saveStore.get().tutorials).toEqual({});
+    saveStore.setTutorial('shopCats', 'done');
+    saveStore.setTutorial('recruit', 'skipped');
+    const again = parseSave(JSON.stringify(saveStore.get()));
+    expect(again.tutorials).toEqual({ shopCats: 'done', recruit: 'skipped' });
+  });
+
+  it('a pre-v5 save marks only the tutorials it already passed as legacy (Edit Team keeps its old completion)', () => {
+    const cleared = Object.fromEntries(['1-1', '1-4', '1-10', '2-1', '2-5'].map((i) => [i, 3]));
+    const s = parseSave(JSON.stringify({ version: 4, cleared, seen: ['tut:team'] }));
+    expect(s.tutorials).toEqual({ shopCats: 'legacy', sableStory: 'legacy', team: 'done', pierce: 'legacy', recruit: 'legacy' });
+    const early = parseSave(JSON.stringify({ version: 4, cleared: { '1-1': 3, '1-4': 2 } }));
+    expect(early.tutorials).toEqual({ shopCats: 'legacy' });
+    // Once at v5, nothing is re-derived (a later clear starts the real tutorial).
+    const v5 = parseSave(JSON.stringify({ version: 5, cleared, tutorials: { shopCats: 'done' } }));
+    expect(v5.tutorials).toEqual({ shopCats: 'done' });
   });
 });

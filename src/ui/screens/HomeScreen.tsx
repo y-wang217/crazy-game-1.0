@@ -10,7 +10,9 @@ import { GameIcon } from '../components/GameIcon';
 import { CoinIcon } from '../components/Icons';
 import { debugStore, useDebug } from '../debugStore';
 import { FeatureButton, FeatureUnlockCard } from '../components/FeatureUnlock';
-import { UNLOCK_INTRO, isFeatureUnlocked } from '../../config/unlocks';
+import { TUTORIALS, isFeatureUnlocked } from '../../config/unlocks';
+import { tourStore, useTour } from '../../tutorial/tours';
+import { SableStory } from '../components/SableStory';
 import { CanIcon } from '../components/Icons';
 import { STARTER_CATS } from '../../config/cats';
 import { TEAM_TUTORIAL_ID, teamTutorialCat } from '../../tutorial/teamTutorial';
@@ -47,19 +49,29 @@ export function HomeScreen({
     team: isFeatureUnlocked(save, 'team'),
     recruit: isFeatureUnlocked(save, 'recruit'),
   };
-  // Edit Team tutorial: starts on its own as soon as Edit Team unlocks (1-10, with Sir Sable), and
-  // comes back until the team is confirmed with the new cat or the player taps Skip tutorial.
-  const tutCat = unlocked.team ? teamTutorialCat(save) : null;
-  const showTeamTut = !blocked && tutCat !== null;
-  // One short unlock card at a time. Veterans who already met the Shop (old "tut:shop") skip it.
-  const showShopCats =
-    !blocked && !showTeamTut && unlocked.shop && !save.seen.includes(UNLOCK_INTRO.shopCats) && !save.seen.includes(SHOP_INTRO_ID);
-  const showRecruitIntro = !blocked && !showTeamTut && !showShopCats && unlocked.recruit && !save.seen.includes(UNLOCK_INTRO.recruit);
+  // Unlock tutorials, one at a time, each started automatically and ended only by finishing it or
+  // by a visible Skip Tutorial (save.tutorials: done / skipped; 'legacy' = passed before V1.6, so
+  // an advanced player is never interrupted — those live in the replay menu / first-visit offers).
+  const [replayStory, setReplayStory] = useState(false);
+  const tut = save.tutorials;
+  const touring = useTour() !== null;
+  const free = !blocked && !touring && !replayStory;
+  const sableOwned = !!save.collection.sable;
+  const teamDecided = !!tut.team || save.seen.includes(TEAM_TUTORIAL_ID);
+  const showShopCats = free && unlocked.shop && !tut.shopCats;
+  const showSableStory = free && !showShopCats && unlocked.team && sableOwned && !tut.sableStory;
+  // Edit Team tutorial (after Sir Sable's story): put him in the team.
+  const tutCat = unlocked.team && !tut.team ? teamTutorialCat(save) : null;
+  const showTeamTut = free && !showShopCats && !showSableStory && tutCat !== null;
+  // Then his piercing lesson.
+  const showPierce = free && !showShopCats && !showSableStory && !showTeamTut && unlocked.team && sableOwned && teamDecided && !tut.pierce;
+  const showRecruitIntro = free && !showShopCats && !showSableStory && !showTeamTut && !showPierce && unlocked.recruit && !tut.recruit;
   const showShopIntro = showShopCats; // keeps the spotlight styling of the Shop/Encyclopedia buttons
   // Players who already put a new cat in their team on their own don't need the lesson.
   useEffect(() => {
     if (!save.seen.includes(TEAM_TUTORIAL_ID) && save.team.some((id) => !STARTER_CATS.includes(id))) saveStore.markSeen(TEAM_TUTORIAL_ID);
-  }, [save.seen, save.team]);
+    if (!save.tutorials.team && save.seen.includes(TEAM_TUTORIAL_ID)) saveStore.setTutorial(TUTORIALS.team, 'done');
+  }, [save.seen, save.team, save.tutorials.team]);
   const editTeam = () => go({ name: 'team', back: { name: 'home' } });
 
   const flash = (m: string) => {
@@ -191,45 +203,37 @@ export function HomeScreen({
           {debug.enabled ? ' · debug' : ''}
         </button>
       </div>
+      {replayStory && (
+        // Replay: Sir Sable's story, then his piercing lesson (nothing is saved).
+        <SableStory
+          loadout={save.equipped}
+          onDone={() => {
+            setReplayStory(false);
+            go({ name: 'practice', lesson: 'pierce', run: Date.now(), back: { name: 'home' } });
+          }}
+          onSkip={() => setReplayStory(false)}
+          replay
+        />
+      )}
       {showShopCats && (
+        <FeatureUnlockCard kind="shopCats" onStart={() => tourStore.start('shopCats', 'onboarding')} onSkip={() => saveStore.setTutorial(TUTORIALS.shopCats, 'skipped')} />
+      )}
+      {showSableStory && (
+        <SableStory
+          loadout={save.equipped}
+          onDone={() => saveStore.setTutorial(TUTORIALS.sableStory, 'done')}
+          onSkip={() => saveStore.setTutorial(TUTORIALS.sableStory, 'skipped')}
+        />
+      )}
+      {showPierce && (
         <FeatureUnlockCard
-          kind="shopCats"
-          onClose={() => saveStore.markSeen(UNLOCK_INTRO.shopCats)}
-          actions={[
-            {
-              label: t('home.shop'),
-              icon: 'shop',
-              onClick: () => {
-                saveStore.markSeen(UNLOCK_INTRO.shopCats);
-                go({ name: 'shop' });
-              },
-            },
-            {
-              label: t('home.cats'),
-              icon: 'book',
-              onClick: () => {
-                saveStore.markSeen(UNLOCK_INTRO.shopCats);
-                go({ name: 'cats' });
-              },
-            },
-          ]}
+          kind="pierce"
+          onStart={() => go({ name: 'practice', lesson: 'pierce', onboarding: true, run: Date.now(), back: { name: 'home' } })}
+          onSkip={() => saveStore.setTutorial(TUTORIALS.pierce, 'skipped')}
         />
       )}
       {showRecruitIntro && (
-        <FeatureUnlockCard
-          kind="recruit"
-          onClose={() => saveStore.markSeen(UNLOCK_INTRO.recruit)}
-          actions={[
-            {
-              label: t('unlock.recruit.go'),
-              icon: 'recruit',
-              onClick: () => {
-                saveStore.markSeen(UNLOCK_INTRO.recruit);
-                go({ name: 'recruit' });
-              },
-            },
-          ]}
-        />
+        <FeatureUnlockCard kind="recruit" onStart={() => tourStore.start('recruit', 'onboarding')} onSkip={() => saveStore.setTutorial(TUTORIALS.recruit, 'skipped')} />
       )}
       {showTeamTut && tutCat && <TeamTutorialIntro cat={tutCat} loadout={save.equipped} onGo={editTeam} />}
       {practiceMenu && (
@@ -254,6 +258,30 @@ export function HomeScreen({
               </span>
               <small>{unlocked.team ? t('practice.teamList') : t('lock.after', { stage: '1-10' })}</small>
             </button>
+            {(
+              [
+                { id: 'shopCats', ok: unlocked.shop, stage: '1-4', icon: 'shop', start: () => tourStore.start('shopCats', 'replay') },
+                { id: 'sable', ok: unlocked.team && sableOwned, stage: '1-10', icon: 'damage', start: () => setReplayStory(true) },
+                { id: 'recruit', ok: unlocked.recruit, stage: '2-5', icon: 'recruit', start: () => tourStore.start('recruit', 'replay') },
+              ] as const
+            ).map((r) => (
+              <button
+                key={r.id}
+                className={`btn btn-secondary practice-choice ${r.ok ? '' : 'feature-locked'}`}
+                data-practice={r.id}
+                aria-disabled={!r.ok}
+                onClick={() => {
+                  if (!r.ok) return flash(t('lock.toast', { feature: t(`practice.${r.id}`), stage: r.stage }));
+                  setPracticeMenu(false);
+                  r.start();
+                }}
+              >
+                <span>
+                  <GameIcon name={r.ok ? r.icon : 'lock'} size={20} /> {t(`practice.${r.id}`)}
+                </span>
+                <small>{r.ok ? t(`practice.${r.id}List`) : t('lock.after', { stage: r.stage })}</small>
+              </button>
+            ))}
             <button className="btn btn-small" onClick={() => setPracticeMenu(false)}>
               {t('common.close')}
             </button>

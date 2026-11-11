@@ -156,7 +156,7 @@ const SPEED_TIP: StepDef = {
 };
 
 // ---- Tactical Pause (any stage from 1-3 on, once ever; new and existing players) ----
-const tacticalEligible = (b: Battle) => ((b.stage.order ?? b.stage.number) >= 3 || !!b.stage.practice) && !b.sandbox;
+const tacticalEligible = (b: Battle) => ((b.stage.order ?? b.stage.number) >= 3 || (!!b.stage.practice && !b.stage.lesson)) && !b.sandbox;
 
 /** Drag lesson used while paused: move to an empty tile if there is one, otherwise swap/merge. */
 function pausedDrag(b: Battle): StepView | null {
@@ -346,3 +346,86 @@ export const STAGE_STEPS: Record<string, StepDef[]> = {
 // Tutorial replay (Home → Replay Interactive Tutorial): every basic lesson of Stage 1, then the
 // speed button. The chest introduction appears with its chest; Tactical Pause (global) follows.
 STAGE_STEPS.practice = [...STAGE_STEPS['1-1'], SPEED_TIP];
+
+// ---- Sir Sable's piercing lesson (V1.6, after the Edit Team tutorial; replayable) ----
+// Uses his REAL attack on a small map: a straight road runs into the cat house, tile 2-6 lies
+// beyond the house in line with it, tile 3-4 is beside it. Nothing is faked: the numbers shown
+// are the mice his real sword waves hit (Battle.pierceHits).
+export const PIERCE_LINE_TILE = '2-6';
+const sableOf = (b: Battle) => b.cats.find((c) => c.type === 'sable');
+const sableFocus = (b: Battle): StepView['focus'] => {
+  const s = sableOf(b);
+  return s ? [{ kind: 'cat', uid: s.uid }] : [];
+};
+/** A tight line of mice already walking down the straight road (the same line both times). */
+const sendLine = (b: Battle) => {
+  b.clearFoes();
+  b.pierceHits = [];
+  b.spawnLine('normal', 6, 160, 32);
+};
+const best = (b: Battle) => (b.pierceHits.length ? Math.max(...b.pierceHits) : 0);
+const pierceText = (name: string, params?: Record<string, number>, extra?: 'sable') => ({
+  kind: 'text' as const,
+  titleKey: `pierce.${name}.title`,
+  bodyKey: `pierce.${name}.body`,
+  params,
+  extra,
+});
+
+STAGE_STEPS['lesson-pierce'] = [
+  {
+    id: 'pierce:intro',
+    setup: (b) => {
+      if (b.preparing) b.startBattle();
+    },
+    build: (b) => ({ panel: pierceText('intro', undefined, 'sable'), focus: sableFocus(b) }),
+  },
+  {
+    id: 'pierce:sideWatch',
+    setup: (b) => {
+      if (!b.foes.length) sendLine(b);
+    },
+    build: (b) => ({ panel: pierceText('sideWatch'), focus: sableFocus(b) }),
+  },
+  {
+    id: 'pierce:sideResult',
+    when: (b) => b.pierceHits.length >= 4 || (b.pierceHits.length > 0 && !b.foes.some((f) => f.alive)),
+    build: (b) => ({ panel: pierceText('sideResult', { n: best(b) }), focus: sableFocus(b) }),
+  },
+  {
+    id: 'pierce:move',
+    setup: (b) => b.clearFoes(),
+    build: (b) => {
+      const s = sableOf(b);
+      if (!s) return null;
+      return {
+        panel: pierceText('move'),
+        expect: 'moved',
+        hintKey: 'pierce.move.hint',
+        focus: [
+          { kind: 'cat', uid: s.uid },
+          { kind: 'tile', id: PIERCE_LINE_TILE },
+        ],
+        pointer: { type: 'drag', from: { kind: 'cat', uid: s.uid }, to: { kind: 'tile', id: PIERCE_LINE_TILE } },
+        doneWhen: (bb) => sableOf(bb)?.tileId === PIERCE_LINE_TILE,
+      };
+    },
+  },
+  {
+    id: 'pierce:lineWatch',
+    setup: (b) => {
+      if (!b.foes.length) sendLine(b);
+    },
+    build: (b) => ({ panel: pierceText('lineWatch'), focus: sableFocus(b) }),
+  },
+  {
+    id: 'pierce:lineResult',
+    when: (b) => best(b) >= 3 || b.pierceHits.length >= 6 || (b.pierceHits.length > 0 && !b.foes.some((f) => f.alive)),
+    build: (b) => ({ panel: pierceText('lineResult', { n: best(b) }), focus: sableFocus(b) }),
+  },
+  {
+    id: 'pierce:done',
+    setup: (b) => b.clearFoes(),
+    build: (b) => ({ panel: pierceText('done', undefined, 'sable'), focus: sableFocus(b) }),
+  },
+];

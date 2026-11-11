@@ -782,8 +782,30 @@ export const PRACTICE_STAGE: StageDef = {
   rewards: { firstClear: 0, replay: 0 },
 };
 
+/**
+ * Sir Sable's piercing lesson: his REAL attack on a small map with one straight road. Mice are
+ * placed by the lesson steps; tough mice (hpScale) so each strike's reach is easy to see.
+ */
+export const PIERCE_LESSON_ID = 'lesson-pierce';
+export const PIERCE_LESSON_STAGE: StageDef = {
+  id: PIERCE_LESSON_ID,
+  number: 1,
+  roster: ['sable'],
+  fixedRoster: true,
+  practice: true,
+  lesson: 'pierce',
+  tiles: ['2-6', '3-4', '1-4', '3-2', '1-2'],
+  startFish: 0,
+  baseHp: 99,
+  hpScale: 8,
+  waves: [],
+  startCats: [{ type: 'sable', level: 5, tile: '3-4' }],
+  rewards: { firstClear: 0, replay: 0 },
+};
+
 export function findStage(stageId: string): { chapter: ChapterDef; stage: StageDef; index: number } | null {
   if (stageId === PRACTICE_STAGE_ID) return { chapter: CHAPTERS[0], stage: PRACTICE_STAGE, index: 0 };
+  if (stageId === PIERCE_LESSON_ID) return { chapter: { ...CHAPTERS[1], mapId: 'pierce_lesson' }, stage: PIERCE_LESSON_STAGE, index: 0 };
   for (const chapter of CHAPTERS) {
     const index = chapter.stages.findIndex((s) => s.id === stageId);
     if (index >= 0) return { chapter, stage: chapter.stages[index], index };

@@ -765,6 +765,7 @@ const MOUSE_COLORS: Record<EnemyId, { body: string; belly: string; outline: stri
   ironclad: { body: '#8c8f9c', belly: '#d6d8e0', outline: '#3a3c48' },
   thief: { body: '#c9a46a', belly: '#f4e2c0', outline: '#5e4220' },
   captain: { body: '#b49a7a', belly: '#f0e2cc', outline: '#5a4228' },
+  canMonster: { body: '#c9d3e3', belly: '#ff8f6b', outline: '#55607a' },
 };
 
 /** Body size per enemy (elites are visibly bigger, except the nimble Thief). */
@@ -786,7 +787,85 @@ function eliteCrown(ctx: Ctx, x: number, y: number) {
   circle(ctx, x, y - 6, 0.9, '#ff6a7a');
 }
 
+/**
+ * 罐頭怪 / Living Cat Food Can: a walking tin (NOT a mouse with a can) — tin body with a fish
+ * label, a lid with a pull tab, a cheeky face on the label, little waving arms and fast legs.
+ */
+export function drawCanMonster(ctx: Ctx, o: { dirX: number; t: number; hit: boolean }) {
+  const line = '#55607a';
+  const run = o.t * 26;
+  const bob = Math.abs(Math.sin(run)) * 2;
+  ctx.save();
+  ellipse(ctx, 0, 12, 11, 3.4, 'rgba(60,80,40,0.25)');
+  ctx.scale(o.dirX, 1);
+  // legs (fast scamper)
+  ctx.strokeStyle = line;
+  ctx.lineWidth = 2.4;
+  ctx.lineCap = 'round';
+  for (const [x, ph] of [
+    [-4, 0],
+    [4, Math.PI],
+  ] as const) {
+    const sw = Math.sin(run + ph) * 4;
+    ctx.beginPath();
+    ctx.moveTo(x, 6);
+    ctx.lineTo(x + sw, 11);
+    ctx.stroke();
+    ellipse(ctx, x + sw + 1.4, 11.4, 2.4, 1.4, '#ffd34d', line, 1);
+  }
+  ctx.translate(0, -bob);
+  // arms (waving)
+  for (const side of [-1, 1]) {
+    const wave = Math.sin(run * 0.5 + (side > 0 ? 0 : Math.PI)) * 0.6;
+    ctx.save();
+    ctx.translate(side * 9, -2);
+    ctx.rotate(side * (0.9 + wave));
+    ctx.strokeStyle = line;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, 7);
+    ctx.stroke();
+    circle(ctx, 0, 8, 1.9, '#ffffff', line, 1);
+    ctx.restore();
+  }
+  // tin body
+  const body = o.hit ? '#ffffff' : '#c9d3e3';
+  ctx.beginPath();
+  ctx.rect(-9, -9, 18, 15);
+  ctx.fillStyle = body;
+  ctx.fill();
+  ctx.strokeStyle = line;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ellipse(ctx, 0, 6, 9, 3, o.hit ? '#ffffff' : '#9aa6b8', line, 1.5);
+  // label band with a fish
+  ctx.fillStyle = o.hit ? '#ffffff' : '#ff8f6b';
+  ctx.fillRect(-9, -5.5, 18, 8);
+  ellipse(ctx, 5.2, 0.6, 2.4, 1.3, '#fff4e0');
+  poly(ctx, [7.4, 0.6, 9, -0.6, 9, 1.8], '#fff4e0');
+  // face
+  circle(ctx, -3.6, -2.2, 2.3, '#ffffff', line, 0.9);
+  circle(ctx, 1.8, -2.2, 2.3, '#ffffff', line, 0.9);
+  circle(ctx, -3, -2, 1.1, '#2a2230');
+  circle(ctx, 2.4, -2, 1.1, '#2a2230');
+  ctx.beginPath();
+  ctx.arc(-0.9, 1, 1.8, 0, Math.PI);
+  ctx.fillStyle = '#6a2030';
+  ctx.fill();
+  // lid + pull tab
+  ellipse(ctx, 0, -9, 9, 3, o.hit ? '#ffffff' : '#e3e9f2', line, 1.5);
+  const tab = Math.sin(run * 0.5) * 0.4;
+  ctx.save();
+  ctx.translate(2, -10);
+  ctx.rotate(-0.4 + tab);
+  ellipse(ctx, 0, -2, 2.4, 1.4, 'rgba(0,0,0,0)', line, 1.2);
+  ctx.restore();
+  ctx.restore();
+}
+
 export function drawMouse(ctx: Ctx, o: MouseDrawOpts) {
+  if (o.id === 'canMonster') return drawCanMonster(ctx, o);
   const c = MOUSE_COLORS[o.id];
   const s = MOUSE_SCALE[o.id] ?? 1;
   const quick = o.id === 'fast' || o.id === 'thief';

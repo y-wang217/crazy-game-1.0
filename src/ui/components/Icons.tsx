@@ -38,6 +38,23 @@ export function CanIcon({ size = 18 }: { size?: number }) {
   );
 }
 
+/** A small, mysterious can with eyes and legs (stage-select Easter egg: deliberately unexplained). */
+export function CanMonsterIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+      <path d="M11 24 L9 29 M21 24 L23 29" stroke="#3a3550" strokeWidth="2.4" strokeLinecap="round" />
+      <path d="M7 15 L3 12 M25 15 L29 11" stroke="#3a3550" strokeWidth="2.2" strokeLinecap="round" />
+      <rect x="7" y="8" width="18" height="16" rx="2" fill="#5c5878" stroke="#3a3550" strokeWidth="2" />
+      <ellipse cx="16" cy="8" rx="9" ry="3" fill="#7a7698" stroke="#3a3550" strokeWidth="2" />
+      <circle cx="12.5" cy="15.5" r="2.4" fill="#ffe27a" />
+      <circle cx="19.5" cy="15.5" r="2.4" fill="#ffe27a" />
+      <circle cx="13" cy="15.8" r="1" fill="#3a3550" />
+      <circle cx="20" cy="15.8" r="1" fill="#3a3550" />
+      <path d="M13 20 Q16 22.5 19 20" stroke="#ffe27a" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function HeartIcon({ size = 18 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" aria-label="base HP" role="img">

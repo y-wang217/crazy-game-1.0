@@ -54,3 +54,32 @@ export const CANS = {
   /** One-time gift when Recruitment unlocks. */
   introGift: 2,
 } as const;
+
+/**
+ * Unlock tutorials (V1.6). Each one starts by itself when its feature unlocks, and ends only when
+ * the player finishes the guided actions ('done') or taps a visible Skip Tutorial ('skipped').
+ * Both outcomes are saved per tutorial (save.tutorials). All are replayable (Home → Replay
+ * Interactive Tutorial) without touching progress.
+ */
+export const TUTORIALS = {
+  /** 1-4: guided tour of the Shop and the Cat Encyclopedia (no purchase needed). */
+  shopCats: 'shopCats',
+  /** 1-10: Sir Sable's story. */
+  sableStory: 'sableStory',
+  /** 1-10: Edit Team (put Sir Sable in the team). */
+  team: 'team',
+  /** 1-10: Sir Sable's piercing-attack placement lesson (practice battle). */
+  pierce: 'pierce',
+  /** 2-5: guided tour of Recruitment and Cat Food Cans (no spending needed). */
+  recruit: 'recruit',
+} as const;
+export type TutorialId = (typeof TUTORIALS)[keyof typeof TUTORIALS];
+
+/** Stage whose first clear starts each tutorial. */
+export const TUTORIAL_UNLOCK_STAGE: Record<TutorialId, string> = {
+  shopCats: '1-4',
+  sableStory: '1-10',
+  team: '1-10',
+  pierce: '1-10',
+  recruit: '2-5',
+};

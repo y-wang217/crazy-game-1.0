@@ -29,6 +29,25 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
   // Escort elite: arrives with an escort; nearby mice take less damage while it lives
   // (BALANCE.elite.guard*). Kill the Captain first — or poison the pack (poison ignores it).
   captain: { id: 'captain', name: 'Mouse Captain', hp: 200, shield: 0, armor: 3, speed: 30, reward: 12, baseDamage: 3, radius: 14, elite: 'escort' },
+  // Secret (V1.6): 罐頭怪 / Living Cat Food Can — a walking tin, not a mouse. Only on 2-6, 2-9,
+  // 2-15 and 2-18 (config/canMonster.ts), in the same wave as a mid-stage elite. Huge HP, no armor,
+  // very fast (beats every elite to the house), immune to all slows. Each time it reaches the house
+  // it takes 1 heart and runs the road again with the HP it has left, until it is defeated.
+  canMonster: {
+    id: 'canMonster',
+    name: 'Living Cat Food Can',
+    // Tuned with the bots: ~1,800–2,300 HP on its stages (several times a mouse), fast enough to
+    // beat even the Cheese Thief home, and Beginner win rates on 2-6/2-9/2-15/2-18 stay the same.
+    hp: 220,
+    shield: 0,
+    armor: 0,
+    speed: 122,
+    reward: 12,
+    baseDamage: 1,
+    radius: 13,
+    slowImmune: true,
+    loops: true,
+  },
   // Chapter 2 final boss (2-20): a moonlight veil (shield) that regrows ONCE when its HP falls
   // to half (BALANCE.boss), calling a few guards — the fight has a real second phase.
   moonEmperor: {

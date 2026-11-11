@@ -7,7 +7,7 @@ import type { Renderer } from '../../render/renderer';
 import type { ActiveStep, ButtonId, Focus } from '../../tutorial/director';
 import type { CosmeticLoadout } from '../../game/types';
 import { CatReveal } from './CatReveal';
-import { FoePreview } from './CatPreview';
+import { CatPreview, FoePreview } from './CatPreview';
 import { CoinIcon } from './Icons';
 import { GameIcon } from './GameIcon';
 
@@ -171,7 +171,7 @@ export function TutorialOverlay({
       {interactive ? (
         <div className={`tut-bar ${panelAtTop ? 'top' : 'bottom'}`}>
           <div className="tut-bar-title">{t(step.panel.kind === 'text' ? step.panel.titleKey : '')}</div>
-          {step.panel.kind === 'text' && <div className="tut-bar-body">{t(step.panel.bodyKey)}</div>}
+          {step.panel.kind === 'text' && <div className="tut-bar-body">{t(step.panel.bodyKey, step.panel.params)}</div>}
           {step.hintKey && (
             <div className="tut-hint">
               <GameIcon name="next" size={14} /> {t(step.hintKey)}
@@ -213,7 +213,7 @@ function Hand({ from, to }: { from: Rect; to?: Rect }) {
   );
 }
 
-function PanelBody({ step }: { step: ActiveStep; loadout: CosmeticLoadout }) {
+function PanelBody({ step, loadout }: { step: ActiveStep; loadout: CosmeticLoadout }) {
   const p = step.panel;
   if (p.kind === 'cat') return null; // shown by CatReveal
   if (p.kind === 'enemy') {
@@ -269,8 +269,13 @@ function PanelBody({ step }: { step: ActiveStep; loadout: CosmeticLoadout }) {
   // Plain lesson
   return (
     <div className="intro">
-      <h2 className="intro-name">{t(p.titleKey)}</h2>
-      <p className="intro-body">{t(p.bodyKey)}</p>
+      {p.extra === 'sable' && (
+        <div className="intro-art">
+          <CatPreview type="sable" level={5} loadout={loadout} size={96} attackLoop />
+        </div>
+      )}
+      <h2 className="intro-name">{t(p.titleKey, p.params)}</h2>
+      <p className="intro-body">{t(p.bodyKey, p.params)}</p>
       {p.extra === 'modes' && (
         <ul className="mode-list">
           {TARGET_MODES.map((m) => (

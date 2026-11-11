@@ -5,7 +5,7 @@ import type { CatId, CosmeticLoadout } from '../../game/types';
 import { t } from '../../i18n';
 import { CatPreview } from './CatPreview';
 import { GameIcon } from './GameIcon';
-import { CoinIcon } from './Icons';
+import { CanIcon, CoinIcon } from './Icons';
 
 export interface BattleResult {
   victory: boolean;
@@ -18,6 +18,10 @@ export interface BattleResult {
   chapterNumber: number;
   baseHp: number;
   maxHp: number;
+  /** Cat Food Cans earned this battle (milestone, Living Cat Food Can, Gold Chest bonus). */
+  cans?: number;
+  /** Fish coins from defeating an already-rewarded Living Cat Food Can. */
+  bonusCoins?: number;
 }
 
 /** Victory / defeat panel: staggered stars with the reason for each, this battle's rewards, navigation. */
@@ -127,6 +131,16 @@ export function ResultPanel({
               <span>{t('result.battleTotal')}</span>
               <span className="reward-amt">
                 <CoinIcon size={18} /> +{shown || summary.total}
+              </span>
+            </div>
+          </div>
+        )}
+        {(result.cans ?? 0) > 0 && (
+          <div className="result-rewards result-cans">
+            <div className="reward-row">
+              <span>{t('result.cans')}</span>
+              <span className="reward-amt">
+                <CanIcon size={18} /> +{result.cans}
               </span>
             </div>
           </div>

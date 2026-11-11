@@ -16,6 +16,7 @@ import { SimDemo } from '../components/SimDemo';
 import { StarUpgrade } from '../components/StarUpgrade';
 import { specialStats } from '../components/statText';
 import { Stars } from '../components/Stars';
+import { TUTORIALS } from '../../config/unlocks';
 import { CatScene } from '../components/CatScene';
 
 const fmt = (n: number, d = 1) => (Math.round(n * 10 ** d) / 10 ** d).toString();
@@ -129,6 +130,18 @@ export function CatProfileScreen({ cat, go }: { cat: CatId; go: (s: Screen) => v
         <p className="profile-line">「{t(`cat.${cat}.line`)}」</p>
       </div>
 
+      {/* Players who already had Sir Sable before his lesson existed: offered here, never forced. */}
+      {cat === 'sable' && save.tutorials.pierce === 'legacy' && (
+        <div className="offer-banner" data-offer="pierce">
+          <span>{t('offer.pierce')}</span>
+          <button className="btn btn-small btn-primary" onClick={() => go({ name: 'practice', lesson: 'pierce', onboarding: true, run: Date.now(), back: { name: 'catProfile', cat: 'sable' } })}>
+            {t('unlock.startLesson')}
+          </button>
+          <button className="btn btn-small" onClick={() => saveStore.setTutorial(TUTORIALS.pierce, 'skipped')}>
+            {t('offer.noThanks')}
+          </button>
+        </div>
+      )}
       {/* Permanent progression: star rank + fragments */}
       <section className="profile-card star-card">
         <h3>{t('star.title')}</h3>

@@ -19,18 +19,19 @@ export function nextStageId(stageId: string): string | null {
 }
 
 export interface RewardLine {
-  key: 'firstClear' | 'stageReward' | 'chests';
+  key: 'firstClear' | 'stageReward' | 'chests' | 'canMonster';
   amount: number;
 }
 
 /** What this battle earned (separate from the player's existing balance). */
-export function rewardSummary(r: { victory: boolean; coins: number; firstClear: boolean; chestCoins: number }): {
+export function rewardSummary(r: { victory: boolean; coins: number; firstClear: boolean; chestCoins: number; bonusCoins?: number }): {
   lines: RewardLine[];
   total: number;
 } {
   const lines: RewardLine[] = [];
   if (r.victory && r.coins > 0) lines.push({ key: r.firstClear ? 'firstClear' : 'stageReward', amount: r.coins });
   if (r.chestCoins > 0) lines.push({ key: 'chests', amount: r.chestCoins });
+  if (r.bonusCoins && r.bonusCoins > 0) lines.push({ key: 'canMonster', amount: r.bonusCoins });
   return { lines, total: lines.reduce((a, l) => a + l.amount, 0) };
 }
 

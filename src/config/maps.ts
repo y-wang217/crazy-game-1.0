@@ -131,7 +131,30 @@ export const MUSHROOM_MAP: MapDef = {
   },
 };
 
+/**
+ * Sir Sable's piercing lesson (practice only, never a real stage). Like the tile under the cat
+ * house in the Mushroom Forest: the road runs STRAIGHT down column 2 into the house, and tile 2-6
+ * sits just beyond the house, in line with that road — mice walk head-on into his sword wave.
+ * Tiles 3-4 / 1-4 / 3-2 / 1-2 are beside the road, so his waves cross it instead.
+ */
+export const PIERCE_LESSON_MAP: MapDef = {
+  id: 'pierce_lesson',
+  name: 'Mushroom Forest path',
+  cols: 5,
+  rows: 8,
+  cell: 50,
+  path: [
+    [2, -0.9],
+    [2, 5.3],
+  ],
+  base: [2, 5],
+  environment: 'mushroom',
+  tiles: [t(2, 6), t(3, 4), t(1, 4), t(3, 2), t(1, 2)],
+  theme: MUSHROOM_MAP.theme,
+};
+
 export const MAPS: Record<string, MapDef> = {
+  pierce_lesson: PIERCE_LESSON_MAP,
   forest: FOREST_MAP,
   forest_compact: FOREST_COMPACT_MAP,
   mushroom: MUSHROOM_MAP,

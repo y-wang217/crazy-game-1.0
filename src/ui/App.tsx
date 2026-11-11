@@ -14,8 +14,11 @@ import { RecruitScreen } from './screens/RecruitScreen';
 import { ShopScreen } from './screens/ShopScreen';
 import { StageSelect } from './screens/StageSelect';
 import { TeamScreen } from './screens/TeamScreen';
-import { PRACTICE_STAGE_ID } from '../config/chapters';
-import { featureOfScreen, isFeatureUnlocked } from '../config/unlocks';
+import { PIERCE_LESSON_ID, PRACTICE_STAGE_ID } from '../config/chapters';
+import { TUTORIALS, featureOfScreen, isFeatureUnlocked } from '../config/unlocks';
+import { CanIcon } from './components/Icons';
+import { TourCoach } from './components/TourCoach';
+import { t } from '../i18n';
 
 export type Screen =
   | { name: 'home' }
@@ -27,12 +30,13 @@ export type Screen =
   | { name: 'recruit' }
   | { name: 'team'; back: Screen; practice?: boolean }
   /** Tutorial replay: the practice battle (temporary session, nothing is saved). */
-  | { name: 'practice'; run: number; back: Screen };
+  | { name: 'practice'; run: number; back: Screen; lesson?: 'pierce'; onboarding?: boolean };
 
 export function App() {
   const save = useSave();
   const [screen, setScreen] = useState<Screen>({ name: 'home' });
   const [grants, setGrants] = useState<ChapterGrant[]>([]);
+  const [cansNotice, setCansNotice] = useState(0);
   // Feature gates: a locked screen can never be opened, whatever button or path asks for it.
   const allowed = (s: Screen) => {
     const f = featureOfScreen(s);
@@ -50,6 +54,12 @@ export function App() {
   useEffect(() => {
     if (screen.name === 'battle' || screen.name === 'practice') return;
     saveStore.claimRecruitIntro(); // 2-5 cleared → the introductory Cat Food Cans, exactly once
+    // First-clear can milestones already earned (older saves): paid once, never twice.
+    const milestoneCans = saveStore.claimMilestoneCans();
+    if (milestoneCans) {
+      setCansNotice(milestoneCans);
+      window.setTimeout(() => setCansNotice(0), 4000);
+    }
     const g = saveStore.claimChapterRewards();
     if (g.length) setGrants((cur) => [...cur, ...g]);
   }, [screen.name]);
@@ -66,7 +76,12 @@ export function App() {
       {screen.name === 'practice' && (
         <BattleScreen
           key={`practice:${screen.run}`}
-          stageId={PRACTICE_STAGE_ID}
+          stageId={screen.lesson ? PIERCE_LESSON_ID : PRACTICE_STAGE_ID}
+          onLessonEnd={(outcome) => {
+            // Only the automatic first run records the outcome; replays never change the save.
+            if (screen.onboarding) saveStore.setTutorial(TUTORIALS.pierce, outcome);
+            go(screen.back);
+          }}
           onExit={() => go(screen.back)}
           onPlay={() => go(screen.back)}
           onHome={() => go(screen.back)}
@@ -78,12 +93,19 @@ export function App() {
         <BattleScreen
           key={`${screen.stageId}:${screen.run}`}
           stageId={screen.stageId}
+          run={screen.run}
           resume={screen.resume}
           onExit={() => go({ name: 'stages' })}
           onPlay={play}
           onHome={() => go({ name: 'home' })}
         />
       )}
+      {cansNotice > 0 && !notice && (
+        <div className="toast-inline cans-notice" role="status">
+          <CanIcon size={20} /> {t('cans.milestoneNotice', { n: cansNotice })}
+        </div>
+      )}
+      {!notice && <TourCoach screen={screen.name} />}
       {notice && <EarlyAccessNotice onClose={() => setNotice(false)} />}
       {offer && !notice && screen.name !== 'battle' && screen.name !== 'practice' && (
         <RecoveryPrompt

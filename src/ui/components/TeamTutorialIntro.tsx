@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { CatId, CosmeticLoadout } from '../../game/types';
 import { t, useLang } from '../../i18n';
+import { TUTORIALS } from '../../config/unlocks';
 import { saveStore } from '../../save/store';
 import { TEAM_TUTORIAL_ID } from '../../tutorial/teamTutorial';
 import { CatPreview } from './CatPreview';
@@ -38,7 +39,9 @@ export function TeamTutorialIntro({ cat, loadout, onGo }: { cat: CatId; loadout:
             className="btn btn-secondary"
             disabled={!ready}
             onClick={() => {
-              if (window.confirm(t('teamTut.skipConfirm'))) saveStore.markSeen(TEAM_TUTORIAL_ID);
+              if (!window.confirm(t('teamTut.skipConfirm'))) return;
+              saveStore.markSeen(TEAM_TUTORIAL_ID);
+              saveStore.setTutorial(TUTORIALS.team, 'skipped');
             }}
           >
             {t('teamTut.skip')}

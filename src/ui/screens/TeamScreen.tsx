@@ -6,6 +6,7 @@ import { t, useLang } from '../../i18n';
 import { saveStore, useSave } from '../../save/store';
 import { setTeam as validTeam } from '../../game/collection';
 import { TEAM_TUTORIAL_ID, teamTutorialCat, teamTutorialStep } from '../../tutorial/teamTutorial';
+import { TUTORIALS } from '../../config/unlocks';
 import type { Screen } from '../App';
 import { CatPreview } from '../components/CatPreview';
 import { Stars } from '../components/Stars';
@@ -88,6 +89,7 @@ export function TeamScreen({ go, back, practice = false }: { go: (s: Screen) => 
     }
     if (!saveStore.setTeam(draft)) return;
     saveStore.markSeen(TEAM_TUTORIAL_ID);
+    saveStore.setTutorial(TUTORIALS.team, 'done');
     flash(t('teamTut.done', { cat: t(`cat.${tut}.name`) }));
     setTut(null);
     setDraft(null);
@@ -96,6 +98,7 @@ export function TeamScreen({ go, back, practice = false }: { go: (s: Screen) => 
     if (practice) return go(back);
     if (!window.confirm(t('teamTut.skipConfirm'))) return;
     saveStore.markSeen(TEAM_TUTORIAL_ID); // the team itself stays exactly as it was (the draft is dropped)
+    saveStore.setTutorial(TUTORIALS.team, 'skipped');
     setTut(null);
     setDraft(null);
   };

@@ -17,6 +17,9 @@ export interface BotResult {
   chestsMissed: number;
   /** Persistent fish coins from chests this battle (kept even on defeat). */
   chestCoins: number;
+  /** The Living Cat Food Can was defeated / how many hearts it took. */
+  canKilled?: boolean;
+  canLoops?: number;
 }
 
 /**
@@ -36,6 +39,8 @@ export function runBot(
     skinBonus?: Partial<Record<CatId, SkinBonus>>;
     /** Never merge above this level (measures how much a stage depends on reaching Lv.5). */
     levelCap?: number;
+    /** The secret Living Cat Food Can joins this battle. */
+    canMonster?: boolean;
   } = {},
 ): BotResult {
   const cap = opts.levelCap ?? 99;
@@ -45,7 +50,9 @@ export function runBot(
     stars: opts.stars,
     roster: opts.roster,
     skinBonus: opts.skinBonus,
+    canMonster: opts.canMonster,
   });
+  const tally = { killed: false, loops: 0 };
   const tick = 0.25;
   const coverage = opts.smart ? tileCoverage(b) : null;
   // Preparation: summon what we can afford, then start right away.
@@ -63,6 +70,7 @@ export function runBot(
     else if (b.skillShopUnlocked && b.fish >= b.skillCost && (!b.emptyTiles().length || b.fish >= b.skillCost + b.summonCost)) b.buySkill();
     if (coverage) relocateBest(b, coverage);
     b.update(tick);
+    canTally(b, tally);
   }
   return {
     win: b.status === 'victory',
@@ -77,7 +85,18 @@ export function runBot(
     chestsOpened: b.stats.chestsOpened,
     chestsMissed: b.stats.chestsMissed,
     chestCoins: b.chestCoins,
+    canKilled: tally.killed,
+    canLoops: tally.loops,
   };
+}
+
+/** Count Living Cat Food Can events (bots drain the event list so nothing piles up). */
+function canTally(b: Battle, t: { killed: boolean; loops: number }): void {
+  for (const e of b.events) {
+    if (e.type === 'canMonsterDefeated') t.killed = true;
+    if (e.type === 'canMonsterLooped') t.loops++;
+  }
+  b.events.length = 0;
 }
 
 function mergeLowest(b: Battle, cap = 99): boolean {
@@ -142,11 +161,13 @@ export function runBeginnerBot(
     stars?: Partial<Record<CatId, number>>;
     /** A struggling player: slower (2.5–5 s per decision) and merges even less. */
     struggling?: boolean;
+    canMonster?: boolean;
   } = {},
 ): BotResult {
-  const b = new Battle(stage, map, { seed, tuning: opts.tuning as Tuning | undefined, roster: opts.roster, stars: opts.stars });
+  const b = new Battle(stage, map, { seed, tuning: opts.tuning as Tuning | undefined, roster: opts.roster, stars: opts.stars, canMonster: opts.canMonster });
   const [react, spread, mergeP, mergeFullP] = opts.struggling ? [2.5, 2.5, 0.2, 0.45] : [1.5, 2, 0.35, 0.65];
   const r = new Rng(seed * 7919 + 17);
+  const tally = { killed: false, loops: 0 };
   const mergeRandom = () => {
     const pairs: [number, string][] = [];
     for (const x of b.cats) for (const y of b.cats) if (x.uid < y.uid && canMerge(x, y)) pairs.push([x.uid, y.tileId]);
@@ -174,8 +195,11 @@ export function runBeginnerBot(
       else if (b.skillShopUnlocked && b.fish >= b.skillCost + b.summonCost && r.next() < 0.25) b.buySkill();
     }
     b.update(0.1);
+    canTally(b, tally);
   }
   return {
+    canKilled: tally.killed,
+    canLoops: tally.loops,
     win: b.status === 'victory',
     baseHp: b.baseHp,
     time: b.time,

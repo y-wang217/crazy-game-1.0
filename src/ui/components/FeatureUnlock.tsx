@@ -55,18 +55,19 @@ export function FeatureButton({
 }
 
 /**
- * Short one-time unlock card on Home (no forced purchase, no chain of popups). The unlocked
- * buttons underneath are spotlit. Buttons are inert for a moment so a tap from the previous
- * screen can't dismiss it by accident.
+ * Unlock introduction card on Home. It starts the guided tutorial or — only through the visible
+ * Skip Tutorial button (with confirmation) — skips it. There is no "later"/close: dismissing never
+ * counts as completing. Buttons are inert for a moment so a tap from the previous screen can't
+ * hit them by accident.
  */
 export function FeatureUnlockCard({
   kind,
-  onClose,
-  actions,
+  onStart,
+  onSkip,
 }: {
-  kind: 'shopCats' | 'recruit';
-  onClose: () => void;
-  actions: { label: string; icon: IconName; onClick: () => void }[];
+  kind: 'shopCats' | 'recruit' | 'pierce';
+  onStart: () => void;
+  onSkip: () => void;
 }) {
   useLang();
   const [ready, setReady] = useState(false);
@@ -80,15 +81,18 @@ export function FeatureUnlockCard({
           { icon: <GameIcon name="shop" size={28} />, title: t('unlock.shop.title'), body: t('unlock.shop.body') },
           { icon: <GameIcon name="book" size={28} />, title: t('unlock.cats.title'), body: t('unlock.cats.body') },
         ]
-      : [
-          { icon: <GameIcon name="recruit" size={28} />, title: t('unlock.recruit.title'), body: t('unlock.recruit.body') },
-          { icon: <CanIcon size={28} />, title: t('unlock.cans.title'), body: t('unlock.cans.body', { n: CANS.introGift }) },
-        ];
+      : kind === 'recruit'
+        ? [
+            { icon: <GameIcon name="recruit" size={28} />, title: t('unlock.recruit.title'), body: t('unlock.recruit.body') },
+            { icon: <CanIcon size={28} />, title: t('unlock.cans.title'), body: t('unlock.cans.body', { n: CANS.introGift }) },
+          ]
+        : [{ icon: <GameIcon name="damage" size={28} />, title: t('unlock.pierce.title'), body: t('unlock.pierce.body') }];
+  const title = kind === 'shopCats' ? 'unlock.shopCats.title' : kind === 'recruit' ? 'unlock.recruitCans.title' : 'unlock.pierce.heading';
   return (
     <div className="shop-intro spot feature-unlock" data-unlock={kind} role="dialog" aria-modal="true" aria-labelledby="unlock-title">
       <div className="panel shop-intro-card feature-unlock-card">
-        <div className="intro-kicker gold">{t('unlock.kicker')}</div>
-        <h2 id="unlock-title">{t(kind === 'shopCats' ? 'unlock.shopCats.title' : 'unlock.recruitCans.title')}</h2>
+        <div className="intro-kicker gold">{t(kind === 'pierce' ? 'unlock.lessonKicker' : 'unlock.kicker')}</div>
+        <h2 id="unlock-title">{t(title)}</h2>
         {kind === 'recruit' && (
           <div className="unlock-cans" aria-hidden>
             {Array.from({ length: CANS.introGift }, (_, i) => (
@@ -110,14 +114,12 @@ export function FeatureUnlockCard({
           ))}
         </ul>
         <div className="shop-intro-btns">
-          <button className="btn btn-secondary" disabled={!ready} onClick={onClose}>
-            {t('unlock.later')}
+          <button className="btn btn-primary unlock-start" disabled={!ready} onClick={onStart}>
+            <GameIcon name="play" size={18} /> {t(kind === 'pierce' ? 'unlock.startLesson' : 'unlock.startTour')}
           </button>
-          {actions.map((a) => (
-            <button key={a.label} className="btn btn-primary" disabled={!ready} onClick={a.onClick}>
-              <GameIcon name={a.icon} size={18} /> {a.label}
-            </button>
-          ))}
+          <button className="btn btn-secondary unlock-skip" disabled={!ready} onClick={() => window.confirm(t('tour.skipConfirm')) && onSkip()}>
+            {t('teamTut.skip')}
+          </button>
         </div>
       </div>
     </div>

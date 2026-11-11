@@ -21,7 +21,7 @@ export type Focus =
 export type Pointer = { type: 'tap'; at: Focus } | { type: 'drag'; from: Focus; to: Focus };
 
 export type Panel =
-  | { kind: 'text'; titleKey: string; bodyKey: string; extra?: 'modes' | 'targetTips' }
+  | { kind: 'text'; titleKey: string; bodyKey: string; extra?: 'modes' | 'targetTips' | 'sable'; params?: Record<string, string | number> }
   | { kind: 'cat'; cat: CatId }
   | { kind: 'enemy'; enemy: EnemyId }
   | { kind: 'chest'; tier: ChestTier };

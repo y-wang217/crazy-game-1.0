@@ -377,7 +377,7 @@ describe('save parsing', () => {
   it('migrates a v1 save: keeps progress, adds empty seen list', () => {
     const v1 = { version: 1, fishCoins: 120, unlocked: ['1-1', '1-2', '1-3'], cleared: { '1-1': 3, '1-2': 2 }, owned: ['hat_bow'], equipped: { hat: 'hat_bow', skins: {} } };
     const s = parseSave(JSON.stringify(v1));
-    expect(s.version).toBe(4); // v1 → current; collection fields are covered in collection.test.ts
+    expect(s.version).toBe(5); // v1 → current; collection fields are covered in collection.test.ts
     expect(s.fishCoins).toBe(120);
     expect(s.unlocked).toEqual(['1-1', '1-2', '1-3']);
     expect(s.cleared).toEqual({ '1-1': 3, '1-2': 2 });

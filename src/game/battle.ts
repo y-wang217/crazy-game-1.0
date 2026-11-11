@@ -191,6 +191,8 @@ export type BattleEvent =
   | { type: 'maxedChestFish'; fish: number }
   | { type: 'ultimate'; cat: CatId }
   | { type: 'victory' }
+  | { type: 'canMonsterLooped' }
+  | { type: 'canMonsterDefeated' }
   | { type: 'defeat' };
 
 /** Error reasons are i18n keys under `err.*`. */
@@ -248,6 +250,19 @@ export interface BattleOptions {
   ultCooldownMult?: number;
   /** Equipped special skins: one small bonus per species (see config/cosmetics skinBonusesFor). */
   skinBonus?: Partial<Record<CatId, SkinBonus>>;
+  /** Secret Living Cat Food Can: joins the wave of this stage's mid-stage elite (decided by the UI). */
+  canMonster?: boolean;
+}
+
+/** The wave (index) holding the elite nearest the middle of the stage, or -1 if it has none. */
+export function midEliteWave(stage: StageDef): number {
+  const mid = (stage.waves.length - 1) / 2;
+  let best = -1;
+  stage.waves.forEach((w, i) => {
+    const elite = w.groups.some((g) => 'enemy' in g && ENEMIES[g.enemy]?.elite);
+    if (elite && (best < 0 || Math.abs(i - mid) < Math.abs(best - mid))) best = i;
+  });
+  return best;
 }
 
 /** Pure merge rule, exported for tests and UI highlighting. */
@@ -307,6 +322,7 @@ const SNAPSHOT_FIELDS = [
   'ultCharge',
   'teamBuff',
   'mallowSpecialReadyAt',
+  'canMonsterWave',
 ] as const;
 
 const structuredCloneJson = <T>(v: T): T => (v === undefined ? v : (JSON.parse(JSON.stringify(v)) as T));
@@ -464,6 +480,10 @@ export class Battle {
   /** Real seconds left in the preparation countdown (driven by the UI via tickPrep). */
   prepLeft: number = BALANCE.prepSeconds;
   private waveTimer = 0;
+  /** Wave in which the secret Living Cat Food Can appears (-1 = not this battle). Saved in snapshots. */
+  canMonsterWave = -1;
+  /** Mice hit by each regular Sir Sable sword wave, in order (lesson feedback; not saved). */
+  pierceHits: number[] = [];
   private gapTimer = 0;
   /** Seconds the field has been clear of mice during the current between-wave gap. */
   private clearTimer = 0;
@@ -503,6 +523,7 @@ export class Battle {
     });
     this.waveSpawnDone = stage.waves.map(() => false);
     this.waveBonusGiven = stage.waves.map(() => false);
+    this.canMonsterWave = o.canMonster && !this.sandbox ? midEliteWave(stage) : -1;
     for (const sc of stage.startCats ?? []) this.placeCat(sc.type, sc.level, sc.tile);
   }
 
@@ -989,6 +1010,11 @@ export class Battle {
         for (let k = 0; k < count; k++) q.push({ time: delay + k * interval, group: g });
       }
     }
+    // The secret Living Cat Food Can sets off together with this wave's elite (one per battle).
+    if (i === (this.canMonsterWave ?? -1)) {
+      const elite = this.stage.waves[i].groups.find((g) => 'enemy' in g && ENEMIES[g.enemy]?.elite);
+      q.push({ time: (elite?.delay ?? 0) * T.waveIntervalMult, group: { enemy: 'canMonster', count: 1, interval: 1, delay: elite?.delay ?? 0 } });
+    }
     q.sort((a, b) => a.time - b.time);
     this.spawnQueue = q;
     this.events.push({ type: 'wave', wave: i + 1, total: this.stage.waves.length });
@@ -1093,6 +1119,10 @@ export class Battle {
         f.slowT -= dt;
         if (f.slowT <= 0) f.slowStrength = 0;
       }
+      if (this.slowImmune(f)) {
+        f.slowT = 0;
+        f.slowStrength = 0;
+      }
       const mult = 1 - f.slowStrength;
       f.dist += f.speed * mult * dt;
       f.walk += dt * mult;
@@ -1100,6 +1130,18 @@ export class Battle {
       f.x = p.x;
       f.y = p.y;
       if (Math.abs(p.dx) > 0.1) f.dirX = p.dx > 0 ? 1 : -1;
+      if (f.dist >= end && f.kind === 'enemy' && ENEMIES[f.defId as EnemyId]?.loops) {
+        // Living Cat Food Can: 1 heart, then back to the entrance with the HP it has left.
+        this.baseHp = Math.max(0, this.baseHp - f.baseDamage);
+        this.stats.escaped++;
+        this.addText(f.x, f.y - 20, `-${f.baseDamage} ♥`, '#e04848', 16, 1.0);
+        f.dist = 0;
+        const s = this.path.pointAt(0);
+        f.x = s.x;
+        f.y = s.y;
+        this.events.push({ type: 'canMonsterLooped' });
+        continue;
+      }
       if (f.dist >= end) {
         f.alive = false;
         if (f.kind === 'enemy') {
@@ -1318,8 +1360,10 @@ export class Battle {
         const hit = this.foes.filter((f) => f.alive && (f.x - cat.x) ** 2 + (f.y - cat.y) ** 2 <= r * r);
         if (!hit.length) return false;
         for (const f of hit) {
-          f.slowStrength = Math.max(f.slowT > 0 ? f.slowStrength : 0, Math.min(BALANCE.slowCap, A.slow));
-          f.slowT = Math.max(f.slowT, A.duration);
+          if (!this.slowImmune(f)) {
+            f.slowStrength = Math.max(f.slowT > 0 ? f.slowStrength : 0, Math.min(BALANCE.slowCap, A.slow));
+            f.slowT = Math.max(f.slowT, A.duration);
+          }
           f.charmedAt = this.vtime;
           this.addEffect({ kind: 'hearts', x: f.x, y: f.y - f.radius, born: this.vtime, dur: 1.1 });
         }
@@ -1572,6 +1616,7 @@ export class Battle {
     const dur = st.slowDuration * (long ? S.durationMult : 1);
     for (const f of this.foes) {
       if (!f.alive || (f.x - cat.x) ** 2 + (f.y - cat.y) ** 2 > r2) continue;
+      if (this.slowImmune(f)) continue;
       const s = Math.min(BALANCE.slowCap, st.slowStrength + (f === target ? st.focusBonus : 0));
       f.slowStrength = f.slowT > 0 ? Math.max(f.slowStrength, s) : s;
       f.slowT = Math.max(f.slowT, dur);
@@ -1601,6 +1646,9 @@ export class Battle {
     const ux = dx / d;
     const uy = dy / d;
     const hits = this.foesOnLine(cat.x, cat.y, ux, uy, length, width);
+    if (!ultimate) this.pierceHits.push(hits.length);
+    // One wave through several mice: show how many it pierced (real hits, nothing added).
+    if (hits.length >= 2) this.addText(cat.x + ux * length * 0.55, cat.y + uy * length * 0.55 - 10, `×${hits.length}`, '#bfe0ff', 15, 0.8);
     const S = ABILITIES.sable.special;
     const shred = this.hasSpecial('sable');
     for (const f of hits) {
@@ -1850,6 +1898,33 @@ export class Battle {
     this.events.push({ type: 'bossPhase', enemy: f.defId as EnemyId });
   }
 
+  /**
+   * Lessons only: `count` enemies already on the road, one behind the other (`spacing` px apart,
+   * the first one `leadDist` px along the path), so they walk as a tight line.
+   */
+  spawnLine(enemy: EnemyId, count: number, leadDist: number, spacing: number): Foe[] {
+    const out: Foe[] = [];
+    for (let i = 0; i < count; i++) {
+      const f = this.spawn({ enemy, count: 1, interval: 1 });
+      const d = Math.max(0, leadDist - i * spacing);
+      const p = this.path.pointAt(d);
+      Object.assign(f, { dist: d, x: p.x, y: p.y });
+      out.push(f);
+    }
+    return out;
+  }
+
+  /** Lessons only: remove every foe at once (no rewards). */
+  clearFoes(): void {
+    this.foes = [];
+    this.projectiles = [];
+  }
+
+  /** Living Cat Food Can (and any future slow-immune foe) ignores every slowing effect. */
+  slowImmune(f: Foe): boolean {
+    return f.kind === 'enemy' && !!ENEMIES[f.defId as EnemyId]?.slowImmune;
+  }
+
   /** Is this mouse inside a living Mouse Captain's guard aura? */
   isGuarded(f: Foe): boolean {
     const r2 = BALANCE.elite.guardRadius ** 2;
@@ -1866,6 +1941,7 @@ export class Battle {
       this.burst(f.x, f.y, ['#ffffff', '#e8e0f0', '#c8c0d8'], f.isBoss ? 40 : 9, f.isBoss ? 160 : 70);
       this.addText(f.x, f.y - 12, `+${gain}`, '#ff9f1c', f.isBoss ? 20 : 12, 0.8);
       if (f.isBoss) this.events.push({ type: 'bossDefeated', enemy: f.defId as EnemyId });
+      if (f.defId === 'canMonster') this.events.push({ type: 'canMonsterDefeated' });
       return;
     }
     // Treasure chest

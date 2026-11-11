@@ -6,7 +6,8 @@ import { t, useLang } from '../../i18n';
 import { useSave } from '../../save/store';
 import type { EnemyId, StageDef } from '../../game/types';
 import type { Screen } from '../App';
-import { CoinIcon } from '../components/Icons';
+import { CanMonsterIcon, CoinIcon } from '../components/Icons';
+import { isCanMonsterStage } from '../../config/canRewards';
 import { CatHead } from '../components/CatPreview';
 import { ChapterCutscene } from '../components/ChapterCutscene';
 import { GameIcon } from '../components/GameIcon';
@@ -140,6 +141,12 @@ export function StageSelect({ go, play }: { go: (s: Screen) => void; play: (id: 
                       ))}
                     </span>
                     {tag && unlocked && <span className="stage-tag">{tag}</span>}
+                    {/* Easter egg: no label, no tooltip — players discover what it means. */}
+                    {isCanMonsterStage(s.id) && (
+                      <span className="stage-secret" data-secret="1">
+                        <CanMonsterIcon size={20} />
+                      </span>
+                    )}
                   </button>
                 );
               })}

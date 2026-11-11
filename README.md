@@ -53,6 +53,64 @@ While dragging, tiles are tinted to show what the drop will do: green = move, go
 - **Version:** shown from `src/config/version.ts` (`APP_VERSION`, displayed as e.g. `V1.4` via `versionLabel()`), the same constant as the Home footer. Bump the version there only.
 - **No side effects:** it never touches the save. If an interrupted battle was saved, the "Resume previous battle?" prompt appears right after the notice is dismissed.
 
+## V1.6 (continued) — Unlock tutorials, Sir Sable's story & lesson, Living Cat Food Can, Cat Food Can sources
+
+### Unlock tutorials: automatic, ended only by finishing or a visible Skip Tutorial
+
+Each tutorial's outcome is saved separately in `save.tutorials` as `done` or `skipped`. A tutorial that is closed or reloaded before it ends comes back.
+
+| After | Tutorial |
+|---|---|
+| 1-4 | **Shop & Encyclopedia tour** on the real screens: tap Shop → what it is (no purchase) → back → tap Encyclopedia → open a cat → star ranks → Finish |
+| 1-10 | **Sir Sable's story** (4 short lines), then the **Edit Team** tutorial, then **Sir Sable's piercing lesson** |
+| 2-5 | **Recruitment tour**: tap Recruit → your Cat Food Cans → the button (1 can = 1 recruit; the first is a guaranteed new cat; recruiting is optional) → odds & guarantee → the pool → Finish |
+
+- **How a tour behaves** (`TourCoach`):
+  - It spotlights the real element. Everything around it is blocked, so tapping outside does nothing.
+  - A "tap" step only moves on when that element is tapped.
+  - A visible **跳過教學 / Skip Tutorial** (with confirmation) is the only other way out.
+- **Replay:** every tutorial is in Home → Replay Interactive Tutorial. Replays never change the save.
+- **Older saves:** tutorials the player had already passed before this version are marked `legacy` and never interrupt Home. Players get a first-visit offer instead: on the Recruit screen (tour) and on Sir Sable's profile (lesson). Everything else is in the replay menu.
+
+### Sir Sable's piercing lesson (real attack, real targeting)
+
+- **Setup:** a practice-only map (`PIERCE_LESSON_MAP`). The road runs straight into the cat house; tile 2-6 lies beyond the house in line with it, and tile 3-4 is beside it. This is the same idea as the tile under the house in the Mushroom Forest.
+- **The cat:** Sir Sable at Lv.5 uses his normal `pierce` attack and "First" targeting. Nothing is added: the numbers shown are the real hits recorded per sword wave (`Battle.pierceHits`).
+- **Steps:**
+  1. He explains his sword energy.
+  2. From the side, most waves cross the road and hit 1 mouse (2 at most).
+  3. The player drags him to the in-line tile (a required action).
+  4. The same line of mice is now hit 3 at a time.
+  5. A closing tip names the good Mushroom Forest tiles: under the cat house, and the left end of the top path. Both already exist in early Chapter 2 stages (`2-1` from 2-1, `3-5` under the house).
+- **Safety:** nothing is spent or saved. The lesson ends by finishing or by Skip Tutorial, and the player returns with Sir Sable in their collection.
+- **New feedback:** a "×N" number now appears whenever one wave pierces several mice (also in real battles).
+
+### 罐頭怪 / Living Cat Food Can (secret)
+
+- **Where:** only on **2-6, 2-9, 2-15 and 2-18**. Their stage cards show a small, unexplained can-monster mark (no text, no tooltip).
+- **When:**
+  - On a stage's **first attempt** (a battle started, not a win) it always appears; afterwards **35%** of attempts (`CAN_MONSTER` in `config/canRewards.ts`).
+  - At most one per battle, in the wave of the stage's **mid-stage elite**, setting off together with it.
+- **Stats:** 220 base HP (about 1,800–2,300 on its stages), 0 armor, speed 122 (faster than every elite, including the Cheese Thief), and immune to every slow.
+- **Pacing:** with no cats on the board it reaches the house 8.8–8.9 s after spawning; its elite takes 11.7 s (Thief) to 49 s.
+- **At the house:** it takes **exactly 1 heart**, then restarts from the path entrance with the HP it has left. No duplicates, no lap limit.
+- **End of battle:** victory waits while it lives, so the battle can't end early or idle — it ends when it is defeated or the house falls.
+- **Reward:** defeating it gives **1 Cat Food Can** the first time on each stage (once per save), and 20 fish coins after that.
+- **Balance:** bot tests of first attempts (Beginner and Experienced, 20 runs each) show win rates unchanged on all four stages; the can usually takes 1–3 hearts before it is defeated.
+
+### Cat Food Can sources (all one-time or capped)
+
+| Source | Cans |
+|---|---|
+| 2-5 clear (Recruitment unlock) | 2 |
+| First clear of 2-8 / 2-10 / 2-13 / 2-16 / 2-18 / 2-20 | 1 / 2 / 1 / 1 / 1 / 3 (11 in total with the 2-5 gift) |
+| Living Cat Food Can | 1 per can stage, first defeat only |
+| Gold Chest (after 2-5) | 4% chance of 1, at most once per stage per save; not on the four can stages, so a stage never pays two bonus cans |
+
+- **Saved instantly:** every grant is a saved milestone the moment it happens, so refreshing, re-entering or replaying can never repeat it.
+- **Older saves:** they receive the first-clear cans they have legitimately earned, once, with a short notice.
+- **Save v5:** adds `attempts` (per stage) and `tutorials` (per tutorial).
+
 ## V1.6 — Feature unlocks, Edit Team, Cat Food Can recruitment
 
 ### Unlock schedule (`src/config/unlocks.ts`)

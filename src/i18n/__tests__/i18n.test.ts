@@ -38,8 +38,9 @@ describe('i18n', () => {
     }
     for (const steps of Object.values(STAGE_STEPS))
       for (const s of steps) {
-        const name = s.id.replace('tut:', '');
-        keys.push(`tut.${name}.title`, `tut.${name}.body`);
+        // Tutorial steps use tut.<name>.*; lesson steps (e.g. pierce:move) use pierce.move.*.
+        const base = s.id.startsWith('tut:') ? `tut.${s.id.slice(4)}` : s.id.replace(':', '.');
+        keys.push(`${base}.title`, `${base}.body`);
       }
     for (const k of keys) {
       expect([k, k in en]).toEqual([k, true]);

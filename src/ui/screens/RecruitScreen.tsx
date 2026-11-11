@@ -11,11 +11,14 @@ import { CatReveal } from '../components/CatReveal';
 import { GameIcon } from '../components/GameIcon';
 import { CanIcon, CoinIcon } from '../components/Icons';
 import { Stars } from '../components/Stars';
+import { tourStore, useTour } from '../../tutorial/tours';
+import { TUTORIALS } from '../../config/unlocks';
 
 /** Recruit cats with Cat Food Cans (1 can = 1 draw): odds from config, first draw + pity guarantee a new cat. */
 export function RecruitScreen({ go }: { go: (s: Screen) => void }) {
   useLang();
   const save = useSave();
+  const tour = useTour();
   const [last, setLast] = useState<Extract<RecruitResult, { ok: true }> | null>(null);
   const [reveal, setReveal] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +59,18 @@ export function RecruitScreen({ go }: { go: (s: Screen) => void }) {
       <h2 className="center">
         <GameIcon name="recruit" size={26} /> {t('recruit.title')}
       </h2>
+      {/* Players who reached Recruitment before its tour existed: offered here, never forced. */}
+      {save.tutorials.recruit === 'legacy' && !tour && (
+        <div className="offer-banner" data-offer="recruit">
+          <span>{t('offer.recruit')}</span>
+          <button className="btn btn-small btn-primary" onClick={() => tourStore.start('recruit', 'onboarding', 1)}>
+            {t('unlock.startTour')}
+          </button>
+          <button className="btn btn-small" onClick={() => saveStore.setTutorial(TUTORIALS.recruit, 'skipped')}>
+            {t('offer.noThanks')}
+          </button>
+        </div>
+      )}
       <p className="muted small center">{t('recruit.note')}</p>
 
       <div className="recruit-box">
