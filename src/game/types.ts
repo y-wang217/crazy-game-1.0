@@ -14,7 +14,7 @@ export type CatId =
   | 'pounce'
   | 'devil';
 export type AttackKind = 'projectile' | 'combo' | 'slam' | 'snipe' | 'aura' | 'ricochet' | 'pierce' | 'support' | 'execute' | 'poison';
-export type TargetMode = 'first' | 'nearest' | 'strongest' | 'weakest' | 'treasure';
+export type TargetMode = 'first' | 'last' | 'nearest' | 'strongest' | 'weakest' | 'treasure';
 export type EnemyId =
   | 'normal'
   | 'fast'

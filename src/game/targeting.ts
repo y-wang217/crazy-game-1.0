@@ -16,6 +16,7 @@ export interface TargetCandidate {
  * Pick a target within range according to the cat's priority.
  * - Non-treasure modes prefer enemies; chests are only hit when no enemy is in range.
  * - Treasure prefers chests (furthest along first); falls back to First.
+ * - First = closest to the exit; Last = closest to the entrance.
  */
 export function selectTarget<T extends TargetCandidate>(
   cx: number,
@@ -64,6 +65,9 @@ function score(c: TargetCandidate, mode: TargetMode, cx: number, cy: number): nu
     case 'first':
     case 'treasure':
       return c.dist;
+    case 'last':
+      // Furthest back along the path = closest to the entrance.
+      return -c.dist;
     case 'nearest':
       return -Math.hypot(c.x - cx, c.y - cy) + tiebreak;
     case 'strongest':

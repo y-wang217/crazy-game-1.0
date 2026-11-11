@@ -256,10 +256,11 @@ export const STARTER_CATS: CatId[] = ['kitten', 'tabby', 'orange', 'black', 'whi
 /** Earned through recruitment or chapter rewards. */
 export const NEW_CATS: CatId[] = ['whiskers', 'sable', 'mallow', 'pounce', 'devil'];
 
-export const TARGET_MODES: TargetMode[] = ['first', 'nearest', 'strongest', 'weakest', 'treasure'];
+export const TARGET_MODES: TargetMode[] = ['first', 'last', 'nearest', 'strongest', 'weakest', 'treasure'];
 
 export const TARGET_MODE_INFO: Record<TargetMode, { label: string; short: string; color: string }> = {
   first: { label: 'First', short: '»', color: '#4a7fd8' },
+  last: { label: 'Last', short: '«', color: '#2a9fae' },
   nearest: { label: 'Nearest', short: 'N', color: '#3aa36a' },
   strongest: { label: 'Strongest', short: 'S', color: '#d8504a' },
   weakest: { label: 'Weakest', short: 'W', color: '#9a62c8' },

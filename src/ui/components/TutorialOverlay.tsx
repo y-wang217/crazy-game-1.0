@@ -294,7 +294,7 @@ function PanelBody({ step, loadout }: { step: ActiveStep; loadout: CosmeticLoado
       )}
       {p.extra === 'targetTips' && (
         <ul className="mode-list">
-          {(['first', 'strongest', 'weakest', 'nearest', 'treasure'] as const).map((m) => (
+          {(['first', 'last', 'strongest', 'weakest', 'nearest', 'treasure'] as const).map((m) => (
             <li key={m}>
               <span className="mode-dot" style={{ background: TARGET_MODE_INFO[m].color }}>
                 {t(`mode.${m}.short`)}

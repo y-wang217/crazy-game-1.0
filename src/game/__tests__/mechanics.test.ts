@@ -79,6 +79,17 @@ describe('targeting', () => {
   it('first = furthest along path (enemies only while enemies are in range)', () => {
     expect(selectTarget(0, 0, 100, 'first', foes)?.uid).toBe(2);
   });
+  it('last = furthest back along the path (closest to the entrance)', () => {
+    expect(selectTarget(0, 0, 100, 'last', foes)?.uid).toBe(1);
+    // Chests are only hit when no enemy is in range (same rule as First).
+    expect(selectTarget(0, 0, 100, 'last', foes.filter((f) => f.kind === 'chest'))?.uid).toBe(4);
+    expect(selectTarget(0, 0, 100, 'last', [mk(5, 'enemy', 1, 70, 50), mk(6, 'chest', 2, 5, 500)])?.uid).toBe(5);
+  });
+  it('first and last pick opposite ends of the same line', () => {
+    const line = [10, 40, 70].map((d, i) => mk(20 + i, 'enemy', 3, 100, d));
+    expect(selectTarget(0, 0, 100, 'first', line)?.uid).toBe(22);
+    expect(selectTarget(0, 0, 100, 'last', line)?.uid).toBe(20);
+  });
   it('nearest', () => {
     expect(selectTarget(0, 0, 100, 'nearest', foes)?.uid).toBe(1);
   });
@@ -238,13 +249,13 @@ describe('moving & merging', () => {
 });
 
 describe('target mode cycling', () => {
-  it('cycles through all five modes and wraps', () => {
+  it('cycles through all six modes and wraps', () => {
     const b = newBattle();
     b.summon();
     const cat = b.cats[0];
     expect(cat.mode).toBe('first');
     const seen = [cat.mode];
-    for (let i = 0; i < 5; i++) seen.push(b.cycleTarget(cat.uid)!);
+    for (let i = 0; i < TARGET_MODES.length; i++) seen.push(b.cycleTarget(cat.uid)!);
     expect(seen).toEqual([...TARGET_MODES, 'first']);
   });
 });
