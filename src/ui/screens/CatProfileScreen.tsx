@@ -16,6 +16,7 @@ import { SimDemo } from '../components/SimDemo';
 import { StarUpgrade } from '../components/StarUpgrade';
 import { specialStats } from '../components/statText';
 import { Stars } from '../components/Stars';
+import { CatScene } from '../components/CatScene';
 
 const fmt = (n: number, d = 1) => (Math.round(n * 10 ** d) / 10 ** d).toString();
 
@@ -111,6 +112,10 @@ export function CatProfileScreen({ cat, go }: { cat: CatId; go: (s: Screen) => v
       </div>
 
       <div className="profile-hero">
+        {/* Same evolving scene as the collection card, at full size (permanent ★, not the Lv. picker). */}
+        <div className={`profile-scene rank-${star}`}>
+          <CatScene cat={cat} star={star} />
+        </div>
         <div className="profile-art">
           <CatPreview key={`${cat}-${level}`} type={cat} level={level} loadout={save.equipped} size={176} attackLoop />
         </div>

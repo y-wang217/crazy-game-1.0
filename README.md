@@ -44,6 +44,82 @@ While dragging, tiles are tinted to show what the drop will do: green = move, go
 - **Version:** shown from `src/config/version.ts` (`APP_VERSION`, displayed as e.g. `V1.4` via `versionLabel()`), the same constant as the Home footer. Bump the version there only.
 - **No side effects:** it never touches the save. If an interrupted battle was saved, the "Resume previous battle?" prompt appears right after the notice is dismissed.
 
+## V1.6 (preview) — Chapter progress, Random Skill price, tutorial replay, evolving encyclopedia art
+
+Labelled **V1.6** in the game. It is deployed as a **preview** only; the live V1.5 production deployment is unchanged until this one is approved.
+
+### Home chapter progress (bug fix)
+
+- **Root cause:** Home showed `Object.keys(save.cleared).length` (every cleared stage, all chapters) inside a hard-coded "Chapter 1 progress: {n}/10" string, so a player in Chapter 2 saw "20/10".
+- **Fix:** `chapterProgress()` / `currentChapter()` in `game/progression.ts` count each chapter's own stages; totals come from `CHAPTERS` (no hard-coded 10 or 20).
+- Completed chapters show a green badge such as **「第一章 ✓ 已完成 10/10 關」**. Below it, the current chapter shows its own count, for example **「第二章進度：已通過 10/20 關」**.
+- The label updates as soon as a stage is cleared (it reads the live save store). Old saves need no migration, because unknown stage ids were already dropped by `parseSave`.
+
+### Random Skill price (exploit fix)
+
+- **Root cause:** `skillRollCost` was `min(60, 20 + 6 × bought)`. From the 8th purchase on, every skill cost a flat 60. Late waves pay thousands of dried fish, so in the simulation skill-first play bought up to **55 skill levels in one stage**, and up to **64** with lucky picks (1-10, normal HP). That is almost every skill maxed, up to about ×2.9 damage from skills.
+- **Fix (`BALANCE.skillRoll`):** the first 8 prices are unchanged (20, 26 … 56, 60). After that the price rises ×1.15 per purchase, rounded to 5: 70, 80, 90, 105, 120, 140, 160, 185, 210, 245, 280, 320 …
+  - The setting is configurable through `softCap`, `growthAfterSoftCap`, `roundTo` and `hardCap`.
+  - Chest skills stay free and do not raise the shop price.
+  - The price and skills reset every stage.
+- **Stacking:** skill bonuses are capped per skill (`maxLevel`), and general and per-cat bonuses multiply. I tried making them add up instead. It barely changed the results (the lucky-skill bot was still 58% at 2-20), so no skill was nerfed and no diminishing returns were added.
+- **Strategy simulation** (`SKILLSIM=1 npx vitest run src/game/__tests__/skillEconomy.sim.test.ts`, N = 20 per cell, Experienced-level bots that all take the best chest skill):
+
+  | Stage · enemy HP | Summon/merge | Balanced | Balanced + late skills | Skill-first | Lucky skills |
+  |---|---|---|---|---|---|
+  | 1-10 ×1.3 | 95% | 95% | 95% | 60% | 65% |
+  | 2-5 ×1.3 | 80% | 90% | 90% | 55% | 60% |
+  | 2-10 ×1.3 | 60% | 50% | 70% | 35% | 50% |
+  | 2-15 ×1.3 | 50% | 45% | 75% | 15% | 50% |
+  | 2-20 ×1.3 | 40% | 50% | 60% | 10% | 50% |
+
+  - On 1-10 at normal HP, Skill-first now gets 19 skill levels instead of 55, and Lucky picks get 20 instead of 64. Their skill damage multiplier falls from ×2.5–2.9 to ×1.7–2.4.
+  - The best strategy is summoning and merging with skills on top. Skill-first never beats thoughtful summoning, merging and positioning.
+- **Beginners:** win rates are unchanged on 23 of 26 stages (they rarely buy more than 8 skills). 2-10, 2-15 and 2-20 dipped by 1–3 out of 40 and stay inside their target bands.
+
+### Replay Interactive Tutorial
+
+- Home → **重溫互動教學 / Replay Interactive Tutorial** offers two choices:
+  - **Battle basics:** summon, auto-attack, targeting, move, swap, merge, a bronze chest and its 3-skill reward, the speed button, and Tactical Pause.
+  - **Edit Team practice:** pick a slot, tap the cat, confirm.
+- **Same system:** it reuses the real tutorial director, spotlights, pointer hands, required actions and "Nice!" beats on a practice stage (Stage 1-1 plus one chest, outside every chapter).
+- **Nothing is saved.**
+  - Lessons are tracked in memory.
+  - There are no battle checkpoints, no stage results, no fish coins from chests and no speed-preference writes.
+  - The Edit Team practice works on a draft and never saves it. If every owned cat is already in the team, it uses a "trial" cat.
+  - Verified end to end: the save is byte-identical before and after both practices.
+- It works even when every tutorial has been seen. "Exit practice" returns to Home.
+- The old reset behaviour is still available from the same menu as "Show first-time tips again in real stages" (with confirmation).
+- The static "How to play" list was removed from the Cat Encyclopedia.
+
+### Evolving encyclopedia backgrounds
+
+- `render/catScenes.ts` paints one storybook location per cat:
+
+  | Cat | Location |
+  |---|---|
+  | Kitten | Adventurer's garden |
+  | Tabby | Forest training ground |
+  | Orange | Snack kitchen |
+  | Black Cat | Sniper rooftop |
+  | Noble White | Royal garden |
+  | Mr. Whiskers | Theatre stage |
+  | Sir Sable | Castle courtyard |
+  | Captain Mallow | Community HQ |
+  | Shadow Pounce | Rooftops and forest passage |
+  | Silver Devil | Potion workshop |
+
+- Each location is drawn by day in Original Light and by night in Moonlit Gothic.
+- **Driven by permanent ★ only** (never the in-battle Lv.):
+  - **1★:** simple place, soft light.
+  - **2★:** props and ground detail.
+  - **3★:** a Special Ability motif (yarn ball, claw-struck dummy, floor aftershock, pierced target, heart hedge, card trick, sword through armour, team notice board, glowing eyes and tracks, heart-bubble cauldron) and an accent halo.
+  - **4★:** a back layer of scenery and layered lighting.
+  - **5★:** the Ultimate's signature element (hero banner, paw flurry, giant cake, charged moon shot, red carpet and crown fountain, Hat of Wonders, moonshadow slash, everyone-together bunting, shadow after-images, summoning circle) and a collectible-card frame.
+- **How it's built:** one data entry per cat (palettes plus back, mid and front painters with star thresholds). Shared tier effects apply to every cat, and unknown cats fall back to a meadow, so future cats only add an entry.
+- **Where it shows:** the same scene appears on the collection card (top crop, fading into the card so text stays readable) and on the profile page (full view).
+- **Performance:** each scene is drawn once per size and cached.
+
 ## Next release — V1.5 follow-up: skin costumes, Edit Team tutorial, Chapter 1 tiles
 
 V1.5 gameplay is kept as is: elites, the level curve, Chapter 2 to 2-20 and both bosses. Saves, purchases and equipped skins load unchanged.

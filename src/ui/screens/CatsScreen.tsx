@@ -8,6 +8,7 @@ import { CatPreview } from '../components/CatPreview';
 import { CHAPTER_REWARDS } from '../../config/collection';
 import { GameIcon } from '../components/GameIcon';
 import { Stars } from '../components/Stars';
+import { CatScene } from '../components/CatScene';
 
 /** First stage where a cat can appear (for "Meet in Stage N"). */
 export function firstStageOf(cat: CatId): number {
@@ -49,12 +50,16 @@ export function CatsScreen({ go }: { go: (s: Screen) => void }) {
           return (
             <button
               key={id}
-              className={`collection-card ${own ? 'met' : 'unknown'}`}
+              className={`collection-card ${own ? 'met' : 'unknown'} ${own ? `rank-${own.stars}` : ''}`}
               style={{ ['--cat-accent' as string]: accent }}
               disabled={!own}
               onClick={() => own && go({ name: 'catProfile', cat: id })}
               aria-label={own ? t(`cat.${id}.name`) : t('guide.unknown')}
             >
+              {/* The cat's home, evolving with its permanent star rank (silhouetted until met). */}
+              <div className="collection-scene">
+                <CatScene cat={id} star={own?.stars ?? 1} />
+              </div>
               <div className="collection-portrait">
                 <CatPreview type={id} level={own ? 3 : 1} loadout={save.equipped} size={92} animate={!!own} />
               </div>

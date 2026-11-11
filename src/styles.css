@@ -4245,3 +4245,52 @@ body {
   font-weight: 800;
   color: var(--accent-dark);
 }
+
+/* Cat Encyclopedia: evolving character backgrounds (render/catScenes.ts) */
+.cat-scene {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.collection-card > *:not(.collection-scene) {
+  position: relative;
+  z-index: 1;
+}
+.collection-scene {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 118px;
+  z-index: 0;
+  pointer-events: none;
+  /* Fade into the card so the name and role stay on a plain, readable surface. */
+  -webkit-mask-image: linear-gradient(#000 70%, transparent);
+  mask-image: linear-gradient(#000 70%, transparent);
+}
+.collection-card.unknown .collection-scene {
+  filter: grayscale(1) brightness(0.9);
+  opacity: 0.4;
+}
+.collection-card.met .collection-name {
+  margin-top: 2px;
+}
+.collection-card.rank-5 {
+  box-shadow: 0 4px 0 var(--shadow-ink), 0 0 0 2px color-mix(in srgb, var(--cat-accent) 70%, #ffd34d);
+}
+.profile-hero {
+  position: relative;
+}
+.profile-scene {
+  position: relative;
+  height: 210px;
+  margin: 0 0 -210px;
+  border-radius: 22px;
+  overflow: hidden;
+  box-shadow: 0 4px 0 var(--shadow-ink);
+}
+.profile-hero .profile-art {
+  position: relative;
+  z-index: 1;
+  height: 210px;
+  align-items: flex-end;
+  margin-bottom: 6px;
+}
