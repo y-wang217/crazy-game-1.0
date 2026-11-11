@@ -26,11 +26,23 @@ export const BALANCE = {
     /** Ask for confirmation before selling cats at or above this level. */
     confirmFromLevel: 3,
   },
+  /**
+   * Random Skill price (per battle; resets every stage). Rises by `costStep` per purchase up to
+   * `softCap` (20, 26, … 56, 60 — unchanged from V1.5), then keeps rising by `growthAfterSoftCap`
+   * per purchase, rounded to `roundTo` (60, 70, 80, 90, 105, 120, 140, 160, 185, 210, …).
+   * V1.5 stopped at a flat 60, so late waves could buy dozens of skills; this keeps early
+   * purchases cheap but makes every extra skill a real choice against summoning.
+   * Chest skills stay free. `hardCap` only guards against runaway numbers.
+   */
   skillRoll: {
     baseCost: 20,
-    /** Cost increase per skill bought this stage. */
+    /** Cost increase per skill bought this stage (until the soft cap). */
     costStep: 6,
-    maxCost: 60,
+    softCap: 60,
+    /** Multiplier per purchase after the soft cap. */
+    growthAfterSoftCap: 1.15,
+    roundTo: 5,
+    hardCap: 9995,
   },
   /**
    * Enemy fish rewards scale with enemy toughness: reward * toughness^exponent
@@ -171,7 +183,13 @@ export function summonCost(summonsSoFar: number, mult = 1): number {
   return Math.max(1, Math.round(raw * mult));
 }
 
+/** Cost of the next Random Skill given how many were bought this stage (see BALANCE.skillRoll). */
 export function skillRollCost(rollsSoFar: number): number {
   const s = BALANCE.skillRoll;
-  return Math.min(s.maxCost, s.baseCost + s.costStep * rollsSoFar);
+  const n = Math.max(0, Math.floor(rollsSoFar));
+  const linear = s.baseCost + s.costStep * n;
+  if (linear <= s.softCap) return linear;
+  const atCap = Math.ceil((s.softCap - s.baseCost) / s.costStep); // first purchase priced at the soft cap
+  const raw = s.softCap * s.growthAfterSoftCap ** (n - atCap);
+  return Math.min(s.hardCap, Math.max(s.softCap, Math.round(raw / s.roundTo) * s.roundTo));
 }

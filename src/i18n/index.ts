@@ -59,6 +59,12 @@ export function has(key: string): boolean {
 }
 
 /** Re-render on language change and return the current language. */
+const ZH_NUMERALS = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
+/** A chapter number as written in running text: 第一章 in Chinese, "Chapter 1" in English. */
+export function chapterNumeral(n: number): string {
+  return current === 'zh-HK' ? (ZH_NUMERALS[n] ?? String(n)) : String(n);
+}
+
 export function useLang(): Lang {
   return useSyncExternalStore(
     (l) => {

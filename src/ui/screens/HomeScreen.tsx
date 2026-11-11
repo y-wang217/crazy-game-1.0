@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { LANGS, setLang, t, useLang } from '../../i18n';
+import { LANGS, chapterNumeral, setLang, t, useLang } from '../../i18n';
+import { chapterProgress, currentChapter } from '../../game/progression';
 import { THEMES, setTheme, useTheme } from '../../theme';
 import { saveStore, useSave } from '../../save/store';
 import type { Screen } from '../App';
@@ -31,7 +32,10 @@ export function HomeScreen({
   const theme = useTheme();
   const save = useSave();
   const debug = useDebug();
-  const cleared = Object.keys(save.cleared).length;
+  // Progress is counted per chapter (only that chapter's own stages), never as one combined total.
+  const chapters = chapterProgress(save);
+  const current = currentChapter(chapters);
+  const finished = chapters.filter((c) => c.complete && c.id !== current.id);
   const [note, setNote] = useState<string | null>(null);
   const taps = useRef<number[]>([]);
   // Skin Shop intro: once, after the first clear of Stage 1-3 (also for players already past it).
@@ -123,7 +127,16 @@ export function HomeScreen({
             <GameIcon name="book" size={22} /> {t('home.cats')}
           </button>
         </div>
-        <p className="muted small">{t('home.progress', { n: cleared })}</p>
+        <div className="home-progress">
+          {finished.map((c) => (
+            <span key={c.id} className="chapter-done" data-chapter={c.id}>
+              {t('home.chapterDone', { n: chapterNumeral(c.number), done: c.cleared, total: c.total })}
+            </span>
+          ))}
+          <p className={`muted small ${current.complete ? 'chapter-done' : ''}`} data-chapter={current.id}>
+            {t(current.complete ? 'home.chapterDone' : 'home.progress', { n: chapterNumeral(current.number), done: current.cleared, total: current.total })}
+          </p>
+        </div>
         <div className="home-links">
           <button
             className="link-btn"

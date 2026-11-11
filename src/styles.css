@@ -4185,3 +4185,29 @@ body {
   align-self: flex-end;
   white-space: nowrap;
 }
+
+/* Home: per-chapter progress (completed chapters as small badges above the current one) */
+.home-progress {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 4px 8px;
+}
+.home-progress p {
+  margin: 0;
+  flex-basis: 100%;
+  text-align: center;
+}
+.home-progress span.chapter-done {
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--good-ink) 16%, transparent);
+  color: var(--good-ink);
+}
+.home-progress p.chapter-done {
+  color: var(--good-ink);
+  font-weight: 800;
+}
