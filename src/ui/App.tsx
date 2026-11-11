@@ -15,6 +15,7 @@ import { ShopScreen } from './screens/ShopScreen';
 import { StageSelect } from './screens/StageSelect';
 import { TeamScreen } from './screens/TeamScreen';
 import { PRACTICE_STAGE_ID } from '../config/chapters';
+import { featureOfScreen, isFeatureUnlocked } from '../config/unlocks';
 
 export type Screen =
   | { name: 'home' }
@@ -32,7 +33,12 @@ export function App() {
   const save = useSave();
   const [screen, setScreen] = useState<Screen>({ name: 'home' });
   const [grants, setGrants] = useState<ChapterGrant[]>([]);
-  const go = (s: Screen) => setScreen(s);
+  // Feature gates: a locked screen can never be opened, whatever button or path asks for it.
+  const allowed = (s: Screen) => {
+    const f = featureOfScreen(s);
+    return !f || isFeatureUnlocked(saveStore.get(), f);
+  };
+  const go = (s: Screen) => setScreen(allowed(s) ? s : { name: 'home' });
   const play = (stageId: string) => setScreen({ name: 'battle', stageId, run: Date.now() });
   // An unfinished battle saved before the page was closed / refreshed / navigated away.
   const [offer, setOffer] = useState<RecoveryRecord | null>(() => recovery.load());
@@ -43,6 +49,7 @@ export function App() {
   // before this feature existed. (Inside a battle, the victory screen presents them itself.)
   useEffect(() => {
     if (screen.name === 'battle' || screen.name === 'practice') return;
+    saveStore.claimRecruitIntro(); // 2-5 cleared → the introductory Cat Food Cans, exactly once
     const g = saveStore.claimChapterRewards();
     if (g.length) setGrants((cur) => [...cur, ...g]);
   }, [screen.name]);
@@ -63,7 +70,7 @@ export function App() {
           onExit={() => go(screen.back)}
           onPlay={() => go(screen.back)}
           onHome={() => go(screen.back)}
-          onPracticeTeam={() => go({ name: 'team', back: screen.back, practice: true })}
+          onPracticeTeam={isFeatureUnlocked(save, 'team') ? () => go({ name: 'team', back: screen.back, practice: true }) : undefined}
         />
       )}
       {screen.name === 'battle' && (

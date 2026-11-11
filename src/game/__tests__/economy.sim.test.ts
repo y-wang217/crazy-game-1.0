@@ -97,7 +97,7 @@ describe.skipIf(!process.env.ECONOMY)('economy', () => {
       });
     }
     const lines = [
-      `RECRUIT cost ${RECRUIT.cost}, duplicate fragments ${RECRUIT.duplicateFragments}, pity after ${RECRUIT.guaranteeNewWithin}, maxed-fragment coins ${RECRUIT.maxedFragmentCoins}`,
+      `RECRUIT cost ${RECRUIT.costCans} can, duplicate fragments ${RECRUIT.duplicateFragments}, pity after ${RECRUIT.guaranteeNewWithin}, maxed-fragment coins ${RECRUIT.maxedFragmentCoins}`,
       `STARS costs ${JSON.stringify(STARS.costs)}`,
       `draws to first new cat (owning 6/10): median ${pct(firstNew, 0.5)}, p90 ${pct(firstNew, 0.9)}`,
       `draws to own all 10 cats: median ${pct(allCats, 0.5)}, p90 ${pct(allCats, 0.9)}`,

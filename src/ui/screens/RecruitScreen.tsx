@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { CAT_ORDER } from '../../config/cats';
-import { RECRUIT, STARS, starCost } from '../../config/collection';
+import { CHAPTER_REWARDS, RECRUIT, STARS, starCost } from '../../config/collection';
+import { CHAPTERS } from '../../config/chapters';
 import { recruitOdds, type RecruitResult } from '../../game/collection';
 import { t, useLang } from '../../i18n';
 import { saveStore, useSave } from '../../save/store';
@@ -8,10 +9,10 @@ import type { Screen } from '../App';
 import { CatPreview } from '../components/CatPreview';
 import { CatReveal } from '../components/CatReveal';
 import { GameIcon } from '../components/GameIcon';
-import { CoinIcon } from '../components/Icons';
+import { CanIcon, CoinIcon } from '../components/Icons';
 import { Stars } from '../components/Stars';
 
-/** Recruit cats with fish coins: transparent equal odds + a new-cat guarantee. */
+/** Recruit cats with Cat Food Cans (1 can = 1 draw): odds from config, first draw + pity guarantee a new cat. */
 export function RecruitScreen({ go }: { go: (s: Screen) => void }) {
   useLang();
   const save = useSave();
@@ -19,14 +20,19 @@ export function RecruitScreen({ go }: { go: (s: Screen) => void }) {
   const [reveal, setReveal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const odds = recruitOdds({ ...save });
-  const unowned = CAT_ORDER.filter((id) => !save.collection[id]).length;
-  const canAfford = save.fishCoins >= RECRUIT.cost;
+  const unowned = odds.pool.filter((id) => !save.collection[id]).length;
+  const canAfford = save.cans >= RECRUIT.costCans;
+  /** Chapter number whose reward this (still held back) cat is. */
+  const heldBy = (id: (typeof CAT_ORDER)[number]) => {
+    const ch = Object.entries(CHAPTER_REWARDS).find(([cid, r]) => r.cat === id && !save.chapterRewards.includes(cid));
+    return ch ? (CHAPTERS.find((c) => c.id === ch[0])?.number ?? 0) : 0;
+  };
 
   const draw = () => {
     setError(null);
     const r = saveStore.recruit();
     if (!r.ok) {
-      setError(t('recruit.noCoins'));
+      setError(t('recruit.noCans'));
       return;
     }
     setLast(r);
@@ -43,8 +49,8 @@ export function RecruitScreen({ go }: { go: (s: Screen) => void }) {
         <button className="btn btn-small" onClick={() => go({ name: 'home' })}>
           {t('common.home')}
         </button>
-        <span className="coin-pill">
-          <CoinIcon /> {save.fishCoins}
+        <span className="coin-pill can-pill" title={t('currency.cans')}>
+          <CanIcon /> {save.cans}
         </span>
       </div>
       <h2 className="center">
@@ -75,17 +81,18 @@ export function RecruitScreen({ go }: { go: (s: Screen) => void }) {
           </div>
         )}
         <button className="btn btn-primary btn-big recruit-btn" disabled={!canAfford} onClick={draw}>
-          {last ? t('recruit.again') : t('recruit.draw')} · <CoinIcon size={18} /> {RECRUIT.cost}
+          {last ? t('recruit.again') : t('recruit.draw')} · <CanIcon size={18} /> {RECRUIT.costCans}
         </button>
         {error && <div className="bad small">{error}</div>}
+        {!canAfford && !error && <div className="muted small">{t('recruit.noCansHint')}</div>}
         <div className="recruit-odds small">
-          {t('recruit.odds', { p: Math.round(odds.perCat * 100), q: Math.round(odds.newChance * 100) })}
+          {t('recruit.odds', { q: Math.round(odds.newChance * 100), r: Math.round(odds.perOwned * 1000) / 10 })}
         </div>
         <div className="recruit-guarantee small">
           {unowned === 0
             ? t('recruit.allOwned')
             : odds.guaranteedNext
-              ? t('recruit.guaranteeNext')
+              ? t(save.canDraws === 0 ? 'recruit.firstNew' : 'recruit.guaranteeNext')
               : t('recruit.guarantee', { n: odds.drawsToGuarantee })}
         </div>
       </div>
@@ -95,6 +102,8 @@ export function RecruitScreen({ go }: { go: (s: Screen) => void }) {
         {CAT_ORDER.map((id) => {
           const own = save.collection[id];
           const cost = own ? starCost(own.stars) : null;
+          const held = !own && heldBy(id);
+          const chance = held ? 0 : own ? odds.perOwned : odds.perNew;
           return (
             <div key={id} className={`pool-card ${own ? 'owned' : 'missing'}`}>
               <div className="pool-art">
@@ -109,9 +118,9 @@ export function RecruitScreen({ go }: { go: (s: Screen) => void }) {
                   </div>
                 </>
               ) : (
-                <div className="tiny muted">{t('recruit.notOwned')}</div>
+                <div className="tiny muted">{held ? t('recruit.held', { n: held }) : t('recruit.notOwned')}</div>
               )}
-              <div className="tiny muted">{Math.round(odds.perCat * 100)}%</div>
+              <div className="tiny muted">{Math.round(chance * 1000) / 10}%</div>
             </div>
           );
         })}

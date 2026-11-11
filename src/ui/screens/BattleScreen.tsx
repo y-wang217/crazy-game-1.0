@@ -11,6 +11,8 @@ import { t, useLang } from '../../i18n';
 import { Renderer, type DragView } from '../../render/renderer';
 import { saveStore, useSave } from '../../save/store';
 import { TutorialDirector, type ActiveStep, type SeenStore, type TutAction } from '../../tutorial/director';
+import { teamTutorialCat } from '../../tutorial/teamTutorial';
+import { isFeatureUnlocked } from '../../config/unlocks';
 import { CatInfoPanel } from '../components/CatInfoPanel';
 import { GameIcon } from '../components/GameIcon';
 import { ResultPanel } from '../components/ResultPanel';
@@ -1077,7 +1079,18 @@ export function BattleScreen({
         />
       )}
       {result && !cutscene && grants.length > 0 && (
-        <ChapterReward key={grants[0].chapterId} grant={grants[0]} loadout={save.equipped} onClose={() => setGrants((g) => g.slice(1))} />
+        <ChapterReward
+          key={grants[0].chapterId}
+          grant={grants[0]}
+          loadout={save.equipped}
+          onClose={() => {
+            const rest = grants.slice(1);
+            setGrants(rest);
+            // Chapter 1 reward (Sir Sable) unlocks Edit Team: its tutorial starts right away on Home.
+            const sv = saveStore.get();
+            if (!rest.length && isFeatureUnlocked(sv, 'team') && teamTutorialCat(sv)) onHome();
+          }}
+        />
       )}
 
       {showDebug && debug.enabled && (

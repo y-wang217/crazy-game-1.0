@@ -95,8 +95,7 @@ export function TeamScreen({ go, back, practice = false }: { go: (s: Screen) => 
   const skip = () => {
     if (practice) return go(back);
     if (!window.confirm(t('teamTut.skipConfirm'))) return;
-    saveStore.markSeen(TEAM_TUTORIAL_ID);
-    if (draft) saveStore.setTeam(draft); // keep any changes already made
+    saveStore.markSeen(TEAM_TUTORIAL_ID); // the team itself stays exactly as it was (the draft is dropped)
     setTut(null);
     setDraft(null);
   };

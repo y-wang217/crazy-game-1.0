@@ -53,6 +53,43 @@ While dragging, tiles are tinted to show what the drop will do: green = move, go
 - **Version:** shown from `src/config/version.ts` (`APP_VERSION`, displayed as e.g. `V1.4` via `versionLabel()`), the same constant as the Home footer. Bump the version there only.
 - **No side effects:** it never touches the save. If an interrupted battle was saved, the "Resume previous battle?" prompt appears right after the notice is dismissed.
 
+## V1.6 — Feature unlocks, Edit Team, Cat Food Can recruitment
+
+### Unlock schedule (`src/config/unlocks.ts`)
+
+Every gate is decided only by completed-stage records (`save.cleared`).
+
+| Milestone | Unlocks |
+|---|---|
+| New game | Core combat only. Start Game is always open |
+| Clear 1-4 | Shop and Cat Encyclopedia, introduced together by one short card that spotlights both buttons. No purchase is required. "Later" closes it |
+| Clear 1-10 | Sir Sable (Chapter 1 reward, granted once, retroactive for older saves) and Edit Team, whose tutorial starts automatically |
+| Clear 2-5 | Recruitment and Cat Food Cans (貓罐頭): a short card, 2 introductory cans once, a button to go to Recruitment |
+| Clear 2-20 | Silver Devil (Chapter 2 reward, unchanged) |
+
+- **Locked buttons:** they stay visible but dimmed and desaturated, with a lock and the stage needed (e.g. "Clear 1-4" / 「通過 1-4 解鎖」). Tapping one only explains the lock.
+- **No bypass:** `App.go()` refuses to open a locked screen from any button, including the Encyclopedia's Edit Team and Recruit buttons, Stage Select and the replay menu's Edit Team practice. The app has no URL routes to bypass the gates.
+
+### Edit Team tutorial
+
+- **When it starts:** after the Chapter 1 animation and Sir Sable's entrance and profile, the game returns to Home and the tutorial card starts on its own.
+- **Steps:** Edit team → pick a slot → pick Sir Sable → Confirm team. The card explains that random summons only use the 5-cat team and only identical cats merge.
+- **Completion:** only by confirming a team that contains the new cat, or by **Skip Tutorial / 跳過教學** (with confirmation). Skipping keeps the current team as it was. Closing or reloading brings the tutorial back.
+- **Replay:** Home → Replay Interactive Tutorial (practice; nothing is saved).
+
+### Cat Food Can recruitment (`RECRUIT` in `src/config/collection.ts`)
+
+- **Cost:** 1 Cat Food Can = 1 draw. Fish coins can no longer recruit, and there is no coin-to-can conversion.
+- **Results:**
+  - Every draw gives a cat or that cat's fragments (10). A 5★ duplicate gives coins, as before.
+  - The **first** can draw is always a new cat.
+  - After that, `newCatChance` (30%) gives a new cat; otherwise it is a duplicate of an owned cat.
+  - **Pity:** a new cat is guaranteed within `guaranteeNewWithin` (10) draws.
+- **Eligible pool:** a chapter's reward cat is held out until its chapter is cleared, so Silver Devil stays the 2-20 reward.
+- **Save v4:** adds `cans`, `canDraws` and `milestones`. The can gift is a milestone, so "show first-time tips again" can never re-grant it.
+- **Existing saves:** fish coins, cats, stars, fragments, team and recruit counters are kept. Veterans past 2-5 get the 2 cans and the introduction once.
+- **Can sources so far:** only the introductory gift. Further sources (the hidden Cat Food Can enemy, etc.) wait for the rest of the V1.6 spec.
+
 ## V1.6 (preview) — Chapter progress, Random Skill price, tutorial replay, evolving encyclopedia art
 
 Labelled **V1.6** in the game. It is deployed as a **preview** only; the live V1.5 production deployment is unchanged until this one is approved.

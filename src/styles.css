@@ -4294,3 +4294,109 @@ body {
   align-items: flex-end;
   margin-bottom: 6px;
 }
+
+/* ---------------- V1.6 feature gates ---------------- */
+.btn.feature-locked {
+  filter: grayscale(0.9) brightness(0.72);
+  opacity: 0.75;
+  box-shadow: none;
+  cursor: not-allowed;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+.btn.feature-locked:active {
+  transform: none;
+}
+.feature-locked-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.feature-lock-req {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  opacity: 0.95;
+  white-space: nowrap;
+}
+.home-wallet {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.can-pill svg {
+  flex: 0 0 auto;
+}
+.feature-unlock-card {
+  gap: 10px;
+}
+.feature-unlock-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+.feature-unlock-list li {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  background: var(--surface-2);
+  border-radius: 14px;
+  padding: 8px 10px;
+}
+.feature-unlock-list li > span:last-child {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.86rem;
+  line-height: 1.3;
+}
+.feature-unlock-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+}
+.unlock-cans {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+.unlock-cans span {
+  display: inline-flex;
+  animation: canDrop 0.6s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}
+@keyframes canDrop {
+  0% {
+    transform: translateY(-40px) rotate(-20deg) scale(0.6);
+    opacity: 0;
+  }
+  100% {
+    transform: none;
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .unlock-cans span {
+    animation: none;
+  }
+}
+/* Unlock cards: actions side by side, "Later" on its own row underneath (no cramped labels). */
+.feature-unlock .shop-intro-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.feature-unlock .shop-intro-btns .btn {
+  flex: 1 1 0;
+  white-space: nowrap;
+}
+.feature-unlock .shop-intro-btns .btn-secondary {
+  order: 2;
+  flex-basis: 100%;
+}

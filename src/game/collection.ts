@@ -15,6 +15,10 @@ export interface OwnedCat {
 
 export interface CollectionState {
   fishCoins: number;
+  /** Cat Food Cans (貓罐頭): recruitment currency. */
+  cans: number;
+  /** Draws paid with cans (the first one is a guaranteed new cat). */
+  canDraws: number;
   collection: Partial<Record<CatId, OwnedCat>>;
   team: CatId[];
   /** Draws in a row that were duplicates (for the new-cat guarantee). */
@@ -67,20 +71,52 @@ export function sanitizeTeam(raw: unknown, collection: Partial<Record<CatId, Own
 
 // ---------------- Recruitment ----------------
 
-/** Probability of each cat per draw (equal odds), and whether the next draw is guaranteed new. */
-export function recruitOdds(s: CollectionState): { perCat: number; newChance: number; guaranteedNext: boolean; drawsToGuarantee: number } {
-  const unowned = CAT_ORDER.filter((id) => !isOwned(s, id));
-  const guaranteedNext = unowned.length > 0 && s.recruitStreak >= RECRUIT.guaranteeNewWithin - 1;
+/**
+ * Cats that can come out of a draw: everything except a chapter's guaranteed reward cat while
+ * that chapter's reward is unclaimed (e.g. Silver Devil before 2-20). Owned cats always stay in
+ * (as duplicates → fragments).
+ */
+export function recruitPool(s: Pick<CollectionState, 'collection' | 'chapterRewards'>): CatId[] {
+  const held = RECRUIT.holdChapterRewards
+    ? Object.entries(CHAPTER_REWARDS)
+        .filter(([ch]) => !s.chapterRewards.includes(ch))
+        .map(([, r]) => r.cat)
+    : [];
+  return CAT_ORDER.filter((id) => isOwned(s, id) || !held.includes(id));
+}
+
+function guaranteedNew(s: CollectionState, unowned: CatId[]): boolean {
+  if (!unowned.length) return false;
+  return (RECRUIT.firstDrawNew && s.canDraws === 0) || s.recruitStreak >= RECRUIT.guaranteeNewWithin - 1;
+}
+
+/** Odds of the next draw (shown on the Recruit screen, all from the config). */
+export function recruitOdds(s: CollectionState): {
+  pool: CatId[];
+  newChance: number;
+  /** Per-cat chance for an unowned eligible cat / for an owned cat. */
+  perNew: number;
+  perOwned: number;
+  guaranteedNext: boolean;
+  drawsToGuarantee: number;
+} {
+  const pool = recruitPool(s);
+  const unowned = pool.filter((id) => !isOwned(s, id));
+  const owned = pool.filter((id) => isOwned(s, id));
+  const guaranteedNext = guaranteedNew(s, unowned);
+  const newChance = guaranteedNext ? 1 : unowned.length ? RECRUIT.newCatChance : 0;
   return {
-    perCat: 1 / CAT_ORDER.length,
-    newChance: guaranteedNext ? 1 : unowned.length / CAT_ORDER.length,
+    pool,
+    newChance,
+    perNew: unowned.length ? newChance / unowned.length : 0,
+    perOwned: owned.length ? (1 - newChance) / owned.length : 0,
     guaranteedNext,
-    drawsToGuarantee: unowned.length ? Math.max(1, RECRUIT.guaranteeNewWithin - s.recruitStreak) : 0,
+    drawsToGuarantee: unowned.length ? (guaranteedNext ? 1 : Math.max(1, RECRUIT.guaranteeNewWithin - s.recruitStreak)) : 0,
   };
 }
 
 export type RecruitResult =
-  | { ok: false; reason: 'noCoins' }
+  | { ok: false; reason: 'noCans' }
   | {
       ok: true;
       cat: CatId;
@@ -94,13 +130,16 @@ export type RecruitResult =
       state: CollectionState;
     };
 
-/** One draw for RECRUIT.cost fish coins. `rand` is injectable for tests. */
+/** One draw for RECRUIT.costCans Cat Food Cans. `rand` is injectable for tests. */
 export function recruit(s: CollectionState, rand: () => number = Math.random): RecruitResult {
-  if (s.fishCoins < RECRUIT.cost) return { ok: false, reason: 'noCoins' };
-  const unowned = CAT_ORDER.filter((id) => !isOwned(s, id));
-  const guaranteed = unowned.length > 0 && s.recruitStreak >= RECRUIT.guaranteeNewWithin - 1;
-  const pool = guaranteed ? unowned : CAT_ORDER;
-  const cat = pool[Math.min(pool.length - 1, Math.floor(rand() * pool.length))];
+  if (s.cans < RECRUIT.costCans) return { ok: false, reason: 'noCans' };
+  const pool = recruitPool(s);
+  const unowned = pool.filter((id) => !isOwned(s, id));
+  const owned = pool.filter((id) => isOwned(s, id));
+  const guaranteed = guaranteedNew(s, unowned);
+  const pickFrom = (list: CatId[]) => list[Math.min(list.length - 1, Math.floor(rand() * list.length))];
+  const wantNew = guaranteed || (unowned.length > 0 && rand() < RECRUIT.newCatChance);
+  const cat = wantNew ? pickFrom(unowned) : pickFrom(owned);
   const isNew = !isOwned(s, cat);
   const collection = { ...s.collection };
   let fragments = 0;
@@ -116,10 +155,12 @@ export function recruit(s: CollectionState, rand: () => number = Math.random): R
   }
   const state: CollectionState = {
     ...s,
-    fishCoins: s.fishCoins - RECRUIT.cost + coins,
+    cans: s.cans - RECRUIT.costCans,
+    fishCoins: s.fishCoins + coins,
     collection,
-    recruitStreak: isNew ? 0 : s.recruitStreak + 1,
+    recruitStreak: isNew ? 0 : unowned.length ? s.recruitStreak + 1 : s.recruitStreak,
     recruitDraws: s.recruitDraws + 1,
+    canDraws: s.canDraws + 1,
   };
   return { ok: true, cat, isNew, fragments, coins, totalFragments: collection[cat]!.fragments, guaranteed, state };
 }

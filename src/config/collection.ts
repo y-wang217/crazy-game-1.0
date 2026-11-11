@@ -26,18 +26,28 @@ export const STARS = {
   ] as readonly { fragments: number; coins: number }[],
 } as const;
 
+/**
+ * Recruitment (V1.6): paid with Cat Food Cans (貓罐頭) only — fish coins can no longer recruit.
+ * Every draw gives a cat or that cat's fragments. Only ELIGIBLE cats can be drawn: every cat
+ * except a chapter's guaranteed reward cat whose chapter isn't cleared yet (Silver Devil stays
+ * the 2-20 reward). All numbers are tuning knobs.
+ */
 export const RECRUIT = {
-  /** Fish coins per draw. */
-  cost: 100,
+  /** Cat Food Cans per draw. */
+  costCans: 1,
   /** Fragments for that exact cat when a draw is a duplicate. */
   duplicateFragments: 10,
+  /** The first can draw ever is always a new cat (while an eligible one remains). */
+  firstDrawNew: true,
+  /** Chance that a normal draw is a cat you don't own yet (when one is eligible); otherwise a duplicate. */
+  newCatChance: 0.3,
   /**
-   * New-cat guarantee: if this many draws in a row gave only duplicates, the next draw is a
-   * cat you do not own yet (while any remain). Shown to the player as a counter.
+   * New-cat pity: after this many eligible draws in a row without a new cat, the next draw is
+   * guaranteed new (so a new cat arrives within this many draws). Shown as a counter.
    */
-  guaranteeNewWithin: 6,
-  /** Draw weight per cat (equal odds: every cat has the same chance). */
-  weight: 1,
+  guaranteeNewWithin: 10,
+  /** Keep chapter reward cats out of the pool until their chapter is cleared. */
+  holdChapterRewards: true,
   /** Fragments for a cat already at 5★ convert into fish coins at this rate. */
   maxedFragmentCoins: 5,
 } as const;

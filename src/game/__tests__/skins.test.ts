@@ -2,7 +2,6 @@ import { CATS, CAT_ORDER } from '../../config/cats';
 import { CHAPTERS } from '../../config/chapters';
 import { COSMETICS, SKIN_RULES, findCosmetic, skinBonusesFor, skinKind } from '../../config/cosmetics';
 import { MAPS } from '../../config/maps';
-import { RECRUIT } from '../../config/collection';
 import { parseSave } from '../../save/store';
 import { COSTUME_IDS, costumeHasHeadwear, drawCostume } from '../../render/costumes';
 import { resolvePalette } from '../../render/renderer';
@@ -48,7 +47,7 @@ describe('skin catalogue', () => {
     const firstClears = CHAPTERS.flatMap((ch) => ch.stages).reduce((a, s) => a + s.rewards.firstClear, 0);
     for (const s of specials) {
       expect(s.price).toBeGreaterThan(Math.max(...regularSkins.map((r) => r.price))); // special costs more than regular
-      expect(s.price).toBeLessThanOrEqual(3 * RECRUIT.cost); // never more than three recruits
+      expect(s.price).toBeLessThanOrEqual(300); // never more than three old (100-coin) recruits
     }
     // A full team of five special skins is well under the coins from first clears alone.
     const team = specials

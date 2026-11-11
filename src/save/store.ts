@@ -18,6 +18,10 @@ import {
   type UpgradeResult,
 } from '../game/collection';
 import type { CatId, CosmeticLoadout } from '../game/types';
+import { CANS, isFeatureUnlocked } from '../config/unlocks';
+
+/** Milestone id of the one-time introductory Cat Food Can gift. */
+export const CANS_INTRO = 'cans:intro';
 
 // Persistent progression only. Battle cats/skills/dried fish are never saved.
 //
@@ -28,14 +32,24 @@ import type { CatId, CosmeticLoadout } from '../game/types';
 //   v3 — adds the permanent cat collection: owned cats with star rank + fragments,
 //        the 5-species battle team, recruitment guarantee counter and claimed
 //        chapter-completion rewards. Older saves get the five starter cats at 1★.
+//   v4 — (V1.6) Cat Food Cans: `cans` (recruitment currency), `canDraws` and
+//        `milestones` (one-time grants such as the introductory cans, kept separate from
+//        `seen` so "show first-time tips again" can never re-grant anything). Older saves
+//        start with 0 cans; their coins, cats, fragments and recruit counters are kept.
 // parseSave() accepts any older version and fills new fields with safe defaults.
 
 const KEY = 'catdefense.save.v1';
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 export interface SaveData {
-  version: 3;
+  version: 4;
   fishCoins: number;
+  /** Cat Food Cans (貓罐頭): recruitment currency. */
+  cans: number;
+  /** Draws paid with cans (the first one is a guaranteed new cat). */
+  canDraws: number;
+  /** One-time grants already given (e.g. 'cans:intro'). Never cleared by tutorial resets. */
+  milestones: string[];
   /** Stage ids the player may enter. */
   unlocked: string[];
   /** Best stars per cleared stage. */
@@ -56,8 +70,11 @@ export interface SaveData {
 
 export function defaultSave(): SaveData {
   return {
-    version: 3,
+    version: 4,
     fishCoins: 0,
+    cans: 0,
+    canDraws: 0,
+    milestones: [],
     unlocked: [ALL_STAGE_IDS[0]],
     cleared: {},
     owned: [],
@@ -114,8 +131,11 @@ export function parseSave(raw: string | null): SaveData {
     const collection = sanitizeCollection(o.collection);
     const int = (v: unknown) => (typeof v === 'number' && v >= 0 ? Math.floor(v) : 0);
     return {
-      version: 3,
+      version: 4,
       fishCoins: int(o.fishCoins),
+      cans: int(o.cans),
+      canDraws: int(o.canDraws),
+      milestones: Array.isArray(o.milestones) ? Array.from(new Set(o.milestones.filter((x: unknown) => typeof x === 'string'))) as string[] : [],
       unlocked: withProgressUnlocks(unlocked.length ? [ALL_STAGE_IDS[0], ...unlocked] : d.unlocked, cleared),
       cleared,
       owned,
@@ -257,6 +277,16 @@ export const saveStore = {
     return r.grants;
   },
 
+  /**
+   * Recruitment unlock (first clear of 2-5): give the introductory Cat Food Cans exactly once
+   * (also retroactively for players already past 2-5). Returns how many were given now.
+   */
+  claimRecruitIntro(): number {
+    if (!isFeatureUnlocked(state, 'recruit') || state.milestones.includes(CANS_INTRO)) return 0;
+    commit({ ...state, cans: state.cans + CANS.introGift, milestones: [...state.milestones, CANS_INTRO] });
+    return CANS.introGift;
+  },
+
   /** Show every tutorial and introduction again (keeps coins, unlocks and cosmetics). */
   resetTutorials(): void {
     commit({ ...state, seen: [] });
@@ -270,6 +300,8 @@ export const saveStore = {
 function collectionOf(s: SaveData): CollectionState {
   return {
     fishCoins: s.fishCoins,
+    cans: s.cans,
+    canDraws: s.canDraws,
     collection: s.collection,
     team: s.team,
     recruitStreak: s.recruitStreak,

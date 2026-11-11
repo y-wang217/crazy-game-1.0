@@ -9,6 +9,9 @@ import { CHAPTER_REWARDS } from '../../config/collection';
 import { GameIcon } from '../components/GameIcon';
 import { Stars } from '../components/Stars';
 import { CatScene } from '../components/CatScene';
+import { FeatureButton } from '../components/FeatureUnlock';
+import { isFeatureUnlocked } from '../../config/unlocks';
+import { useState } from 'react';
 
 /** First stage where a cat can appear (for "Meet in Stage N"). */
 export function firstStageOf(cat: CatId): number {
@@ -21,6 +24,11 @@ export function CatsScreen({ go }: { go: (s: Screen) => void }) {
   useLang();
   const save = useSave();
   const found = CAT_ORDER.filter((id) => save.collection[id]).length;
+  const [note, setNote] = useState<string | null>(null);
+  const flash = (m: string) => {
+    setNote(m);
+    window.setTimeout(() => setNote(null), 2000);
+  };
 
   return (
     <div className="screen cats">
@@ -34,13 +42,26 @@ export function CatsScreen({ go }: { go: (s: Screen) => void }) {
       </div>
       <h2 className="center">{t('guide.collection')}</h2>
       <div className="row collection-actions">
-        <button className="btn btn-secondary btn-small" onClick={() => go({ name: 'team', back: { name: 'cats' } })}>
-          <GameIcon name="team" size={16} /> {t('team.edit')}
-        </button>
-        <button className="btn btn-secondary btn-small" onClick={() => go({ name: 'recruit' })}>
-          <GameIcon name="recruit" size={16} /> {t('home.recruit')}
-        </button>
+        <FeatureButton
+          feature="team"
+          unlocked={isFeatureUnlocked(save, 'team')}
+          label={t('team.edit')}
+          className="btn btn-secondary btn-small"
+          iconSize={16}
+          onOpen={() => go({ name: 'team', back: { name: 'cats' } })}
+          onLocked={flash}
+        />
+        <FeatureButton
+          feature="recruit"
+          unlocked={isFeatureUnlocked(save, 'recruit')}
+          label={t('home.recruit')}
+          className="btn btn-secondary btn-small"
+          iconSize={16}
+          onOpen={() => go({ name: 'recruit' })}
+          onLocked={flash}
+        />
       </div>
+      {note && <div className="toast-inline">{note}</div>}
       <div className="collection-grid">
         {CAT_ORDER.map((id) => {
           const own = save.collection[id];

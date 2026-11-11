@@ -17,6 +17,8 @@ import type { CatId } from '../types';
 
 const base = (over: Partial<CollectionState> = {}): CollectionState => ({
   fishCoins: 10000,
+  cans: 50,
+  canDraws: 1, // past the first (guaranteed) draw unless a test says otherwise
   collection: defaultCollection(),
   team: [...STARTER_CATS],
   recruitStreak: 0,
@@ -25,8 +27,6 @@ const base = (over: Partial<CollectionState> = {}): CollectionState => ({
   cleared: {},
   ...over,
 });
-/** rand() that picks a specific cat from the full pool (equal odds). */
-const pick = (id: CatId) => () => (CAT_ORDER.indexOf(id) + 0.5) / CAT_ORDER.length;
 
 describe('collection basics', () => {
   it('all ten cats exist; the five starters are owned at 1★', () => {
@@ -37,58 +37,87 @@ describe('collection basics', () => {
   });
 });
 
-describe('recruitment', () => {
-  it('costs fish coins; a new cat joins the collection', () => {
-    const r = recruit(base(), pick('whiskers'));
-    expect(r.ok).toBe(true);
-    if (!r.ok) return;
+/** rand() returning these values in order (then the last one forever). */
+const seq = (...v: number[]) => {
+  let i = 0;
+  return () => v[Math.min(i++, v.length - 1)];
+};
+/** Index fraction that picks `id` out of `list`. */
+const at = (list: CatId[], id: CatId) => (list.indexOf(id) + 0.5) / list.length;
+// Chapter reward cats are held until their chapter is cleared (this base state has claimed none).
+const UNOWNED_ELIGIBLE: CatId[] = ['whiskers', 'mallow', 'pounce'];
+const OWNED = [...STARTER_CATS];
+
+describe('recruitment (Cat Food Cans)', () => {
+  it('costs 1 Cat Food Can — never fish coins — and a new cat joins the collection', () => {
+    const s = base();
+    const r = recruit(s, seq(0, at(UNOWNED_ELIGIBLE, 'whiskers'))); // roll "new" (0 < newCatChance), then whiskers
+    if (!r.ok) throw new Error();
     expect(r.isNew).toBe(true);
     expect(r.state.collection.whiskers).toEqual({ stars: 1, fragments: 0 });
-    expect(r.state.fishCoins).toBe(10000 - RECRUIT.cost);
+    expect(r.state.cans).toBe(s.cans - RECRUIT.costCans);
+    expect(r.state.fishCoins).toBe(s.fishCoins);
+  });
+
+  it('fails without a can (even with plenty of fish coins) and changes nothing', () => {
+    expect(recruit(base({ cans: 0, fishCoins: 999999 }), seq(0))).toEqual({ ok: false, reason: 'noCans' });
+  });
+
+  it('the very first can draw is a guaranteed new eligible cat', () => {
+    for (const roll of [0, 0.5, 0.999]) {
+      const r = recruit(base({ canDraws: 0 }), seq(roll, roll));
+      if (!r.ok) throw new Error();
+      expect(r.isNew).toBe(true);
+      expect(r.guaranteed).toBe(true);
+      expect(UNOWNED_ELIGIBLE).toContain(r.cat);
+    }
   });
 
   it('a duplicate becomes fragments for exactly that cat', () => {
-    const r = recruit(base(), pick('orange'));
+    const r = recruit(base(), seq(0.99, at(OWNED, 'orange'))); // roll "duplicate", then orange
     if (!r.ok) throw new Error();
     expect(r.isNew).toBe(false);
     expect(r.fragments).toBe(RECRUIT.duplicateFragments);
-    expect(r.totalFragments).toBe(RECRUIT.duplicateFragments);
     expect(r.state.collection.orange!.fragments).toBe(RECRUIT.duplicateFragments);
     expect(r.state.collection.kitten!.fragments).toBe(0);
   });
 
   it('duplicates of a 5★ cat refund fish coins instead', () => {
     const s = base({ collection: { ...defaultCollection(), black: { stars: 5, fragments: 0 } } });
-    const r = recruit(s, pick('black'));
+    const r = recruit(s, seq(0.99, at(OWNED, 'black')));
     if (!r.ok) throw new Error();
     expect(r.fragments).toBe(0);
     expect(r.coins).toBe(RECRUIT.duplicateFragments * RECRUIT.maxedFragmentCoins);
-    expect(r.state.fishCoins).toBe(s.fishCoins - RECRUIT.cost + r.coins);
+    expect(r.state.fishCoins).toBe(s.fishCoins + r.coins);
   });
 
-  it('fails without enough coins and changes nothing', () => {
-    const s = base({ fishCoins: RECRUIT.cost - 1 });
-    expect(recruit(s, pick('sable'))).toEqual({ ok: false, reason: 'noCoins' });
-  });
-
-  it('odds are equal per cat and shown honestly', () => {
+  it('Silver Devil (Chapter 2 reward) stays out of the pool until 2-20 is cleared', () => {
     const o = recruitOdds(base());
-    expect(o.perCat).toBeCloseTo(1 / 10);
-    expect(o.newChance).toBeCloseTo(5 / 10);
-    expect(o.drawsToGuarantee).toBe(RECRUIT.guaranteeNewWithin);
+    expect(o.pool).not.toContain('devil');
+    expect(o.pool).not.toContain('sable'); // Chapter 1 reward, not claimed in this state
+    expect(o.newChance).toBeCloseTo(RECRUIT.newCatChance);
+    expect(o.perNew).toBeCloseTo(RECRUIT.newCatChance / UNOWNED_ELIGIBLE.length);
+    expect(o.perOwned).toBeCloseTo((1 - RECRUIT.newCatChance) / 5);
+    for (let i = 0; i < 200; i++) {
+      const r = recruit(base(), Math.random);
+      if (!r.ok) throw new Error();
+      expect(r.cat).not.toBe('devil');
+    }
+    expect(recruitOdds(base({ chapterRewards: ['ch1'] })).pool).toContain('sable');
+    expect(recruitOdds(base({ chapterRewards: ['ch1'] })).pool).not.toContain('devil');
+    expect(recruitOdds(base({ chapterRewards: ['ch1', 'ch2'] })).pool).toContain('devil');
   });
 
-  it('guarantees a new cat after a run of duplicates', () => {
+  it(`guarantees a new cat within ${RECRUIT.guaranteeNewWithin} draws`, () => {
     let s = base();
-    const dup = pick('kitten');
     for (let i = 0; i < RECRUIT.guaranteeNewWithin - 1; i++) {
-      const r = recruit(s, dup);
+      const r = recruit(s, seq(0.99, 0));
       if (!r.ok) throw new Error();
       expect(r.isNew).toBe(false);
       s = r.state;
     }
     expect(recruitOdds(s).guaranteedNext).toBe(true);
-    const r = recruit(s, dup); // even an unlucky roll can't be a duplicate now
+    const r = recruit(s, seq(0.99, 0)); // even an unlucky roll can't be a duplicate now
     if (!r.ok) throw new Error();
     expect(r.isNew).toBe(true);
     expect(r.guaranteed).toBe(true);
@@ -96,18 +125,16 @@ describe('recruitment', () => {
   });
 
   it('a natural new cat resets the guarantee counter', () => {
-    let s = base({ recruitStreak: 3 });
-    const r = recruit(s, pick('mallow'));
+    const r = recruit(base({ recruitStreak: 3 }), seq(0, at(UNOWNED_ELIGIBLE, 'mallow')));
     if (!r.ok) throw new Error();
-    s = r.state;
-    expect(s.recruitStreak).toBe(0);
+    expect(r.state.recruitStreak).toBe(0);
   });
 
-  it('with every cat owned there is no guarantee and draws are all duplicates', () => {
+  it('with every eligible cat owned there is no guarantee and draws are all duplicates', () => {
     const all = Object.fromEntries(CAT_ORDER.map((id) => [id, { stars: 1, fragments: 0 }]));
-    const s = base({ collection: all, recruitStreak: 50 });
+    const s = base({ collection: all, recruitStreak: 50, canDraws: 0 });
     expect(recruitOdds(s).guaranteedNext).toBe(false);
-    const r = recruit(s, pick('devil'));
+    const r = recruit(s, seq(0, 0.5));
     if (!r.ok) throw new Error();
     expect(r.isNew).toBe(false);
   });
@@ -231,7 +258,7 @@ describe('save migration (v2 → v3)', () => {
       seen: ['tut:welcome', 'cat:kitten', 'enemy:fast'],
     };
     const s = parseSave(JSON.stringify(v2));
-    expect(s.version).toBe(3);
+    expect(s.version).toBe(4);
     expect(s.fishCoins).toBe(432);
     expect(s.unlocked).toEqual(['1-1', '1-2', '1-3']);
     expect(s.cleared).toEqual({ '1-1': 3, '1-2': 2 });

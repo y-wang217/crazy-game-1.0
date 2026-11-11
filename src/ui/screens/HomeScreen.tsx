@@ -9,8 +9,9 @@ import { BrandEmblem, HomeScenery } from '../components/Brand';
 import { GameIcon } from '../components/GameIcon';
 import { CoinIcon } from '../components/Icons';
 import { debugStore, useDebug } from '../debugStore';
-import { ShopIntro } from '../components/ShopIntro';
-import { SKIN_RULES } from '../../config/cosmetics';
+import { FeatureButton, FeatureUnlockCard } from '../components/FeatureUnlock';
+import { UNLOCK_INTRO, isFeatureUnlocked } from '../../config/unlocks';
+import { CanIcon } from '../components/Icons';
 import { STARTER_CATS } from '../../config/cats';
 import { TEAM_TUTORIAL_ID, teamTutorialCat } from '../../tutorial/teamTutorial';
 import { TeamTutorialIntro } from '../components/TeamTutorialIntro';
@@ -39,11 +40,22 @@ export function HomeScreen({
   const [note, setNote] = useState<string | null>(null);
   const [practiceMenu, setPracticeMenu] = useState(false);
   const taps = useRef<number[]>([]);
-  // Skin Shop intro: once, after the first clear of Stage 1-3 (also for players already past it).
-  const showShopIntro = !blocked && SKIN_RULES.shopIntroAfterStage in save.cleared && !save.seen.includes(SHOP_INTRO_ID);
-  // Edit Team tutorial: the first time a new cat joins (after its reveal), until the team is confirmed with it.
-  const tutCat = teamTutorialCat(save);
-  const showTeamTut = !blocked && !showShopIntro && tutCat !== null;
+  // Feature gates (V1.6): decided only by completed stages.
+  const unlocked = {
+    shop: isFeatureUnlocked(save, 'shop'),
+    encyclopedia: isFeatureUnlocked(save, 'encyclopedia'),
+    team: isFeatureUnlocked(save, 'team'),
+    recruit: isFeatureUnlocked(save, 'recruit'),
+  };
+  // Edit Team tutorial: starts on its own as soon as Edit Team unlocks (1-10, with Sir Sable), and
+  // comes back until the team is confirmed with the new cat or the player taps Skip tutorial.
+  const tutCat = unlocked.team ? teamTutorialCat(save) : null;
+  const showTeamTut = !blocked && tutCat !== null;
+  // One short unlock card at a time. Veterans who already met the Shop (old "tut:shop") skip it.
+  const showShopCats =
+    !blocked && !showTeamTut && unlocked.shop && !save.seen.includes(UNLOCK_INTRO.shopCats) && !save.seen.includes(SHOP_INTRO_ID);
+  const showRecruitIntro = !blocked && !showTeamTut && !showShopCats && unlocked.recruit && !save.seen.includes(UNLOCK_INTRO.recruit);
+  const showShopIntro = showShopCats; // keeps the spotlight styling of the Shop/Encyclopedia buttons
   // Players who already put a new cat in their team on their own don't need the lesson.
   useEffect(() => {
     if (!save.seen.includes(TEAM_TUTORIAL_ID) && save.team.some((id) => !STARTER_CATS.includes(id))) saveStore.markSeen(TEAM_TUTORIAL_ID);
@@ -87,8 +99,15 @@ export function HomeScreen({
             ))}
           </div>
         </div>
-        <span className="coin-pill" title={t('currency.coins')}>
-          <CoinIcon /> {save.fishCoins}
+        <span className="home-wallet">
+          <span className="coin-pill" title={t('currency.coins')}>
+            <CoinIcon /> {save.fishCoins}
+          </span>
+          {unlocked.recruit && (
+            <span className="coin-pill can-pill" title={t('currency.cans')}>
+              <CanIcon /> {save.cans}
+            </span>
+          )}
         </span>
       </div>
       <div className={`home-hero ${showTeamTut ? 'team-tut-active' : ''}`}>
@@ -103,30 +122,45 @@ export function HomeScreen({
             <CatPreview key={c} type={c} loadout={save.equipped} size={60} />
           ))}
         </div>
-        <button className={`btn btn-small home-team-btn ${showTeamTut ? 'spotlit' : ''}`} onClick={editTeam}>
-          <GameIcon name="team" size={16} /> {t('team.edit')}
-        </button>
+        <FeatureButton
+          feature="team"
+          unlocked={unlocked.team}
+          label={t('team.edit')}
+          className={`btn btn-small home-team-btn ${showTeamTut ? 'spotlit' : ''}`}
+          iconSize={16}
+          onOpen={editTeam}
+          onLocked={flash}
+        />
       </div>
-      <div className={`home-menu ${showShopIntro ? 'intro-active' : ''}`}>
+      <div className={`home-menu ${showShopIntro || showRecruitIntro ? 'intro-active' : ''}`}>
         <button className="btn btn-big btn-primary" onClick={() => go({ name: 'stages' })}>
           <GameIcon name="play" size={22} /> {t('home.play')}
         </button>
         <div className="row">
-          <button className="btn btn-secondary" onClick={() => go({ name: 'recruit' })}>
-            <GameIcon name="recruit" size={22} /> {t('home.recruit')}
-          </button>
-          <button
-            className={`btn btn-secondary ${showShopIntro ? 'spotlit' : ''}`}
-            onClick={() => {
-              if (showShopIntro) saveStore.markSeen(SHOP_INTRO_ID);
-              go({ name: 'shop' });
-            }}
-          >
-            <GameIcon name="shop" size={22} /> {t('home.shop')}
-          </button>
-          <button className="btn btn-secondary" onClick={() => go({ name: 'cats' })}>
-            <GameIcon name="book" size={22} /> {t('home.cats')}
-          </button>
+          <FeatureButton
+            feature="recruit"
+            unlocked={unlocked.recruit}
+            label={t('home.recruit')}
+            className={`btn btn-secondary ${showRecruitIntro ? 'spotlit' : ''}`}
+            onOpen={() => go({ name: 'recruit' })}
+            onLocked={flash}
+          />
+          <FeatureButton
+            feature="shop"
+            unlocked={unlocked.shop}
+            label={t('home.shop')}
+            className={`btn btn-secondary ${showShopCats ? 'spotlit' : ''}`}
+            onOpen={() => go({ name: 'shop' })}
+            onLocked={flash}
+          />
+          <FeatureButton
+            feature="encyclopedia"
+            unlocked={unlocked.encyclopedia}
+            label={t('home.cats')}
+            className={`btn btn-secondary ${showShopCats ? 'spotlit' : ''}`}
+            onOpen={() => go({ name: 'cats' })}
+            onLocked={flash}
+          />
         </div>
         <div className="home-progress">
           {finished.map((c) => (
@@ -157,13 +191,44 @@ export function HomeScreen({
           {debug.enabled ? ' · debug' : ''}
         </button>
       </div>
-      {showShopIntro && (
-        <ShopIntro
-          onClose={() => saveStore.markSeen(SHOP_INTRO_ID)}
-          onGo={() => {
-            saveStore.markSeen(SHOP_INTRO_ID);
-            go({ name: 'shop' });
-          }}
+      {showShopCats && (
+        <FeatureUnlockCard
+          kind="shopCats"
+          onClose={() => saveStore.markSeen(UNLOCK_INTRO.shopCats)}
+          actions={[
+            {
+              label: t('home.shop'),
+              icon: 'shop',
+              onClick: () => {
+                saveStore.markSeen(UNLOCK_INTRO.shopCats);
+                go({ name: 'shop' });
+              },
+            },
+            {
+              label: t('home.cats'),
+              icon: 'book',
+              onClick: () => {
+                saveStore.markSeen(UNLOCK_INTRO.shopCats);
+                go({ name: 'cats' });
+              },
+            },
+          ]}
+        />
+      )}
+      {showRecruitIntro && (
+        <FeatureUnlockCard
+          kind="recruit"
+          onClose={() => saveStore.markSeen(UNLOCK_INTRO.recruit)}
+          actions={[
+            {
+              label: t('unlock.recruit.go'),
+              icon: 'recruit',
+              onClick: () => {
+                saveStore.markSeen(UNLOCK_INTRO.recruit);
+                go({ name: 'recruit' });
+              },
+            },
+          ]}
         />
       )}
       {showTeamTut && tutCat && <TeamTutorialIntro cat={tutCat} loadout={save.equipped} onGo={editTeam} />}
@@ -178,11 +243,16 @@ export function HomeScreen({
               </span>
               <small>{t('practice.battleList')}</small>
             </button>
-            <button className="btn btn-secondary practice-choice" data-practice="team" onClick={() => go({ name: 'team', back: { name: 'home' }, practice: true })}>
+            <button
+              className={`btn btn-secondary practice-choice ${unlocked.team ? '' : 'feature-locked'}`}
+              data-practice="team"
+              aria-disabled={!unlocked.team}
+              onClick={() => (unlocked.team ? go({ name: 'team', back: { name: 'home' }, practice: true }) : flash(t('lock.toast', { feature: t('team.edit'), stage: '1-10' })))}
+            >
               <span>
-                <GameIcon name="team" size={20} /> {t('practice.team')}
+                <GameIcon name={unlocked.team ? 'team' : 'lock'} size={20} /> {t('practice.team')}
               </span>
-              <small>{t('practice.teamList')}</small>
+              <small>{unlocked.team ? t('practice.teamList') : t('lock.after', { stage: '1-10' })}</small>
             </button>
             <button className="btn btn-small" onClick={() => setPracticeMenu(false)}>
               {t('common.close')}

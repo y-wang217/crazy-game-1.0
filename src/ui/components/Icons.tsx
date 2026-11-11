@@ -23,6 +23,21 @@ export function CoinIcon({ size = 18 }: { size?: number }) {
   );
 }
 
+/** Cat Food Can (貓罐頭): the recruitment currency. A small tin with a fish label and a pull tab. */
+export function CanIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" aria-label="cat food can" role="img">
+      <ellipse cx="16" cy="25" rx="11" ry="4" fill="#9aa6b8" stroke="#55607a" strokeWidth="2" />
+      <rect x="5" y="10" width="22" height="15" fill="#c9d3e3" stroke="#55607a" strokeWidth="2" />
+      <rect x="5" y="14" width="22" height="7.5" fill="#ff8f6b" />
+      <ellipse cx="14.5" cy="17.8" rx="4.2" ry="2.3" fill="#fff4e0" />
+      <path d="M18 17.8 L21.5 15.6 L21.5 20 Z" fill="#fff4e0" />
+      <ellipse cx="16" cy="10" rx="11" ry="4" fill="#e3e9f2" stroke="#55607a" strokeWidth="2" />
+      <ellipse cx="16" cy="10" rx="3.2" ry="1.4" fill="none" stroke="#55607a" strokeWidth="1.6" />
+    </svg>
+  );
+}
+
 export function HeartIcon({ size = 18 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" aria-label="base HP" role="img">

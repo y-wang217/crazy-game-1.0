@@ -11,6 +11,8 @@ import { CatHead } from '../components/CatPreview';
 import { ChapterCutscene } from '../components/ChapterCutscene';
 import { GameIcon } from '../components/GameIcon';
 import { Stars } from '../components/Stars';
+import { FeatureButton } from '../components/FeatureUnlock';
+import { isFeatureUnlocked } from '../../config/unlocks';
 
 function enemiesOf(stage?: StageDef): Set<EnemyId> {
   return new Set((stage?.waves ?? []).flatMap((w) => w.groups.flatMap((g) => ('enemy' in g ? [g.enemy] : []))));
@@ -66,12 +68,15 @@ export function StageSelect({ go, play }: { go: (s: Screen) => void; play: (id: 
       <div className="team-strip">
         <div className="team-strip-head">
           <b>{t('stages.team')}</b>
-          <button
-            className={`btn btn-small ${teamTutorialCat(save) ? 'spotlit' : ''}`}
-            onClick={() => go({ name: 'team', back: { name: 'stages' } })}
-          >
-            {t('team.edit')}
-          </button>
+          <FeatureButton
+            feature="team"
+            unlocked={isFeatureUnlocked(save, 'team')}
+            label={t('team.edit')}
+            className={`btn btn-small ${isFeatureUnlocked(save, 'team') && teamTutorialCat(save) ? 'spotlit' : ''}`}
+            iconSize={14}
+            onOpen={() => go({ name: 'team', back: { name: 'stages' } })}
+            onLocked={() => {}}
+          />
         </div>
         <div className="team-strip-cats">
           {save.team.map((id) => (
