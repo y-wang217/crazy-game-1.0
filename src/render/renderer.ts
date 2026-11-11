@@ -118,9 +118,15 @@ export class Renderer {
 
   /** Battle being drawn (for buff glows / star halos in drawCatUnit). */
   private cur: Battle | null = null;
+  /** vtime of the last frame, to detect a clock that jumped back. */
+  private trailClock = 0;
 
   draw(battle: Battle, drag: DragView | null, loadout: CosmeticLoadout, opts: DrawOptions = {}): void {
     this.simTime = battle.time;
+    // HP trails are keyed by foe uid and timed by vtime. A restarted or restored battle reuses
+    // uids and restarts its clock, so stale trails must not carry over (they would grow).
+    if (battle !== this.cur || battle.vtime < this.trailClock) this.trail.clear();
+    this.trailClock = battle.vtime;
     this.cur = battle;
     this.ensureBackground(battle);
     const ctx = this.ctx;
@@ -665,10 +671,11 @@ export class Renderer {
       ctx.beginPath();
       ctx.roundRect(-w / 2 - 1, by - 1, w + 2, 5, 2.5);
       ctx.fill();
-      const hpf = Math.max(0, f.hp / f.maxHp);
+      // Fractions are always clamped to 0–1 so a bar can never be wider than its frame.
+      const hpf = frac(f.hp, f.maxHp);
       // White trail shows recent damage, then catches up.
       const tr0 = this.trail.get(f.uid) ?? { v: hpf, t };
-      const trailV = Math.max(hpf, tr0.v - (t - tr0.t) * 0.9);
+      const trailV = Math.min(1, Math.max(hpf, tr0.v - Math.max(0, t - tr0.t) * 0.9));
       this.trail.set(f.uid, { v: trailV, t });
       if (trailV > hpf) {
         ctx.fillStyle = 'rgba(255,255,255,0.9)';
@@ -683,7 +690,7 @@ export class Renderer {
       if (f.maxShield > 0 && f.shield > 0) {
         ctx.fillStyle = '#5ad0f0';
         ctx.beginPath();
-        ctx.roundRect(-w / 2, by - 4, w * (f.shield / f.maxShield), 2.6, 1.3);
+        ctx.roundRect(-w / 2, by - 4, w * frac(f.shield, f.maxShield), 2.6, 1.3);
         ctx.fill();
       }
     }
@@ -1443,4 +1450,10 @@ function drawHouse(ctx: CanvasRenderingContext2D, x: number, y: number, P: Board
   ctx.ellipse(-12, 5, 3.5, 2, 0, 0, TAU);
   ctx.fill();
   ctx.restore();
+}
+
+/** a/b clamped to 0–1 (0 when b is not positive or either value is not finite). */
+export function frac(a: number, b: number): number {
+  const v = a / b;
+  return Number.isFinite(v) && v > 0 ? Math.min(1, v) : 0;
 }
