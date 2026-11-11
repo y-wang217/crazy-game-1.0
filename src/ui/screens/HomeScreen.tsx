@@ -37,6 +37,7 @@ export function HomeScreen({
   const current = currentChapter(chapters);
   const finished = chapters.filter((c) => c.complete && c.id !== current.id);
   const [note, setNote] = useState<string | null>(null);
+  const [practiceMenu, setPracticeMenu] = useState(false);
   const taps = useRef<number[]>([]);
   // Skin Shop intro: once, after the first clear of Stage 1-3 (also for players already past it).
   const showShopIntro = !blocked && SKIN_RULES.shopIntroAfterStage in save.cleared && !save.seen.includes(SHOP_INTRO_ID);
@@ -137,16 +138,11 @@ export function HomeScreen({
             {t(current.complete ? 'home.chapterDone' : 'home.progress', { n: chapterNumeral(current.number), done: current.cleared, total: current.total })}
           </p>
         </div>
+        {/* Tutorial replay: a safe practice session (nothing is reset or saved). */}
+        <button className="btn btn-secondary home-replay-btn" onClick={() => setPracticeMenu(true)}>
+          <GameIcon name="tap" size={20} /> {t('practice.replay')}
+        </button>
         <div className="home-links">
-          <button
-            className="link-btn"
-            onClick={() => {
-              saveStore.resetTutorials();
-              flash(t('home.replayDone'));
-            }}
-          >
-            {t('home.replayTutorials')}
-          </button>
           <button
             className="link-btn"
             onClick={() => {
@@ -171,6 +167,41 @@ export function HomeScreen({
         />
       )}
       {showTeamTut && tutCat && <TeamTutorialIntro cat={tutCat} loadout={save.equipped} onGo={editTeam} />}
+      {practiceMenu && (
+        <div className="shop-intro practice-menu" role="dialog" aria-modal="true" aria-labelledby="practice-title">
+          <div className="panel shop-intro-card">
+            <h2 id="practice-title">{t('practice.replay')}</h2>
+            <p className="muted small">{t('practice.intro')}</p>
+            <button className="btn btn-primary practice-choice" data-practice="battle" onClick={() => go({ name: 'practice', run: Date.now(), back: { name: 'home' } })}>
+              <span>
+                <GameIcon name="play" size={20} /> {t('practice.battle')}
+              </span>
+              <small>{t('practice.battleList')}</small>
+            </button>
+            <button className="btn btn-secondary practice-choice" data-practice="team" onClick={() => go({ name: 'team', back: { name: 'home' }, practice: true })}>
+              <span>
+                <GameIcon name="team" size={20} /> {t('practice.team')}
+              </span>
+              <small>{t('practice.teamList')}</small>
+            </button>
+            <button className="btn btn-small" onClick={() => setPracticeMenu(false)}>
+              {t('common.close')}
+            </button>
+            {/* The old behaviour (first-time tips again in real stages) stays available, clearly separate. */}
+            <button
+              className="link-btn tiny"
+              onClick={() => {
+                if (!window.confirm(t('practice.resetTipsConfirm'))) return;
+                saveStore.resetTutorials();
+                setPracticeMenu(false);
+                flash(t('home.replayDone'));
+              }}
+            >
+              {t('practice.resetTips')}
+            </button>
+          </div>
+        </div>
+      )}
       {note && <div className="toast-inline">{note}</div>}
     </div>
   );

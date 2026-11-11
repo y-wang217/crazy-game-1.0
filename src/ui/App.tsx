@@ -14,6 +14,7 @@ import { RecruitScreen } from './screens/RecruitScreen';
 import { ShopScreen } from './screens/ShopScreen';
 import { StageSelect } from './screens/StageSelect';
 import { TeamScreen } from './screens/TeamScreen';
+import { PRACTICE_STAGE_ID } from '../config/chapters';
 
 export type Screen =
   | { name: 'home' }
@@ -23,7 +24,9 @@ export type Screen =
   | { name: 'cats' }
   | { name: 'catProfile'; cat: CatId }
   | { name: 'recruit' }
-  | { name: 'team'; back: Screen };
+  | { name: 'team'; back: Screen; practice?: boolean }
+  /** Tutorial replay: the practice battle (temporary session, nothing is saved). */
+  | { name: 'practice'; run: number; back: Screen };
 
 export function App() {
   const save = useSave();
@@ -39,7 +42,7 @@ export function App() {
   // Chapter-completion cats: granted once each — also retroactively for chapters cleared
   // before this feature existed. (Inside a battle, the victory screen presents them itself.)
   useEffect(() => {
-    if (screen.name === 'battle') return;
+    if (screen.name === 'battle' || screen.name === 'practice') return;
     const g = saveStore.claimChapterRewards();
     if (g.length) setGrants((cur) => [...cur, ...g]);
   }, [screen.name]);
@@ -52,7 +55,17 @@ export function App() {
       {screen.name === 'cats' && <CatsScreen go={go} />}
       {screen.name === 'catProfile' && <CatProfileScreen key={screen.cat} cat={screen.cat} go={go} />}
       {screen.name === 'recruit' && <RecruitScreen go={go} />}
-      {screen.name === 'team' && <TeamScreen go={go} back={screen.back} />}
+      {screen.name === 'team' && <TeamScreen key={screen.practice ? 'practice' : 'team'} go={go} back={screen.back} practice={screen.practice} />}
+      {screen.name === 'practice' && (
+        <BattleScreen
+          key={`practice:${screen.run}`}
+          stageId={PRACTICE_STAGE_ID}
+          onExit={() => go(screen.back)}
+          onPlay={() => go(screen.back)}
+          onHome={() => go(screen.back)}
+          onPracticeTeam={() => go({ name: 'team', back: screen.back, practice: true })}
+        />
+      )}
       {screen.name === 'battle' && (
         // key forces a fully fresh battle screen per stage entry
         <BattleScreen
@@ -65,7 +78,7 @@ export function App() {
         />
       )}
       {notice && <EarlyAccessNotice onClose={() => setNotice(false)} />}
-      {offer && !notice && screen.name !== 'battle' && (
+      {offer && !notice && screen.name !== 'battle' && screen.name !== 'practice' && (
         <RecoveryPrompt
           record={offer}
           onResume={() => {
@@ -78,7 +91,7 @@ export function App() {
           }}
         />
       )}
-      {grants.length > 0 && screen.name !== 'battle' && !offer && !notice && (
+      {grants.length > 0 && screen.name !== 'battle' && screen.name !== 'practice' && !offer && !notice && (
         <ChapterReward key={grants[0].chapterId} grant={grants[0]} loadout={save.equipped} onClose={() => setGrants((g) => g.slice(1))} />
       )}
     </div>

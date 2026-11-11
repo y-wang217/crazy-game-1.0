@@ -267,6 +267,8 @@ export interface StageDef {
    * Every other stage summons from the player's selected battle team instead.
    */
   fixedRoster?: boolean;
+  /** Tutorial replay ("practice"): never saved, never rewarded, every lesson shown again. */
+  practice?: boolean;
 }
 
 export interface ChapterDef {

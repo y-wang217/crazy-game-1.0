@@ -156,7 +156,7 @@ const SPEED_TIP: StepDef = {
 };
 
 // ---- Tactical Pause (any stage from 1-3 on, once ever; new and existing players) ----
-const tacticalEligible = (b: Battle) => (b.stage.order ?? b.stage.number) >= 3 && !b.sandbox;
+const tacticalEligible = (b: Battle) => ((b.stage.order ?? b.stage.number) >= 3 || !!b.stage.practice) && !b.sandbox;
 
 /** Drag lesson used while paused: move to an empty tile if there is one, otherwise swap/merge. */
 function pausedDrag(b: Battle): StepView | null {
@@ -342,3 +342,7 @@ export const STAGE_STEPS: Record<string, StepDef[]> = {
     { id: 'tut:skillDup', build: () => ({ panel: text('skillDup'), focus: [] }) },
   ],
 };
+
+// Tutorial replay (Home → Replay Interactive Tutorial): every basic lesson of Stage 1, then the
+// speed button. The chest introduction appears with its chest; Tactical Pause (global) follows.
+STAGE_STEPS.practice = [...STAGE_STEPS['1-1'], SPEED_TIP];

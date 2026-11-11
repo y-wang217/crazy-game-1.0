@@ -10,7 +10,7 @@ import type { CatId, SkillId } from '../../game/types';
 import { t, useLang } from '../../i18n';
 import { Renderer, type DragView } from '../../render/renderer';
 import { saveStore, useSave } from '../../save/store';
-import { TutorialDirector, type ActiveStep, type TutAction } from '../../tutorial/director';
+import { TutorialDirector, type ActiveStep, type SeenStore, type TutAction } from '../../tutorial/director';
 import { CatInfoPanel } from '../components/CatInfoPanel';
 import { GameIcon } from '../components/GameIcon';
 import { ResultPanel } from '../components/ResultPanel';
@@ -97,7 +97,12 @@ function hudOf(b: Battle): Hud {
   };
 }
 
-const seenStore = { has: (id: string) => saveStore.hasSeen(id), mark: (id: string) => saveStore.markSeen(id) };
+const seenStore: SeenStore = { has: (id: string) => saveStore.hasSeen(id), mark: (id: string) => saveStore.markSeen(id) };
+/** Tutorial replay: lessons are tracked only in memory, so every one shows again and the save is never touched. */
+const memorySeen = (): SeenStore => {
+  const s = new Set<string>();
+  return { has: (id) => s.has(id), mark: (id) => void s.add(id) };
+};
 let toastId = 1;
 /** Seen-id of the Chapter 1 → 2 story transition. */
 export const CUTSCENE_ID = 'story:ch1-ch2';
@@ -116,8 +121,11 @@ export function BattleScreen({
   onExit,
   onPlay,
   onHome,
+  onPracticeTeam,
 }: {
   stageId: string;
+  /** Tutorial replay (practice stage) only: continue with the Edit Team practice. */
+  onPracticeTeam?: () => void;
   /** A saved battle to continue (battle recovery); restored paused. */
   resume?: RecoveryRecord | null;
   onExit: () => void;
@@ -127,6 +135,9 @@ export function BattleScreen({
   useLang();
   const found = findStage(stageId)!;
   const { stage, chapter } = found;
+  /** Tutorial replay: a temporary session — no saves, coins, checkpoints or lesson marks. */
+  const practice = !!stage.practice;
+  const seenRef = useRef<SeenStore>(practice ? memorySeen() : seenStore);
   const map = MAPS[chapter.mapId];
   const save = useSave();
   const debug = useDebug();
@@ -162,6 +173,8 @@ export function BattleScreen({
       runIdRef.current = newRunId(); // unusable save: start fresh
     }
     const sv = saveStore.get();
+    // Practice uses the new-player setup: tutorial cats at 1★, no skin bonuses.
+    if (practice) return new Battle(stage, map, {});
     return new Battle(stage, map, {
       tuning: debugStore.get().enabled ? debugStore.get().tuning : undefined,
       // Tutorial stages keep their own cats; every other stage summons from the player's team.
@@ -174,7 +187,7 @@ export function BattleScreen({
   const battleRef = useRef<Battle>(null as unknown as Battle);
   if (!battleRef.current) battleRef.current = newBattle(true);
   const directorRef = useRef<TutorialDirector>(null as unknown as TutorialDirector);
-  if (!directorRef.current) directorRef.current = new TutorialDirector(stage.id, seenStore);
+  if (!directorRef.current) directorRef.current = new TutorialDirector(stage.id, seenRef.current);
   /** Speed multiplier relative to the baseline (BALANCE.speed.baseline). */
   const speedRef = useRef<number>(resume && BALANCE.speed.options.includes(resume.speed) ? resume.speed : loadSpeed());
   const speedBtnRef = useRef<HTMLButtonElement>(null);
@@ -198,6 +211,7 @@ export function BattleScreen({
   const resultLoggedRef = useRef<Battle | null>(null);
   const [grants, setGrants] = useState<ChapterGrant[]>([]);
   const [cutscene, setCutscene] = useState(false);
+  const [practiceEnd, setPracticeEnd] = useState<'victory' | 'defeat' | null>(null);
 
   const [hud, setHud] = useState<Hud>(() => hudOf(battleRef.current));
   const hudKeyRef = useRef('');
@@ -224,7 +238,7 @@ export function BattleScreen({
    */
   const checkpoint = useCallback(() => {
     const b = battleRef.current;
-    if (staleRef.current || b.sandbox || resultLoggedRef.current === b) return;
+    if (practice || staleRef.current || b.sandbox || resultLoggedRef.current === b) return;
     if (b.status === 'victory' || b.status === 'defeat') return;
     const cur = claimRef.current ? null : recovery.storedOwner();
     claimRef.current = false;
@@ -251,7 +265,7 @@ export function BattleScreen({
       preparing: b.preparing,
       snapshot: b.snapshot(),
     });
-  }, [stage.id, tabId]);
+  }, [stage.id, tabId, practice]);
   const checkpointRef = useRef(checkpoint);
   checkpointRef.current = checkpoint;
   /** Something changed: save on the next frame. */
@@ -260,8 +274,13 @@ export function BattleScreen({
   };
 
   const showStageBanner = useCallback(() => {
-    setBanner({ text: t('battle.stageBanner', { id: stage.id, name: t(`stage.${stage.id}`) }), tone: 'stage', key: Date.now() });
-  }, [stage.id]);
+    setBanner({
+      text: practice ? t('practice.banner') : t('battle.stageBanner', { id: stage.id, name: t(`stage.${stage.id}`) }),
+      sub: practice ? t('practice.safe') : undefined,
+      tone: 'stage',
+      key: Date.now(),
+    });
+  }, [stage.id, practice]);
   useEffect(showStageBanner, [showStageBanner]);
 
   // ---- Battle events → UI / persistence ----
@@ -271,6 +290,10 @@ export function BattleScreen({
       for (const e of events) {
         switch (e.type) {
           case 'coins':
+            if (practice) {
+              toast(t('practice.noCoins'), 'good'); // practice chests pay nothing permanent
+              break;
+            }
             if (staleRef.current) break;
             saveStore.addCoins(e.amount); // chest coins are kept even if the stage is lost
             // Checkpoint right away: an older save (chest still alive) could otherwise pay twice.
@@ -319,6 +342,10 @@ export function BattleScreen({
           case 'defeat': {
             if (resultLoggedRef.current === b) break;
             resultLoggedRef.current = b;
+            if (practice) {
+              setPracticeEnd(e.type);
+              break;
+            }
             // The run is over: remember it (so no copy of it can be rewarded again) and drop the checkpoint.
             const already = staleRef.current || recovery.isFinished(runIdRef.current);
             recovery.markFinished(runIdRef.current);
@@ -359,7 +386,7 @@ export function BattleScreen({
         }
       }
     },
-    [toast, stage, chapter, found.index],
+    [toast, stage, chapter, found.index, practice],
   );
   const handleEventsRef = useRef(handleEvents);
   handleEventsRef.current = handleEvents;
@@ -522,7 +549,9 @@ export function BattleScreen({
     staleRef.current = false;
     dirtyRef.current = true;
     battleRef.current = newBattle();
-    directorRef.current = new TutorialDirector(stage.id, seenStore);
+    if (practice) seenRef.current = memorySeen(); // a restarted practice starts the lessons again
+    directorRef.current = new TutorialDirector(stage.id, seenRef.current);
+    setPracticeEnd(null);
     setInspectUid(null);
     setMenuOpen(false);
     dragRef.current = null;
@@ -607,7 +636,7 @@ export function BattleScreen({
     dirty();
     speedRef.current = s;
     setSpeed(s);
-    saveSpeed(s);
+    if (!practice) saveSpeed(s); // practice never changes saved preferences
   };
   /** Cycle 0.5× → 0.75× → 1× → 1.5× → 2× (1× = the faster V1.3 baseline). Remembered between battles. */
   const toggleSpeed = () => {
@@ -795,7 +824,7 @@ export function BattleScreen({
         </div>
         <div className="hud-center">
           <div className="hud-stage">
-            {t('battle.stage', { id: stage.id })} · {t(`stage.${stage.id}`)}
+            {practice ? t('practice.badge') : `${t('battle.stage', { id: stage.id })} · ${t(`stage.${stage.id}`)}`}
           </div>
           <div className={`hud-wave ${hud.nextWave !== null ? 'countdown' : ''}`}>
             {hud.preparing
@@ -1076,12 +1105,20 @@ export function BattleScreen({
             <button className="btn btn-secondary" onClick={restart}>
               <GameIcon name="replay" size={18} /> {t('pause.restart')}
             </button>
-            <button className="btn btn-secondary" onClick={() => abandon(onExit)}>
-              <GameIcon name="list" size={18} /> {t('pause.stages')}
-            </button>
-            <button className="btn btn-secondary" onClick={() => abandon(onHome)}>
-              <GameIcon name="home" size={18} /> {t('pause.home')}
-            </button>
+            {practice ? (
+              <button className="btn btn-secondary" onClick={() => abandon(onExit)}>
+                <GameIcon name="home" size={18} /> {t('practice.exit')}
+              </button>
+            ) : (
+              <>
+                <button className="btn btn-secondary" onClick={() => abandon(onExit)}>
+                  <GameIcon name="list" size={18} /> {t('pause.stages')}
+                </button>
+                <button className="btn btn-secondary" onClick={() => abandon(onHome)}>
+                  <GameIcon name="home" size={18} /> {t('pause.home')}
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -1110,6 +1147,26 @@ export function BattleScreen({
             <p className="muted">{t('recover.staleBody')}</p>
             <button className="btn btn-primary" onClick={onHome}>
               <GameIcon name="home" size={18} /> {t('pause.home')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {practiceEnd && (
+        <div className="overlay practice-end" role="dialog" aria-modal="true">
+          <div className="panel">
+            <h2>{t(practiceEnd === 'victory' ? 'practice.doneTitle' : 'practice.lostTitle')}</h2>
+            <p className="muted">{t('practice.doneBody')}</p>
+            {onPracticeTeam && (
+              <button className="btn btn-primary" onClick={onPracticeTeam}>
+                <GameIcon name="team" size={18} /> {t('practice.team')}
+              </button>
+            )}
+            <button className="btn btn-secondary" onClick={restart}>
+              <GameIcon name="replay" size={18} /> {t('practice.again')}
+            </button>
+            <button className="btn btn-secondary" onClick={onExit}>
+              <GameIcon name="home" size={18} /> {t('practice.exit')}
             </button>
           </div>
         </div>

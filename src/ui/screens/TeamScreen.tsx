@@ -15,15 +15,18 @@ import { Stars } from '../components/Stars';
  * select it, then tap any owned cat to swap it in. Saved immediately — except during the
  * Edit Team tutorial, where changes are a draft until the player taps "Confirm team".
  */
-export function TeamScreen({ go, back }: { go: (s: Screen) => void; back: Screen }) {
+export function TeamScreen({ go, back, practice = false }: { go: (s: Screen) => void; back: Screen; practice?: boolean }) {
   useLang();
   const save = useSave();
   const [slot, setSlot] = useState<number | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  const owned = CAT_ORDER.filter((id) => save.collection[id]);
+  // Tutorial replay: practise with a cat outside the team (a trial cat if every owned cat is in it).
+  const [practiceCat] = useState<CatId | null>(() => (practice ? practiceTeamCat(save) : null));
+  const owned = CAT_ORDER.filter((id) => save.collection[id] || id === practiceCat);
   // Edit Team tutorial (first new cat): fixed for this visit, with a draft team.
-  const [tut, setTut] = useState(() => teamTutorialCat(save));
+  const [tut, setTut] = useState(() => practiceCat ?? teamTutorialCat(save));
   const [draft, setDraft] = useState<CatId[] | null>(() => (tut ? [...save.team] : null));
+  const [practiceDone, setPracticeDone] = useState(false);
   const team = draft ?? save.team;
   const step = tut ? teamTutorialStep(team, tut, slot) : null;
   // Bring the highlighted target into view at each tutorial step.
@@ -32,7 +35,8 @@ export function TeamScreen({ go, back }: { go: (s: Screen) => void; back: Screen
   }, [step]);
   const apply = (next: CatId[]): boolean => {
     if (!draft) return saveStore.setTeam(next);
-    if (!validTeam({ ...save, team }, next).ok) return false;
+    // Practice drafts may hold the trial cat; they are never saved.
+    if (practice ? next.length < TEAM_MIN || next.length > TEAM_SIZE : !validTeam({ ...save, team }, next).ok) return false;
     setDraft(next);
     return true;
   };
@@ -77,6 +81,11 @@ export function TeamScreen({ go, back }: { go: (s: Screen) => void; back: Screen
       flash(t('teamTut.notYet', { cat: t(`cat.${tut}.name`) }));
       return;
     }
+    if (practice) {
+      // Practice only: the real team is left exactly as it was.
+      setPracticeDone(true);
+      return;
+    }
     if (!saveStore.setTeam(draft)) return;
     saveStore.markSeen(TEAM_TUTORIAL_ID);
     flash(t('teamTut.done', { cat: t(`cat.${tut}.name`) }));
@@ -84,6 +93,7 @@ export function TeamScreen({ go, back }: { go: (s: Screen) => void; back: Screen
     setDraft(null);
   };
   const skip = () => {
+    if (practice) return go(back);
     if (!window.confirm(t('teamTut.skipConfirm'))) return;
     saveStore.markSeen(TEAM_TUTORIAL_ID);
     if (draft) saveStore.setTeam(draft); // keep any changes already made
@@ -111,6 +121,7 @@ export function TeamScreen({ go, back }: { go: (s: Screen) => void; back: Screen
         )}
       </div>
       <h2 className="center">{t('team.title')}</h2>
+      {practice && <p className="practice-tag center">{t('practice.teamBadge')}</p>}
       <p className="muted small center">{t('team.hint', { min: TEAM_MIN, n: TEAM_SIZE })}</p>
       <div className={`team-slots ${step === 'slot' ? 'coach-target' : ''}`}>
         {team.map((id, i) => (
@@ -144,7 +155,7 @@ export function TeamScreen({ go, back }: { go: (s: Screen) => void; back: Screen
               </div>
               <div className="pool-name">{t(`cat.${id}.name`)}</div>
               <Stars n={save.collection[id]?.stars ?? 1} size={10} />
-              <div className="tiny muted">{inTeam ? t('team.inTeam') : t(`cat.${id}.role`)}</div>
+              <div className="tiny muted">{inTeam ? t('team.inTeam') : !save.collection[id] ? t('practice.trial') : t(`cat.${id}.role`)}</div>
             </button>
           );
         })}
@@ -155,16 +166,33 @@ export function TeamScreen({ go, back }: { go: (s: Screen) => void; back: Screen
           <CatPreview type={tut} level={1} loadout={save.equipped} size={44} />
           <div className="team-coach-text">
             <b>
-              {t('teamTut.kicker')} · {['slot', 'cat', 'confirm'].indexOf(step) + 1}/3
+              {t(practice ? 'practice.teamKicker' : 'teamTut.kicker')} · {['slot', 'cat', 'confirm'].indexOf(step) + 1}/3
             </b>
             <span>{t(`teamTut.step.${step}`, { cat: t(`cat.${tut}.name`) })}</span>
           </div>
           <button className="link-btn tiny" onClick={skip}>
-            {t('teamTut.skip')}
+            {t(practice ? 'practice.exit' : 'teamTut.skip')}
           </button>
+        </div>
+      )}
+      {practiceDone && (
+        <div className="overlay practice-end" role="dialog" aria-modal="true">
+          <div className="panel">
+            <h2>{t('practice.teamDoneTitle')}</h2>
+            <p className="muted">{t('practice.teamDoneBody')}</p>
+            <button className="btn btn-primary" onClick={() => go(back)}>
+              {t('practice.exit')}
+            </button>
+          </div>
         </div>
       )}
       {note && <div className="toast-inline">{note}</div>}
     </div>
   );
+}
+
+/** Edit Team practice: an owned cat that is not in the team, else any cat outside it (trial, never saved). */
+export function practiceTeamCat(save: { team: CatId[]; collection: Partial<Record<CatId, unknown>> }): CatId | null {
+  const out = CAT_ORDER.filter((id) => !save.team.includes(id));
+  return out.find((id) => save.collection[id]) ?? out[0] ?? null;
 }

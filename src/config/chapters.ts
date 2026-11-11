@@ -768,7 +768,22 @@ CHAPTERS.flatMap((c) => c.stages).forEach((s, i) => {
   s.waveHpGrowth = (s.waveHpGrowth ?? BALANCE.waveHpGrowth) * Math.pow(scale, BALANCE.waveHpCurve);
 });
 
+/**
+ * Tutorial replay: Stage 1-1's map, cats and gentle waves plus one bronze chest, so every
+ * basic lesson (summon, move, swap, merge, targeting, chest reward, speed, Tactical Pause)
+ * can be practised again. It is not part of any chapter: no unlocks, rewards or saves.
+ */
+export const PRACTICE_STAGE_ID = 'practice';
+export const PRACTICE_STAGE: StageDef = {
+  ...STAGES[0],
+  id: PRACTICE_STAGE_ID,
+  practice: true,
+  waves: buildWaves({ waves: 6, count: 5, growth: 1.2, interval: [1.7, 1.2], mix: () => ({ normal: 1 }), chests: { 3: 'bronze' } }),
+  rewards: { firstClear: 0, replay: 0 },
+};
+
 export function findStage(stageId: string): { chapter: ChapterDef; stage: StageDef; index: number } | null {
+  if (stageId === PRACTICE_STAGE_ID) return { chapter: CHAPTERS[0], stage: PRACTICE_STAGE, index: 0 };
   for (const chapter of CHAPTERS) {
     const index = chapter.stages.findIndex((s) => s.id === stageId);
     if (index >= 0) return { chapter, stage: chapter.stages[index], index };

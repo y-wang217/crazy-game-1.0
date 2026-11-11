@@ -1,4 +1,4 @@
-import { CATS, CAT_ORDER, TARGET_MODES, TARGET_MODE_INFO } from '../../config/cats';
+import { CATS, CAT_ORDER } from '../../config/cats';
 import { CHAPTERS } from '../../config/chapters';
 import type { CatId } from '../../game/types';
 import { t, useLang } from '../../i18n';
@@ -8,7 +8,6 @@ import { CatPreview } from '../components/CatPreview';
 import { CHAPTER_REWARDS } from '../../config/collection';
 import { GameIcon } from '../components/GameIcon';
 import { Stars } from '../components/Stars';
-import { feature } from '../../config/features';
 
 /** First stage where a cat can appear (for "Meet in Stage N"). */
 export function firstStageOf(cat: CatId): number {
@@ -78,26 +77,6 @@ export function CatsScreen({ go }: { go: (s: Screen) => void }) {
             </button>
           );
         })}
-      </div>
-
-      <div className="help-card">
-        <h3>{t('guide.howTo')}</h3>
-        <ul className="small">
-          <li>{t('guide.summon')}</li>
-          <li>{t('guide.move')}</li>
-          <li>{t('guide.swap')}</li>
-          <li>{t('guide.merge')}</li>
-          <li>
-            {t('guide.target')}{' '}
-            {TARGET_MODES.map((m) => (
-              <span key={m} className="mode-chip" style={{ background: TARGET_MODE_INFO[m].color }}>
-                {t(`mode.${m}.short`)} {t(`mode.${m}`)}
-              </span>
-            ))}
-          </li>
-          <li>{t('guide.chest')}</li>
-          <li>{t(feature('focusTargeting') ? 'info.hint' : 'info.hintBasic')}</li>
-        </ul>
       </div>
     </div>
   );
