@@ -88,6 +88,15 @@ export const BALANCE = {
     countScale: 0.7,
     /** Dried fish per defeated mouse is multiplied by this, so fewer mice still pay for frequent summons. */
     fishMult: 1.25,
+    /**
+     * Extra multiplier on dried fish from REGULAR mice only (Forest Mouse, Zippy Mouse, Acorn
+     * Knight, Leaf Guard). Elites, bosses and the Living Cat Food Can are never affected.
+     * V1.6 economy pass (sim, 100 runs per profile): ×0.85 cuts in-battle income by ~13–16% and
+     * unspent fish at the end by ~35–45%, with beginner win rates unchanged on 1-4 / 1-7 (98 / 93%)
+     * and within noise on 1-10 / 2-3 (89→85%, 96→94%). ×0.8 dropped 1-7 beginners to 85%, ×0.75
+     * dropped 1-10 beginners to 77% — too harsh for early stages.
+     */
+    regularFishMult: 0.85,
   },
   /**
    * Max seconds between the end of a wave's spawns and the next wave while mice are still on

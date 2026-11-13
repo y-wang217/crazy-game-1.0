@@ -897,6 +897,8 @@ export const en: Record<string, string> = {
   'shop.status.equipped': 'Equipped',
   'shop.status.owned': 'Owned',
   'shop.status.locked': 'Locked',
+  'shop.notUnlocked': 'Not Yet Unlocked',
+  'shop.lockedTap': 'This cat hasn’t joined you yet — its outfits stay secret for now.',
   'skin.regular': 'Looks only · no stat bonus',
   'skin.special': 'Includes a stat bonus',
   'skin.forCat': 'For {cat}',

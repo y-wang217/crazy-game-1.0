@@ -35,16 +35,18 @@ export function ShopScreen({ go }: { go: (s: Screen) => void }) {
     setMsg(m);
     window.setTimeout(() => setMsg(null), 1600);
   };
+  // Same reveal rule as the Cat Encyclopedia: a cat-specific item stays hidden ("???",
+  // silhouette, no bonus, no preview / buy / equip) until that cat is in the collection.
   const status = (item: CosmeticDef): Status => {
+    if (item.slot === 'skin' && item.cat && !save.collection[item.cat]) return 'locked';
     const owned = save.owned.includes(item.id);
     if (owned) return (item.slot === 'hat' ? save.equipped.hat === item.id : save.equipped.skins[item.cat!] === item.id) ? 'equipped' : 'owned';
-    if (item.slot === 'skin' && item.cat && !save.collection[item.cat]) return 'locked';
     return 'buy';
   };
   const buy = (item: CosmeticDef) => {
     const r = saveStore.buyCosmetic(item.id);
     if (!r.ok) {
-      flash(r.reason === 'locked' ? t('shop.lockedHint', { cat: t(`cat.${item.cat}.name`) }) : t('shop.noCoins'));
+      flash(r.reason === 'locked' ? t('shop.lockedTap') : t('shop.noCoins'));
       return;
     }
     saveStore.toggleEquip(item.id); // wear it right away (one skin per cat: replaces the old one)
@@ -78,10 +80,17 @@ export function ShopScreen({ go }: { go: (s: Screen) => void }) {
       </p>
       <div className="shop-grid">
         {items.map((item) => (
-          <ShopCard key={item.id} item={item} status={status(item)} loadout={save.equipped} coins={save.fishCoins} onOpen={() => setPreview(item)} />
+          <ShopCard
+            key={item.id}
+            item={item}
+            status={status(item)}
+            loadout={save.equipped}
+            coins={save.fishCoins}
+            onOpen={() => (status(item) === 'locked' ? flash(t('shop.lockedTap')) : setPreview(item))}
+          />
         ))}
       </div>
-      {preview && (
+      {preview && status(preview) !== 'locked' && (
         <PreviewSheet
           item={preview}
           status={status(preview)}
@@ -135,6 +144,19 @@ function ShopCard({
   onOpen: () => void;
 }) {
   const p = tryOn(item, loadout);
+  if (status === 'locked')
+    return (
+      <button className={`shop-card locked hidden-cat ${skinKind(item)}`} onClick={onOpen} aria-label={`${t('guide.unknown')} — ${t('shop.notUnlocked')}`} data-hidden="1">
+        {/* Silhouette of the cat's base look (the costume itself is not drawn). */}
+        <CatPreview type={p.cat} loadout={{ hat: null, skins: {} }} size={68} animate={false} />
+        <div className="shop-name">{t('guide.unknown')}</div>
+        <div className="muted tiny">{t('guide.unknown')}</div>
+        <KindLabel item={item} />
+        <span className="shop-price locked-note">
+          <GameIcon name="lock" size={13} /> {t('shop.notUnlocked')}
+        </span>
+      </button>
+    );
   return (
     <button
       className={`shop-card ${status} ${skinKind(item)}`}
@@ -147,8 +169,8 @@ function ShopCard({
       <div className="muted tiny">{item.cat ? t('skin.forCat', { cat: t(`cat.${item.cat}.name`) }) : t('shop.allCats')}</div>
       <KindLabel item={item} />
       {item.bonus && <div className="skin-bonus">{skinBonusText(item.bonus)}</div>}
-      {status === 'buy' || status === 'locked' ? (
-        <span className={`shop-price ${coins < item.price || status === 'locked' ? 'short' : ''}`}>
+      {status === 'buy' ? (
+        <span className={`shop-price ${coins < item.price ? 'short' : ''}`}>
           <CoinIcon size={14} /> {item.price}
         </span>
       ) : (

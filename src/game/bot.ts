@@ -20,6 +20,9 @@ export interface BotResult {
   /** The Living Cat Food Can was defeated / how many hearts it took. */
   canKilled?: boolean;
   canLoops?: number;
+  /** Dried fish earned during the battle (all sources) and left unspent at the end. */
+  fishEarned: number;
+  fishLeft: number;
 }
 
 /**
@@ -85,6 +88,8 @@ export function runBot(
     chestsOpened: b.stats.chestsOpened,
     chestsMissed: b.stats.chestsMissed,
     chestCoins: b.chestCoins,
+    fishEarned: b.stats.fishEarned,
+    fishLeft: b.fish,
     canKilled: tally.killed,
     canLoops: tally.loops,
   };
@@ -212,5 +217,7 @@ export function runBeginnerBot(
     chestsOpened: b.stats.chestsOpened,
     chestsMissed: b.stats.chestsMissed,
     chestCoins: b.chestCoins,
+    fishEarned: b.stats.fishEarned,
+    fishLeft: b.fish,
   };
 }

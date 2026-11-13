@@ -450,6 +450,8 @@ export class Battle {
   summons = 0;
   skillRolls = 0;
   chestCoins = 0;
+  /** Fraction of a dried fish owed from regular mice (exact accounting, see kill()). */
+  fishCarry = 0;
   stats: BattleStats = {
     summons: 0,
     merges: 0,
@@ -538,6 +540,7 @@ export class Battle {
     const state: Record<string, unknown> = {};
     for (const k of SNAPSHOT_FIELDS) state[k] = (this as unknown as Record<string, unknown>)[k];
     state.rng = this.rng.state;
+    state.fishCarry = this.fishCarry;
     state.unlocked = this.tiles.filter((t) => t.unlocked).map((t) => t.id);
     return JSON.parse(
       JSON.stringify({
@@ -577,6 +580,8 @@ export class Battle {
       const self = b as unknown as Record<string, unknown>;
       for (const k of SNAPSHOT_FIELDS) self[k] = structuredCloneJson(st[k]);
       b.rng = Rng.fromState(st.rng as number);
+      // Optional (older snapshots have none).
+      b.fishCarry = isNum(st.fishCarry) && st.fishCarry >= 0 && st.fishCarry < 1 ? st.fishCarry : 0;
       const unlocked = new Set(st.unlocked as string[]);
       for (const t of b.tiles) t.unlocked = unlocked.has(t.id);
       b.mods = computeSkillMods(b.skills);
@@ -1092,7 +1097,11 @@ export class Battle {
         maxShield: shield,
         armor: def.armor > 0 ? def.armor + (this.stage.armorBonus ?? 0) : 0,
         speed: def.speed * this.tuning.enemySpeedMult,
-        reward: Math.max(1, Math.round(def.reward * Math.pow(tough, BALANCE.rewardScaleExponent) * BALANCE.waves.fishMult)),
+        // Regular mice keep their exact (fractional) value — paid out with a carry in kill(), so
+        // e.g. 2.5 no longer always rounds up to 3. Elites and bosses keep their rounded reward.
+        reward: isRegularEnemy(def)
+          ? def.reward * Math.pow(tough, BALANCE.rewardScaleExponent) * BALANCE.waves.fishMult * BALANCE.waves.regularFishMult
+          : Math.max(1, Math.round(def.reward * Math.pow(tough, BALANCE.rewardScaleExponent) * BALANCE.waves.fishMult)),
         baseDamage: def.baseDamage,
         radius: def.radius,
         isBoss: !!def.isBoss,
@@ -1936,7 +1945,13 @@ export class Battle {
     f.alive = false;
     if (f.kind === 'enemy') {
       this.stats.kills++;
-      const gain = Math.max(1, Math.round(f.reward * this.mods.fishMult));
+      let gain: number;
+      if (isRegularEnemy(ENEMIES[f.defId as EnemyId])) {
+        // Exact accounting: whole fish now, the fraction carries over to the next regular mouse.
+        const exact = f.reward * this.mods.fishMult + this.fishCarry;
+        gain = Math.floor(exact + 1e-9);
+        this.fishCarry = Math.max(0, exact - gain);
+      } else gain = Math.max(1, Math.round(f.reward * this.mods.fishMult));
       this.earn(gain);
       this.burst(f.x, f.y, ['#ffffff', '#e8e0f0', '#c8c0d8'], f.isBoss ? 40 : 9, f.isBoss ? 160 : 70);
       this.addText(f.x, f.y - 12, `+${gain}`, '#ff9f1c', f.isBoss ? 20 : 12, 0.8);
@@ -2073,4 +2088,9 @@ export class Battle {
     this.events = [];
     return e;
   }
+}
+
+/** A regular mouse (not an elite, boss or the Living Cat Food Can): the main dried-fish income. */
+export function isRegularEnemy(def: { id: string; elite?: unknown; isBoss?: boolean }): boolean {
+  return !def.elite && !def.isBoss && def.id !== 'canMonster';
 }

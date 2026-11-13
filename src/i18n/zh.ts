@@ -898,6 +898,8 @@ export const zh: Record<string, string> = {
   'shop.status.equipped': '裝備中',
   'shop.status.owned': '已擁有',
   'shop.status.locked': '未解鎖',
+  'shop.notUnlocked': '尚未解鎖',
+  'shop.lockedTap': '這隻貓咪尚未加入你，牠的造型暫時保密。',
   'skin.regular': '外觀限定・無能力加成',
   'skin.special': '附帶能力加成',
   'skin.forCat': '{cat}專用',
