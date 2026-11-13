@@ -14,6 +14,7 @@ import { GameIcon } from '../components/GameIcon';
 import { Stars } from '../components/Stars';
 import { FeatureButton } from '../components/FeatureUnlock';
 import { isFeatureUnlocked } from '../../config/unlocks';
+import { tutorialBlocking } from '../../tutorial/gate';
 
 function enemiesOf(stage?: StageDef): Set<EnemyId> {
   return new Set((stage?.waves ?? []).flatMap((w) => w.groups.flatMap((g) => ('enemy' in g ? [g.enemy] : []))));
@@ -120,6 +121,8 @@ export function StageSelect({ go, play }: { go: (s: Screen) => void; play: (id: 
             <div className="stage-grid">
               {ch.stages.map((s, i) => {
                 const unlocked = save.unlocked.includes(s.id);
+                // Unlocked but waiting for a pending unlock tutorial: tapping sends the player Home to it.
+                const gated = unlocked && tutorialBlocking(save, s.id) !== null;
                 const stars = save.cleared[s.id] ?? 0;
                 const tag = newThing(s, ch.stages[i - 1]);
                 return (
@@ -127,11 +130,13 @@ export function StageSelect({ go, play }: { go: (s: Screen) => void; play: (id: 
                     key={s.id}
                     ref={s.id === latest ? latestRef : undefined}
                     data-stage={s.id}
-                    className={`stage-card ${unlocked ? '' : 'locked'} ${s.isBoss ? 'boss' : ''} ${stars ? 'cleared' : ''}`}
+                    className={`stage-card ${unlocked ? '' : 'locked'} ${gated ? 'tut-locked' : ''} ${s.isBoss ? 'boss' : ''} ${stars ? 'cleared' : ''}`}
                     disabled={!unlocked}
+                    aria-disabled={gated || undefined}
+                    data-gated={gated ? '1' : undefined}
                     onClick={() => play(s.id)}
                   >
-                    <span className="stage-num">{unlocked ? s.number : <GameIcon name="lock" size={18} />}</span>
+                    <span className="stage-num">{unlocked && !gated ? s.number : <GameIcon name="lock" size={18} />}</span>
                     <span className="stage-name">{t(`stage.${s.id}`)}</span>
                     <span className="stars">
                       {[1, 2, 3].map((k) => (
@@ -140,7 +145,7 @@ export function StageSelect({ go, play }: { go: (s: Screen) => void; play: (id: 
                         </span>
                       ))}
                     </span>
-                    {tag && unlocked && <span className="stage-tag">{tag}</span>}
+                    {gated ? <span className="stage-tag gate-tag">{t('gate.card')}</span> : tag && unlocked && <span className="stage-tag">{tag}</span>}
                     {/* Easter egg: no label, no tooltip — players discover what it means. */}
                     {isCanMonsterStage(s.id) && (
                       <span className="stage-secret" data-secret="1">

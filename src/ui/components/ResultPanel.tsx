@@ -36,6 +36,7 @@ export function ResultPanel({
   onHome,
   onStages,
   extra,
+  tutorialWaiting = false,
 }: {
   result: BattleResult;
   roster: CatId[];
@@ -47,6 +48,8 @@ export function ResultPanel({
   onHome: () => void;
   onStages: () => void;
   extra?: React.ReactNode;
+  /** A new unlock tutorial is waiting: the way on is Home (the next stage is gated). */
+  tutorialWaiting?: boolean;
 }) {
   const summary = rewardSummary(result);
   // Count the battle total up for a small "ka-ching".
@@ -150,7 +153,17 @@ export function ResultPanel({
         </div>
         {extra}
 
-        {result.victory ? (
+        {result.victory && tutorialWaiting ? (
+          <>
+            <p className="gate-hint">{t('gate.resultHint')}</p>
+            <button className="btn btn-primary gate-home" onClick={onHome}>
+              <GameIcon name="home" size={18} /> {t('gate.resultHome')}
+            </button>
+            <button className="btn btn-secondary" onClick={onReplay}>
+              <GameIcon name="replay" size={18} /> {t('result.replay')}
+            </button>
+          </>
+        ) : result.victory ? (
           <>
             {hasNext && (
               <button className="btn btn-primary" onClick={onNext}>

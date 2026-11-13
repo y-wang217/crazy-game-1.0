@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { t, useLang } from '../../i18n';
 import { saveStore } from '../../save/store';
-import { TOURS, tourStore, useTour, type TourScreen } from '../../tutorial/tours';
+import { TOURS, rewindStep, tourStore, useTour, type TourScreen } from '../../tutorial/tours';
 
 type Box = { x: number; y: number; w: number; h: number };
 
@@ -57,6 +57,21 @@ export function TourCoach({ screen }: { screen: string }) {
     return () => cancelAnimationFrame(raf);
   }, [onScreen, step]);
 
+  // Look-only steps: the spotlit area still scrolls, but taps inside it do nothing (e.g. no
+  // purchase can happen during the Shop step).
+  useEffect(() => {
+    if (!onScreen || !step?.viewOnly) return;
+    const swallow = (e: MouseEvent) => {
+      const el = targetRef.current;
+      if (el && e.target instanceof Node && el.contains(e.target)) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    document.addEventListener('click', swallow, true);
+    return () => document.removeEventListener('click', swallow, true);
+  }, [onScreen, step]);
+
   // 'tap' steps: advance after the player taps the spotlit element (the tap itself still works).
   useEffect(() => {
     if (!onScreen || !step || step.action !== 'tap') return;
@@ -69,6 +84,20 @@ export function TourCoach({ screen }: { screen: string }) {
   }, [onScreen, step]);
 
   useEffect(() => setConfirmSkip(false), [tour?.step, tour?.id]);
+
+  // Leaving the tour's path (Back gesture, a menu button…) never ends or completes the tour: once
+  // the player is on a screen the tour visits, it resumes from that screen's latest step. The
+  // short delay lets a 'tap' step's own navigation settle first.
+  useEffect(() => {
+    if (!tour || onScreen) return;
+    const r = window.setTimeout(() => {
+      const cur = tourStore.get();
+      if (!cur || TOURS[cur.id][cur.step].screen === screen) return;
+      const back = rewindStep(cur.id, cur.step, screen);
+      if (back !== null) tourStore.start(cur.id, cur.mode, back);
+    }, 450);
+    return () => window.clearTimeout(r);
+  }, [tour, onScreen, screen]);
 
   if (!tour || !step || !onScreen || paused) return null;
   const finish = () => {

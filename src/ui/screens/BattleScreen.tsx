@@ -6,6 +6,7 @@ import { MAPS } from '../../config/maps';
 import { SKILLS, SKILL_ORDER, skillParams } from '../../config/skills';
 import { Battle, type BattleEvent, type BattleStats } from '../../game/battle';
 import { nextStageId } from '../../game/progression';
+import { tutorialBlocking } from '../../tutorial/gate';
 import type { CatId, SkillId } from '../../game/types';
 import { t, useLang } from '../../i18n';
 import { Renderer, type DragView } from '../../render/renderer';
@@ -1278,6 +1279,7 @@ export function BattleScreen({
           loadout={save.equipped}
           totalCoins={save.fishCoins}
           hasNext={!!next}
+          tutorialWaiting={!practice && !!next && tutorialBlocking(save, next) !== null}
           onNext={() => next && onPlay(next)}
           onReplay={restart}
           onHome={onHome}

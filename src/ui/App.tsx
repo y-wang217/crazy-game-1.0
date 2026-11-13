@@ -15,7 +15,8 @@ import { ShopScreen } from './screens/ShopScreen';
 import { StageSelect } from './screens/StageSelect';
 import { TeamScreen } from './screens/TeamScreen';
 import { PIERCE_LESSON_ID, PRACTICE_STAGE_ID } from '../config/chapters';
-import { TUTORIALS, featureOfScreen, isFeatureUnlocked } from '../config/unlocks';
+import { TUTORIALS, TUTORIAL_UNLOCK_STAGE, featureOfScreen, isFeatureUnlocked } from '../config/unlocks';
+import { tutorialBlocking } from '../tutorial/gate';
 import { CanIcon } from './components/Icons';
 import { TourCoach } from './components/TourCoach';
 import { t } from '../i18n';
@@ -43,7 +44,20 @@ export function App() {
     return !f || isFeatureUnlocked(saveStore.get(), f);
   };
   const go = (s: Screen) => setScreen(allowed(s) ? s : { name: 'home' });
-  const play = (stageId: string) => setScreen({ name: 'battle', stageId, run: Date.now() });
+  // Progression gate: while an unlock tutorial is pending (not finished or skipped), no stage
+  // after its unlock stage can start, from any button or path. The player is sent Home, where
+  // the tutorial is waiting.
+  const [gateNote, setGateNote] = useState<string | null>(null);
+  const play = (stageId: string) => {
+    const blocking = tutorialBlocking(saveStore.get(), stageId);
+    if (blocking) {
+      setScreen({ name: 'home' });
+      setGateNote(t('gate.toast', { stage: TUTORIAL_UNLOCK_STAGE[blocking] }));
+      window.setTimeout(() => setGateNote(null), 3500);
+      return;
+    }
+    setScreen({ name: 'battle', stageId, run: Date.now() });
+  };
   // An unfinished battle saved before the page was closed / refreshed / navigated away.
   const [offer, setOffer] = useState<RecoveryRecord | null>(() => recovery.load());
   // Early Access notice: before the main menu, once per browser session.
@@ -103,6 +117,11 @@ export function App() {
       {cansNotice > 0 && !notice && (
         <div className="toast-inline cans-notice" role="status">
           <CanIcon size={20} /> {t('cans.milestoneNotice', { n: cansNotice })}
+        </div>
+      )}
+      {gateNote && !notice && (
+        <div className="toast-inline gate-notice" role="status">
+          {gateNote}
         </div>
       )}
       {!notice && <TourCoach screen={screen.name} />}

@@ -16,6 +16,7 @@ import { SableStory } from '../components/SableStory';
 import { CanIcon } from '../components/Icons';
 import { STARTER_CATS } from '../../config/cats';
 import { TEAM_TUTORIAL_ID, teamTutorialCat } from '../../tutorial/teamTutorial';
+import { pendingTutorials } from '../../tutorial/gate';
 import { TeamTutorialIntro } from '../components/TeamTutorialIntro';
 
 /** Seen-id of the one-time Skin Shop introduction (Home → Replay tutorials shows it again). */
@@ -53,19 +54,19 @@ export function HomeScreen({
   // by a visible Skip Tutorial (save.tutorials: done / skipped; 'legacy' = passed before V1.6, so
   // an advanced player is never interrupted — those live in the replay menu / first-visit offers).
   const [replayStory, setReplayStory] = useState(false);
-  const tut = save.tutorials;
+  const sableOwned = !!save.collection.sable;
   const touring = useTour() !== null;
   const free = !blocked && !touring && !replayStory;
-  const sableOwned = !!save.collection.sable;
-  const teamDecided = !!tut.team || save.seen.includes(TEAM_TUTORIAL_ID);
-  const showShopCats = free && unlocked.shop && !tut.shopCats;
-  const showSableStory = free && !showShopCats && unlocked.team && sableOwned && !tut.sableStory;
+  // The next pending unlock tutorial (shared rule with Stage Select / the battle-start guard).
+  const nextTut = free ? (pendingTutorials(save)[0] ?? null) : null;
+  const showShopCats = nextTut === 'shopCats';
+  const showSableStory = nextTut === 'sableStory';
   // Edit Team tutorial (after Sir Sable's story): put him in the team.
-  const tutCat = unlocked.team && !tut.team ? teamTutorialCat(save) : null;
-  const showTeamTut = free && !showShopCats && !showSableStory && tutCat !== null;
-  // Then his piercing lesson.
-  const showPierce = free && !showShopCats && !showSableStory && !showTeamTut && unlocked.team && sableOwned && teamDecided && !tut.pierce;
-  const showRecruitIntro = free && !showShopCats && !showSableStory && !showTeamTut && !showPierce && unlocked.recruit && !tut.recruit;
+  const tutCat = nextTut === 'team' ? teamTutorialCat(save) : null;
+  const showTeamTut = tutCat !== null;
+  // Then his piercing lesson, then Recruitment (after 2-5).
+  const showPierce = nextTut === 'pierce';
+  const showRecruitIntro = nextTut === 'recruit';
   const showShopIntro = showShopCats; // keeps the spotlight styling of the Shop/Encyclopedia buttons
   // Players who already put a new cat in their team on their own don't need the lesson.
   useEffect(() => {

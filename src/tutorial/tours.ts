@@ -16,16 +16,21 @@ export interface TourStep {
   /** i18n key of the coach text. */
   textKey: string;
   action: 'tap' | 'next' | 'finish';
+  /** The spotlit element can be looked at but not tapped (e.g. no purchases during the tour). */
+  viewOnly?: boolean;
 }
 
 export const TOURS: Record<TourId, TourStep[]> = {
   shopCats: [
     { screen: 'home', target: '[data-feature="shop"]', textKey: 'tour.shopCats.openShop', action: 'tap' },
-    { screen: 'shop', target: '.shop-grid, .shop-items, .skin-grid', textKey: 'tour.shopCats.shopInfo', action: 'next' },
+    { screen: 'shop', target: '.shop-grid, .shop-items, .skin-grid', textKey: 'tour.shopCats.shopInfo', action: 'next', viewOnly: true },
     { screen: 'shop', target: '.topbar .btn', textKey: 'tour.shopCats.backHome', action: 'tap' },
     { screen: 'home', target: '[data-feature="encyclopedia"]', textKey: 'tour.shopCats.openCats', action: 'tap' },
     { screen: 'cats', target: '.collection-card.met', textKey: 'tour.shopCats.pickCat', action: 'tap' },
-    { screen: 'catProfile', target: '.star-card', textKey: 'tour.shopCats.stars', action: 'finish' },
+    { screen: 'catProfile', target: '.star-card', textKey: 'tour.shopCats.stars', action: 'next', viewOnly: true },
+    { screen: 'catProfile', target: '.topbar .btn', textKey: 'tour.shopCats.backCats', action: 'tap' },
+    { screen: 'cats', target: '.topbar .btn', textKey: 'tour.shopCats.backHome2', action: 'tap' },
+    { screen: 'home', target: '.home-menu .btn-primary', textKey: 'tour.shopCats.done', action: 'finish', viewOnly: true },
   ],
   recruit: [
     { screen: 'home', target: '[data-feature="recruit"]', textKey: 'tour.recruit.open', action: 'tap' },
@@ -35,6 +40,15 @@ export const TOURS: Record<TourId, TourStep[]> = {
     { screen: 'recruit', target: '.recruit-pool', textKey: 'tour.recruit.pool', action: 'finish' },
   ],
 };
+
+/**
+ * The player left the tour's path (e.g. the Back gesture): the step to resume from on `screen`,
+ * i.e. the latest step up to the current one that takes place there; null if none does.
+ */
+export function rewindStep(id: TourId, step: number, screen: string): number | null {
+  for (let i = Math.min(step, TOURS[id].length - 1); i >= 0; i--) if (TOURS[id][i].screen === screen) return i;
+  return null;
+}
 
 export interface TourState {
   id: TourId;
