@@ -1,7 +1,6 @@
 import { BALANCE } from '../../config/balance';
-import { CHAPTERS } from '../../config/chapters';
+import { CHAPTERS, stageMap } from '../../config/chapters';
 import { ENEMIES } from '../../config/enemies';
-import { MAPS } from '../../config/maps';
 import { Battle, isRegularEnemy } from '../battle';
 import { runBeginnerBot, runBot, type BotResult } from '../bot';
 import type { CatId, StageDef } from '../types';
@@ -35,7 +34,7 @@ proto.sellCat = function (this: Patched, uid) {
   return r;
 };
 
-const allStages = CHAPTERS.flatMap((c) => c.stages.map((s) => ({ s, map: MAPS[c.mapId] })));
+const allStages = CHAPTERS.flatMap((c) => c.stages.map((s) => ({ s, map: stageMap(s, c) })));
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 const f1 = (x: number) => x.toFixed(1);
 

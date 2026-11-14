@@ -273,11 +273,18 @@ export function canMerge(a: Pick<CatUnit, 'uid' | 'type' | 'level'>, b: Pick<Cat
 const STEP = 1 / 60;
 
 /** Bump when the snapshot layout changes; older snapshots are then discarded, never misread. */
-export const SNAPSHOT_VERSION = 1;
+/**
+ * v2 (V1.6 maps): snapshots record the map they were taken on. A battle saved on another map (or
+ * by an older version that did not record it) is never restored — cats and mice would land on the
+ * wrong coordinates. Permanent progress lives in the save and is not affected.
+ */
+export const SNAPSHOT_VERSION = 2;
 
 export interface BattleSnapshot {
   v: typeof SNAPSHOT_VERSION;
   stageId: string;
+  /** Map (route + placement grid) the battle was played on. */
+  mapId: string;
   waves: number;
   opts: {
     tuning: Tuning;
@@ -332,7 +339,7 @@ const isArr = Array.isArray;
 /** Strict sanity check of a stored snapshot against the current stage and map. */
 export function validateSnapshot(snap: unknown, stage: StageDef, map: MapDef): snap is BattleSnapshot {
   const s = snap as BattleSnapshot | null;
-  if (!s || typeof s !== 'object' || s.v !== SNAPSHOT_VERSION || s.stageId !== stage.id || s.waves !== stage.waves.length) return false;
+  if (!s || typeof s !== 'object' || s.v !== SNAPSHOT_VERSION || s.stageId !== stage.id || s.mapId !== map.id || s.waves !== stage.waves.length) return false;
   const o = s.opts;
   if (!o || !isArr(o.roster) || !o.roster.length || !o.roster.every((c) => c in CATS) || typeof o.stars !== 'object' || !isNum(o.ultCooldownMult))
     return false;
@@ -546,6 +553,7 @@ export class Battle {
       JSON.stringify({
         v: SNAPSHOT_VERSION,
         stageId: this.stage.id,
+        mapId: this.map.id,
         waves: this.stage.waves.length,
         opts: {
           tuning: this.tuning,

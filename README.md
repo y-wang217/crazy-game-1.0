@@ -833,3 +833,21 @@ The save stays under the same localStorage key (`catdefense.save.v1`), and exist
 ## Deploying to Vercel
 
 It's a static Vite app, so no server or env vars are needed. Vercel auto-detects Vite (build `npm run build`, output `dist`).
+
+## Map progression (V1.6)
+
+- **A map per stage.** A stage may set `mapId` to play on its own route; otherwise it uses its
+  chapter's map. Always resolve it with `stageMap(stage, chapter)` (`src/config/chapters.ts`) —
+  battles, recovery and the simulations all do.
+- **Hidden tiles.** Only the tiles a stage lists are drawn and usable; every other tile position
+  on the map is plain scenery (no padlocks, no hints of future tiles).
+- **Routes so far.** Chapter 1: `forest_compact` (S-route). 2-1 … 2-10: `mushroom` (spiral), with
+  three board corners opened early for Sir Sable. 2-11 … 2-20: `mushroom_deep` (zig-zag from the
+  top-right to a house in the bottom-left) — tiles grow over 2-11 … 2-14, then the layout changes
+  from stage to stage.
+- **Adding a route for the next 10 stages:** add a `MapDef` in `src/config/maps.ts` (keep 8 rows,
+  ≤ 6 columns, 50px cells), set `mapId` + `tiles` on those stages, then check it with the opt-in
+  tools: `SABLE=1 MAP=<id>` (Sir Sable per tile), `SABLE=1 CAT=orange MAP=<id>` (area attacks per
+  tile) and `PROFILES=1 STAGES=…` (win rates) — tune `hpScale` to the previous targets.
+- **Safe recovery.** Battle snapshots (v2) record their map; a snapshot from another map or an
+  older version is discarded instead of restored. Permanent progress is never affected.

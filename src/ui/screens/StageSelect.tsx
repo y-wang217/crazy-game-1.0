@@ -31,6 +31,7 @@ function newThing(stage: StageDef, prev: StageDef | undefined): string {
   const order = stage.order ?? stage.number;
   if (order === 1) return t('tag.basics');
   if (!prev) return t('tag.newMap'); // first stage of a later chapter
+  if (stage.mapId && stage.mapId !== prev.mapId) return t('tag.newRoute'); // a new road every 10 stages
   const newCat = prev ? stage.roster.find((c) => !prev.roster.includes(c)) : undefined;
   if (newCat && prev) return t('tag.newCat', { name: t(`cat.${newCat}.name`) });
   // "New" means never seen in ANY earlier stage (not just the previous one).

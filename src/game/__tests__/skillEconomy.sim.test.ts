@@ -1,6 +1,5 @@
 import { BALANCE, skillRollCost } from '../../config/balance';
-import { CHAPTERS } from '../../config/chapters';
-import { MAPS } from '../../config/maps';
+import { CHAPTERS, stageMap } from '../../config/chapters';
 import { SKILLS } from '../../config/skills';
 import { Battle, canMerge } from '../battle';
 import type { CatId, MapDef, SkillId, StageDef } from '../types';
@@ -176,7 +175,7 @@ describe.skipIf(!on)('random skill economy', () => {
     for (const ch of CHAPTERS)
       for (const st of ch.stages) {
         if (!only.includes(st.id)) continue;
-        const map = MAPS[ch.mapId];
+        const map = stageMap(st, ch);
         const roster = st.fixedRoster ? undefined : STARTERS;
         for (const hp of hps) {
           const cells: string[] = [];

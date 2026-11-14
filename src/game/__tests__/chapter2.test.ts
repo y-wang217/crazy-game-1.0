@@ -1,5 +1,5 @@
 import { BALANCE } from '../../config/balance';
-import { ALL_STAGE_IDS, CHAPTERS, findStage } from '../../config/chapters';
+import { ALL_STAGE_IDS, CHAPTERS, stageMap } from '../../config/chapters';
 import { ENEMIES } from '../../config/enemies';
 import { MAPS } from '../../config/maps';
 import { en } from '../../i18n/en';
@@ -11,7 +11,7 @@ import type { StageDef } from '../types';
 
 const ch1 = CHAPTERS[0];
 const ch2 = CHAPTERS[1];
-const mapOf = (s: StageDef) => MAPS[findStage(s.id)!.chapter.mapId];
+const mapOf = (s: StageDef) => stageMap(s);
 
 /** Total enemy HP a stage throws at the player (HP × toughness for every spawned mouse). */
 function hpBudget(stage: StageDef): number {
@@ -34,9 +34,9 @@ describe('30 stages in two chapters', () => {
 
   it('every stage is complete and valid for its map', () => {
     for (const ch of CHAPTERS) {
-      const map = MAPS[ch.mapId];
-      const ids = new Set(map.tiles.map((t) => t.id));
       for (const s of ch.stages) {
+        const map = stageMap(s, ch);
+        const ids = new Set(map.tiles.map((t) => t.id));
         expect(s.waves.length, s.id).toBeGreaterThanOrEqual(4);
         expect(
           s.waves.every((w) => w.groups.length > 0),
@@ -114,8 +114,10 @@ describe('Chapter 2 map', () => {
     expect(cover('4-3')).toBeGreaterThan(cover('2-7'));
   });
 
-  it('every stage in Chapter 2 shares the map; available tiles only grow', () => {
-    const counts = ch2.stages.map((s) => s.tiles.length);
+  it('2-1 … 2-10 share the Mushroom Forest map and their available tiles only grow', () => {
+    const first = ch2.stages.slice(0, 10);
+    for (const s of first) expect(stageMap(s).id, s.id).toBe('mushroom');
+    const counts = first.map((s) => s.tiles.length);
     for (let i = 1; i < counts.length; i++) expect(counts[i]).toBeGreaterThanOrEqual(counts[i - 1]);
     expect(counts[counts.length - 1]).toBeGreaterThan(counts[0]);
   });
@@ -301,38 +303,68 @@ describe('shorter stages (~30% fewer waves)', () => {
 });
 
 describe('Chapter 2 placement capacity', () => {
-  it('opens plenty of tiles from 2-1 (17) up to 23, never fewer than Chapter 1 at the same point', () => {
+  it('2-1 … 2-10 keep their tile counts (17 → 23); the new route 2-11 … 2-20 grows, then varies', () => {
     const counts = ch2.stages.map((s) => s.tiles.length);
-    expect(counts).toEqual([17, 18, 19, 19, 20, 21, 21, 22, 23, 23, ...Array(10).fill(23)]);
+    expect(counts.slice(0, 10)).toEqual([17, 18, 19, 19, 20, 21, 21, 22, 23, 23]);
+    expect(counts.slice(10)).toEqual([16, 18, 20, 22, 21, 20, 22, 19, 21, 23]);
     expect(counts[0]).toBeGreaterThan(ch1.stages[3].tiles.length); // 2-1 > 1-4
-    // Each chapter opens its WHOLE map by the end: Chapter 1 all 24 tiles at 1-10,
-    // Chapter 2 all 23 tiles from 2-9 on (its spiral road leaves one tile fewer).
     expect(ch1.stages[9].tiles.length).toBe(MAPS[ch1.mapId].tiles.length);
     expect(counts[8]).toBe(MAPS[ch2.mapId].tiles.length);
+    // Never too cramped to merge up to Lv.5 (16 summons) with room to manoeuvre.
+    for (const s of ch2.stages) expect(s.tiles.length, s.id).toBeGreaterThanOrEqual(16);
   });
 
-  it('no placement tile is permanently locked: every map tile opens somewhere in its chapter', () => {
-    for (const ch of CHAPTERS) {
-      const opened = new Set(ch.stages.flatMap((s) => s.tiles));
-      for (const t of MAPS[ch.mapId].tiles) expect(opened.has(t.id), `${ch.id} tile ${t.id}`).toBe(true);
-      // and a tile never closes again later in the same chapter
-      for (let i = 1; i < ch.stages.length; i++)
-        for (const t of ch.stages[i - 1].tiles) expect(ch.stages[i].tiles, `${ch.stages[i].id} keeps ${t}`).toContain(t);
+  it('every map tile is used by a stage on that map; tiles only grow in a route group’s opening stages', () => {
+    const all = CHAPTERS.flatMap((c) => c.stages.map((s) => ({ s, map: stageMap(s, c) })));
+    for (const id of new Set(all.map((x) => x.map.id))) {
+      const group = all.filter((x) => x.map.id === id);
+      const opened = new Set(group.flatMap((x) => x.s.tiles));
+      for (const t of group[0].map.tiles) expect(opened.has(t.id), `${id} tile ${t.id}`).toBe(true);
+    }
+    // Chapter 1 and 2-1 … 2-10: a tile never closes again (unchanged behaviour).
+    for (const run of [ch1.stages, ch2.stages.slice(0, 10)])
+      for (let i = 1; i < run.length; i++) for (const t of run[i - 1].tiles) expect(run[i].tiles, `${run[i].id} keeps ${t}`).toContain(t);
+    // 2-11 … 2-14 grow tile by tile; 2-15 … 2-20 change the layout (not just the count).
+    const deep = ch2.stages.slice(10);
+    for (let i = 1; i < 4; i++) for (const t of deep[i - 1].tiles) expect(deep[i].tiles).toContain(t);
+    for (let i = 4; i < deep.length; i++) {
+      const prev = new Set(deep[i - 1].tiles);
+      expect(deep[i].tiles.filter((t) => !prev.has(t)).length, `${deep[i].id} adds positions`).toBeGreaterThan(0);
+      expect(deep[i - 1].tiles.filter((t) => !deep[i].tiles.includes(t)).length, `${deep[i].id} drops positions`).toBeGreaterThan(0);
     }
   });
 
-  it('every tile is off the road, unique and inside the map', () => {
-    const m = MAPS[ch2.mapId];
-    const b = new Battle(ch2.stages[9], m, 1);
-    const ids = new Set(m.tiles.map((t) => t.id));
-    expect(ids.size).toBe(m.tiles.length);
-    for (const t of b.tiles) {
-      expect(t.c).toBeGreaterThanOrEqual(0);
-      expect(t.c).toBeLessThan(m.cols);
-      expect(t.r).toBeLessThan(m.rows);
-      expect(b.path.distanceTo(t.x, t.y)).toBeGreaterThanOrEqual(m.cell * 0.9);
-      const [bc, br] = m.base;
-      expect(t.c === bc && t.r === br).toBe(false);
+  it('2-11 … 2-20 use a genuinely different route on the same portrait grid', () => {
+    const a = stageMap(ch2.stages[9]);
+    const b = stageMap(ch2.stages[10]);
+    expect([a.id, b.id]).toEqual(['mushroom', 'mushroom_deep']);
+    expect(JSON.stringify(b.path)).not.toBe(JSON.stringify(a.path));
+    expect(b.base).not.toEqual(a.base);
+    expect([b.cols, b.rows, b.cell]).toEqual([a.cols, a.rows, a.cell]);
+  });
+
+  it('2-1 … 2-10 open board corners for Sir Sable (the top-left corner is road; 1-0 sits beside it)', () => {
+    const at = (id: string) => ch2.stages.findIndex((s) => s.tiles.includes(id));
+    expect(at('0-7')).toBe(0); // bottom-left from 2-1
+    expect(at('1-0')).toBe(1); // top-left (beside the road) from 2-2
+    expect(at('5-0')).toBe(4); // top-right from 2-5
+    expect(at('5-7')).toBe(7); // bottom-right from 2-8
+  });
+
+  it('every tile is off the road, unique and inside the map (both Chapter 2 routes)', () => {
+    for (const s of [ch2.stages[9], ch2.stages[19]]) {
+      const m = stageMap(s);
+      const b = new Battle(s, m, 1);
+      const ids = new Set(m.tiles.map((t) => t.id));
+      expect(ids.size).toBe(m.tiles.length);
+      for (const t of b.tiles) {
+        expect(t.c).toBeGreaterThanOrEqual(0);
+        expect(t.c).toBeLessThan(m.cols);
+        expect(t.r).toBeLessThan(m.rows);
+        expect(b.path.distanceTo(t.x, t.y)).toBeGreaterThanOrEqual(m.cell * 0.9);
+        const [bc, br] = m.base;
+        expect(t.c === bc && t.r === br).toBe(false);
+      }
     }
   });
 
@@ -385,12 +417,12 @@ describe('Chapter 2 second half (2-11…2-20)', () => {
     expect(zh['enemy.moonEmperor.name']).toBe('月影鼠皇');
   });
 
-  it('every new stage has its own elite mix, 11–14 waves and the full board', () => {
+  it('every new stage has its own elite mix, 11–14 waves and a roomy board (16+ tiles)', () => {
     const mixes = new Set<string>();
     for (const s of ch2.stages.slice(10)) {
       expect(s.waves.length, s.id).toBeGreaterThanOrEqual(11);
       expect(s.waves.length, s.id).toBeLessThanOrEqual(14);
-      expect(s.tiles.length, s.id).toBe(23);
+      expect(s.tiles.length, s.id).toBeGreaterThanOrEqual(16);
       const elites = s.waves.flatMap((w) => w.groups.flatMap((g) => ('enemy' in g && ENEMIES[g.enemy].elite ? [g.enemy] : []))).sort();
       expect(elites.length, s.id).toBeGreaterThanOrEqual(3);
       mixes.add(elites.join(','));

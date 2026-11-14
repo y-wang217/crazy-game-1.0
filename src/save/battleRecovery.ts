@@ -10,8 +10,7 @@
 // Record versioning: RECOVERY_VERSION covers this wrapper, Battle's SNAPSHOT_VERSION the
 // battle state inside it. Either mismatch → the record is discarded (never misread).
 
-import { findStage } from '../config/chapters';
-import { MAPS } from '../config/maps';
+import { findStage, stageMap } from '../config/chapters';
 import { validateSnapshot, type BattleSnapshot } from '../game/battle';
 
 const KEY = 'catdefense.battle.v1';
@@ -82,7 +81,7 @@ export const recovery = {
       return null;
     }
     const found = rec && rec.version === RECOVERY_VERSION && typeof rec.runId === 'string' ? findStage(rec.stageId) : undefined;
-    const ok = !!found && !this.isFinished(rec.runId) && validateSnapshot(rec.snapshot, found.stage, MAPS[found.chapter.mapId]);
+    const ok = !!found && !this.isFinished(rec.runId) && validateSnapshot(rec.snapshot, found.stage, stageMap(found.stage, found.chapter));
     if (!ok) {
       this.clear(); // corrupted, outdated or already finished: never offer it
       return null;

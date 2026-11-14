@@ -1,5 +1,6 @@
 import { BALANCE } from './balance';
-import type { ChapterDef, ChestTier, EnemyId, SpawnGroup, StageDef, WaveDef } from '../game/types';
+import { MAPS } from './maps';
+import type { ChapterDef, ChestTier, EnemyId, MapDef, SpawnGroup, StageDef, WaveDef } from '../game/types';
 
 // ---------------------------------------------------------------------------
 // Wave builder
@@ -292,9 +293,45 @@ const STAGES: StageDef[] = [
 // positioning and merging matter more. Tile ids refer to MUSHROOM_MAP.
 const ALL_CATS: StageDef['roster'] = ['kitten', 'tabby', 'orange', 'black', 'white'];
 const RING = ['1-1', '1-2', '1-3', '1-4', '1-5', '2-1', '2-2', '2-3', '2-4', '2-5', '4-2', '4-3', '4-4', '4-5', '3-5'];
-/** Extra tiles in the order they open across Chapter 2. */
-const RING_EXTRA = ['2-0', '2-7', '3-0', '3-7', '1-0', '1-7', '4-0', '4-7'];
+/**
+ * Extra tiles in the order they open across 2-1 … 2-10 (counts per stage are unchanged).
+ * V1.6: Sir Sable joins at the end of Chapter 1, so the board's corners open early — each sits at
+ * the end of a long straight stretch (measured with his real sword wave, see sablePierce.sim):
+ *   0-7 bottom-left (below the first descent) from 2-1, 1-0 top-left (the corner itself is road)
+ *   from 2-2, 5-0 top-right (above the long climb) from 2-5, 5-7 bottom-right from 2-8.
+ * They replace three weaker edge tiles (3-0, 1-7, 4-0) so no stage gains or loses space.
+ */
+const RING_EXTRA = ['0-7', '2-0', '1-0', '2-7', '5-0', '3-7', '5-7', '4-7'];
 const ring = (extra: number) => [...RING, ...RING_EXTRA.slice(0, extra)];
+
+// ---- Deep Mushroom Forest (2-11 … 2-20): a new route, with hybrid placement progression ----
+// Tile ids refer to DEEP_MUSHROOM_MAP. The first stages ADD tiles (16 → 22); later stages CHANGE
+// the layout (bottom-heavy for the mid-boss, top-heavy, wide, tight for the Living Can, …) so the
+// board feels different from stage to stage. Only listed tiles are shown; the rest is scenery.
+const DEEP_MAP = 'mushroom_deep';
+/** Between the 1st and 2nd passes (each covers two stretches of road near a bend). */
+const DEEP_UPPER = ['2-1', '3-1', '4-1', '2-2', '3-2', '4-2'];
+/** Between the 2nd and 3rd passes (1-4 sits in line with the col-1 descent). */
+const DEEP_LOWER = ['1-4', '2-4', '3-4', '1-5', '2-5', '3-5'];
+const DEEP_CORE = [...DEEP_UPPER, ...DEEP_LOWER];
+const DEEP_TILES: Record<string, string[]> = {
+  // Growing: in-line ends of the first two straights + the two side columns.
+  '2-11': [...DEEP_CORE, '0-0', '5-3', '0-2', '5-2'],
+  '2-12': [...DEEP_CORE, '0-0', '5-3', '0-2', '5-2', '0-4', '5-5'],
+  '2-13': [...DEEP_CORE, '0-0', '5-3', '0-2', '5-2', '0-4', '5-5', '4-7', '2-7'],
+  '2-14': [...DEEP_CORE, '0-0', '5-3', '0-2', '5-2', '0-4', '5-5', '4-7', '2-7', '0-1', '5-1'],
+  // Varying: mid-boss — the board shifts down toward the house (bottom row + in-line ends).
+  '2-15': [...DEEP_CORE, '0-0', '5-3', '4-7', '5-6', '1-7', '2-7', '3-7', '5-7', '0-3'],
+  // Top-heavy: both side columns open, the lower band thinned out.
+  '2-16': [...DEEP_UPPER, '1-4', '2-4', '3-4', '2-5', '0-0', '0-1', '0-2', '0-3', '5-1', '5-2', '5-3', '5-4', '5-5', '4-7'],
+  // Wide: every band reachable, edges on both sides.
+  '2-17': [...DEEP_CORE, '0-0', '5-3', '0-2', '5-2', '0-5', '5-5', '4-7', '2-7', '0-3', '5-6'],
+  // The Living Can stage: a tighter board around the bottom row.
+  '2-18': [...DEEP_CORE, '0-0', '5-3', '4-7', '1-7', '3-7', '0-1', '5-4'],
+  '2-19': [...DEEP_UPPER, '1-4', '2-4', '3-4', '1-5', '2-5', '0-0', '5-3', '0-2', '5-2', '0-4', '5-4', '4-7', '5-6', '2-7', '5-1'],
+  // Finale: the widest board of the route.
+  '2-20': [...DEEP_CORE, '0-0', '5-3', '4-7', '5-6', '0-2', '5-2', '0-4', '5-5', '1-7', '3-7', '5-1'],
+};
 
 const CH2_STAGES: StageDef[] = [
   {
@@ -525,10 +562,11 @@ const CH2_STAGES: StageDef[] = [
     id: '2-11',
     number: 11,
     roster: ALL_CATS,
-    tiles: ring(8),
+    mapId: DEEP_MAP,
+    tiles: DEEP_TILES['2-11'],
     startFish: 16,
     baseHp: 10,
-    hpScale: 2.6,
+    hpScale: 2.4, // Deep Mushroom route (tuned to the old win rates)
     waveHpGrowth: 0.105,
     armorBonus: 2,
     waves: buildWaves({
@@ -547,10 +585,11 @@ const CH2_STAGES: StageDef[] = [
     id: '2-12',
     number: 12,
     roster: ALL_CATS,
-    tiles: ring(8),
+    mapId: DEEP_MAP,
+    tiles: DEEP_TILES['2-12'],
     startFish: 16,
     baseHp: 10,
-    hpScale: 3.0,
+    hpScale: 2.9, // Deep Mushroom route (tuned to the old win rates)
     waveHpGrowth: 0.12,
     armorBonus: 2,
     waves: buildWaves({
@@ -569,7 +608,8 @@ const CH2_STAGES: StageDef[] = [
     id: '2-13',
     number: 13,
     roster: ALL_CATS,
-    tiles: ring(8),
+    mapId: DEEP_MAP,
+    tiles: DEEP_TILES['2-13'],
     startFish: 16,
     baseHp: 10,
     hpScale: 2.65,
@@ -591,10 +631,11 @@ const CH2_STAGES: StageDef[] = [
     id: '2-14',
     number: 14,
     roster: ALL_CATS,
-    tiles: ring(8),
+    mapId: DEEP_MAP,
+    tiles: DEEP_TILES['2-14'],
     startFish: 16,
     baseHp: 10,
-    hpScale: 2.65,
+    hpScale: 2.55, // Deep Mushroom route (tuned to the old win rates)
     waveHpGrowth: 0.1,
     armorBonus: 2,
     waves: buildWaves({
@@ -613,10 +654,11 @@ const CH2_STAGES: StageDef[] = [
     id: '2-15',
     number: 15,
     roster: ALL_CATS,
-    tiles: ring(8),
+    mapId: DEEP_MAP,
+    tiles: DEEP_TILES['2-15'],
     startFish: 16,
     baseHp: 10,
-    hpScale: 2.7,
+    hpScale: 2.4, // Deep Mushroom route (tuned to the old win rates)
     waveHpGrowth: 0.11,
     armorBonus: 2,
     miniBoss: true,
@@ -642,10 +684,11 @@ const CH2_STAGES: StageDef[] = [
     id: '2-16',
     number: 16,
     roster: ALL_CATS,
-    tiles: ring(8),
+    mapId: DEEP_MAP,
+    tiles: DEEP_TILES['2-16'],
     startFish: 16,
     baseHp: 10,
-    hpScale: 2.7,
+    hpScale: 2.4, // Deep Mushroom route (tuned to the old win rates)
     waveHpGrowth: 0.115,
     armorBonus: 2,
     waves: buildWaves({
@@ -664,10 +707,11 @@ const CH2_STAGES: StageDef[] = [
     id: '2-17',
     number: 17,
     roster: ALL_CATS,
-    tiles: ring(8),
+    mapId: DEEP_MAP,
+    tiles: DEEP_TILES['2-17'],
     startFish: 16,
     baseHp: 10,
-    hpScale: 3.2,
+    hpScale: 2.9, // Deep Mushroom route (tuned to the old win rates)
     waveHpGrowth: 0.12,
     armorBonus: 2,
     waves: buildWaves({
@@ -686,10 +730,11 @@ const CH2_STAGES: StageDef[] = [
     id: '2-18',
     number: 18,
     roster: ALL_CATS,
-    tiles: ring(8),
+    mapId: DEEP_MAP,
+    tiles: DEEP_TILES['2-18'],
     startFish: 16,
     baseHp: 10,
-    hpScale: 2.75,
+    hpScale: 2.6, // Deep Mushroom route (tuned to the old win rates)
     waveHpGrowth: 0.115,
     armorBonus: 3,
     waves: buildWaves({
@@ -708,10 +753,11 @@ const CH2_STAGES: StageDef[] = [
     id: '2-19',
     number: 19,
     roster: ALL_CATS,
-    tiles: ring(8),
+    mapId: DEEP_MAP,
+    tiles: DEEP_TILES['2-19'],
     startFish: 16,
     baseHp: 10,
-    hpScale: 2.75,
+    hpScale: 2.35, // Deep Mushroom route (tuned to the old win rates)
     waveHpGrowth: 0.11,
     armorBonus: 3,
     waves: buildWaves({
@@ -730,10 +776,11 @@ const CH2_STAGES: StageDef[] = [
     id: '2-20',
     number: 20,
     roster: ALL_CATS,
-    tiles: ring(8),
+    mapId: DEEP_MAP,
+    tiles: DEEP_TILES['2-20'],
     startFish: 16,
     baseHp: 10,
-    hpScale: 2.75,
+    hpScale: 2.45, // Deep Mushroom route (tuned to the old win rates)
     waveHpGrowth: 0.105,
     armorBonus: 3,
     isBoss: true,
@@ -794,6 +841,7 @@ export const PIERCE_LESSON_STAGE: StageDef = {
   fixedRoster: true,
   practice: true,
   lesson: 'pierce',
+  mapId: 'pierce_lesson',
   tiles: ['2-6', '3-4', '1-4', '3-2', '1-2'],
   startFish: 0,
   baseHp: 99,
@@ -805,12 +853,21 @@ export const PIERCE_LESSON_STAGE: StageDef = {
 
 export function findStage(stageId: string): { chapter: ChapterDef; stage: StageDef; index: number } | null {
   if (stageId === PRACTICE_STAGE_ID) return { chapter: CHAPTERS[0], stage: PRACTICE_STAGE, index: 0 };
-  if (stageId === PIERCE_LESSON_ID) return { chapter: { ...CHAPTERS[1], mapId: 'pierce_lesson' }, stage: PIERCE_LESSON_STAGE, index: 0 };
+  if (stageId === PIERCE_LESSON_ID) return { chapter: CHAPTERS[1], stage: PIERCE_LESSON_STAGE, index: 0 };
   for (const chapter of CHAPTERS) {
     const index = chapter.stages.findIndex((s) => s.id === stageId);
     if (index >= 0) return { chapter, stage: chapter.stages[index], index };
   }
   return null;
+}
+
+/**
+ * The map a stage is played on: its own `mapId` if it has one (a new route every 10 stages),
+ * otherwise its chapter's. The ONE place battles, rendering, recovery and simulations resolve it.
+ */
+export function stageMap(stage: StageDef, chapter?: ChapterDef): MapDef {
+  const ch = chapter ?? CHAPTERS.find((c) => c.stages.includes(stage)) ?? CHAPTERS[0];
+  return MAPS[stage.mapId ?? ch.mapId];
 }
 
 /** Linear order of all stages across chapters (for unlock progression). */

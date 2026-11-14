@@ -317,6 +317,24 @@ export const STAGE_STEPS: Record<string, StepDef[]> = {
     },
   ],
 
+  // 2-11: the first stage on the Deep Mushroom Forest route (new road, new house corner).
+  '2-11': [
+    {
+      id: 'tut:deep',
+      build: (b) => {
+        const start = b.path.pointAt(30);
+        const end = b.path.pointAt(b.path.length);
+        return {
+          panel: text('deep'),
+          focus: [
+            { kind: 'point', x: start.x, y: start.y, r: 30 },
+            { kind: 'point', x: end.x, y: end.y + 10, r: 34 },
+          ],
+        };
+      },
+    },
+  ],
+
   // Stage 4: targeting in practice, right after meeting Zippy Mice.
   '1-4': [
     { id: 'tut:targetTips', when: (_b, seen) => seen.has('enemy:fast'), build: () => ({ panel: text('targetTips', 'targetTips'), focus: [] }) },

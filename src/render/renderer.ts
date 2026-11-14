@@ -271,7 +271,7 @@ export class Renderer {
     for (const p of battle.projectiles) this.drawProjectile(p, t);
 
     this.drawEffects(battle);
-    if (this.env === 'mushroom') this.drawSpores(t);
+    if (this.env === 'mushroom' || this.env === 'mushroom_deep') this.drawSpores(t);
     else if (boardPalette().fireflies) this.drawFireflies(t);
 
     // Dragged cat follows pointer (on top of everything)
@@ -1042,7 +1042,7 @@ function paintBackground(ctx: CanvasRenderingContext2D, map: MapDef, battle: Bat
     ctx.stroke();
     ctx.setLineDash([]);
   };
-  const mushroomEnv = map.environment === 'mushroom';
+  const mushroomEnv = map.environment === 'mushroom' || map.environment === 'mushroom_deep';
   stroke(40, P.roadEdge);
   stroke(34, P.road);
   if (mushroomEnv) {
@@ -1081,9 +1081,11 @@ function paintBackground(ctx: CanvasRenderingContext2D, map: MapDef, battle: Bat
     ctx.restore();
   }
 
-  // Which cells are free for decoration?
+  // Which cells are free for decoration? Only USABLE tiles are kept clear: positions that are
+  // not available in this stage are hidden and simply become scenery (no hint of future tiles).
+  const usable = battle.tiles.filter((t) => t.unlocked);
   const used = new Set<string>();
-  for (const t of map.tiles) used.add(`${t.c}-${t.r}`);
+  for (const t of usable) used.add(`${t.c}-${t.r}`);
   const onPath = (c: number, r: number) => {
     const p = cellCenter(map, c, r);
     for (let d = 0; d < battle.path.length; d += 6) {
@@ -1111,7 +1113,7 @@ function paintBackground(ctx: CanvasRenderingContext2D, map: MapDef, battle: Bat
 
   if (mushroomEnv) {
     // Little mushrooms sprinkled in the gaps (never on the road or a tile).
-    const tileNear = (x: number, y: number) => battle.tiles.some((t) => Math.abs(t.x - x) < 26 && Math.abs(t.y - y) < 26);
+    const tileNear = (x: number, y: number) => usable.some((t) => Math.abs(t.x - x) < 26 && Math.abs(t.y - y) < 26);
     let placed = 0;
     for (let i = 0; i < 400 && placed < 28; i++) {
       const x = rng.next() * w;
@@ -1129,13 +1131,13 @@ function paintBackground(ctx: CanvasRenderingContext2D, map: MapDef, battle: Bat
     }
   }
 
-  // Tiles: buildable ones are bright "pools" with a rim, locked ones are dim and dashed.
-  for (const tile of battle.tiles) {
-    // V1.3: locked tiles are smaller and fainter so buildable tiles stand out.
-    const half = tile.unlocked ? 21 : 16;
+  // Tiles: only usable ones are drawn, as bright "pools" with a rim and a paw print. Unavailable
+  // positions are not drawn at all (no outline, padlock or shadow) — they are plain scenery.
+  for (const tile of usable) {
+    const half = 21;
     ctx.beginPath();
-    ctx.roundRect(tile.x - half, tile.y - half, half * 2, half * 2, tile.unlocked ? 9 : 7);
-    if (tile.unlocked) {
+    ctx.roundRect(tile.x - half, tile.y - half, half * 2, half * 2, 9);
+    {
       const g = ctx.createRadialGradient(tile.x, tile.y, 4, tile.x, tile.y, 28);
       g.addColorStop(0, P.tileGlow);
       g.addColorStop(1, P.tileFill);
@@ -1159,27 +1161,6 @@ function paintBackground(ctx: CanvasRenderingContext2D, map: MapDef, battle: Bat
         ctx.arc(tile.x + dx, tile.y + dy, 1.9, 0, TAU);
         ctx.fill();
       }
-    } else {
-      ctx.save();
-      ctx.globalAlpha = 0.6;
-      ctx.fillStyle = P.lockedFill;
-      ctx.fill();
-      ctx.setLineDash([4, 4]);
-      ctx.lineWidth = 1.5;
-      ctx.strokeStyle = P.lockedBorder;
-      ctx.stroke();
-      ctx.setLineDash([]);
-      // lock
-      ctx.fillStyle = P.lockIcon;
-      ctx.beginPath();
-      ctx.roundRect(tile.x - 5, tile.y - 1, 10, 8, 2);
-      ctx.fill();
-      ctx.strokeStyle = P.lockIcon;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(tile.x, tile.y - 1, 3.5, Math.PI, TAU);
-      ctx.stroke();
-      ctx.restore();
     }
   }
 

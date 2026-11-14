@@ -92,7 +92,7 @@ export const FOREST_COMPACT_MAP: MapDef = {
  * the TOP and spirals inward to a cat house in the middle of a mushroom ring:
  *   down col 0, right along row 6, up col 5, left along row 1, down col 3 to the house.
  * The two inner columns (1–2) and column 4 sit between road passes; the top and bottom
- * edges add more (weaker) space. 23 placement tiles in total.
+ * edges and three corners add more space. 23 placement tiles in total.
  */
 export const MUSHROOM_MAP: MapDef = {
   id: 'mushroom',
@@ -119,15 +119,69 @@ export const MUSHROOM_MAP: MapDef = {
     // Under the cat house
     t(3, 5),
     // Top edge (beside the entrance and the upper pass)
-    t(1, 0), t(2, 0), t(3, 0), t(4, 0),
+    t(1, 0), t(2, 0),
     // Bottom edge (below the long bottom pass)
-    t(1, 7), t(2, 7), t(3, 7), t(4, 7),
+    t(2, 7), t(3, 7), t(4, 7),
+    // Corners (V1.6, for Sir Sable). The top-left corner is the road itself; the other three sit
+    // at the ends of long straight stretches: 0-7 below the first descent (col 0), 5-0 above the
+    // long climb (col 5), 5-7 at the far end of the bottom pass (row 6).
+    t(0, 7), t(5, 0), t(5, 7),
   ],
   theme: {
     grass: '#b8dcb4',
     grassDark: '#a2cc9e',
     road: '#e8d4c0',
     roadEdge: '#bfa08a',
+  },
+};
+
+/**
+ * Deep Mushroom Forest (Chapter 2, stages 2-11 … 2-20): the first "new route every 10 stages"
+ * map. Same 6 x 8 portrait grid and 50px cells as the Moonlit Mushroom Forest, but a different
+ * road: it enters at the TOP-RIGHT and zig-zags down the board in three long passes to a cat house
+ * in the bottom-left corner —
+ *   west along row 0, down col 1, east along row 3, down col 4, west along row 6 into the house.
+ * Long straights end in tiles that sit IN LINE with them (0-0, 5-3, 1-4, 4-7, 5-6) for Sir Sable;
+ * tiles hugging the two bends (0-1/0-2/2-1/2-2 and 3-4/3-5/5-4/5-5) each cover two stretches of
+ * road for area attackers; the middle tiles reach several passes for the Black Cat.
+ * Stages choose which tiles are usable (they grow early on, then change layout); the rest are
+ * hidden scenery.
+ */
+export const DEEP_MUSHROOM_MAP: MapDef = {
+  id: 'mushroom_deep',
+  name: 'Deep Mushroom Forest',
+  cols: 6,
+  rows: 8,
+  cell: 50,
+  path: [
+    [5.9, 0],
+    [1, 0],
+    [1, 3],
+    [4, 3],
+    [4, 6],
+    [0, 6],
+    [0, 6.75],
+  ],
+  base: [0, 7],
+  environment: 'mushroom_deep',
+  tiles: [
+    // In line with the long straights (Sir Sable)
+    t(0, 0), t(5, 3), t(1, 4), t(4, 7), t(5, 6),
+    // Upper band, between the first and second passes
+    t(0, 1), t(2, 1), t(3, 1), t(4, 1), t(5, 1),
+    t(0, 2), t(2, 2), t(3, 2), t(4, 2), t(5, 2),
+    t(0, 3),
+    // Lower band, between the second and third passes
+    t(0, 4), t(2, 4), t(3, 4), t(5, 4),
+    t(0, 5), t(1, 5), t(2, 5), t(3, 5), t(5, 5),
+    // Bottom edge, below the last pass
+    t(1, 7), t(2, 7), t(3, 7), t(5, 7),
+  ],
+  theme: {
+    grass: '#a9cfa6',
+    grassDark: '#93bf90',
+    road: '#ddc8b2',
+    roadEdge: '#b2937c',
   },
 };
 
@@ -158,4 +212,5 @@ export const MAPS: Record<string, MapDef> = {
   forest: FOREST_MAP,
   forest_compact: FOREST_COMPACT_MAP,
   mushroom: MUSHROOM_MAP,
+  mushroom_deep: DEEP_MUSHROOM_MAP,
 };

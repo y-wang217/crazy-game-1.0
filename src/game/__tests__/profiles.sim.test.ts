@@ -1,5 +1,4 @@
-import { CHAPTERS } from '../../config/chapters';
-import { MAPS } from '../../config/maps';
+import { CHAPTERS, stageMap } from '../../config/chapters';
 import { runBeginnerBot, runBot } from '../bot';
 import type { CatId } from '../types';
 
@@ -21,7 +20,7 @@ describe.skipIf(!on)('player profiles', () => {
     for (const ch of CHAPTERS)
       for (const st of ch.stages) {
         if (only.length && !only.includes(st.id)) continue;
-        const map = MAPS[ch.mapId];
+        const map = stageMap(st, ch);
         const roster = st.fixedRoster ? undefined : STARTERS;
         let b = 0,
           s = 0,

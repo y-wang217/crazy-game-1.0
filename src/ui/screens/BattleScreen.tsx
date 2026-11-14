@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BALANCE } from '../../config/balance';
 import { CATS } from '../../config/cats';
-import { findStage } from '../../config/chapters';
-import { MAPS } from '../../config/maps';
+import { findStage, stageMap } from '../../config/chapters';
 import { SKILLS, SKILL_ORDER, skillParams } from '../../config/skills';
 import { Battle, type BattleEvent, type BattleStats } from '../../game/battle';
 import { nextStageId } from '../../game/progression';
@@ -168,7 +167,7 @@ export function BattleScreen({
   const lessonPreset = stage.lesson ? ['cat:sable', 'enemy:normal'] : [];
   const seenRef = useRef<SeenStore>(practice ? memorySeen(lessonPreset) : seenStore);
   const lessonEndRef = useRef(false);
-  const map = MAPS[chapter.mapId];
+  const map = stageMap(stage, chapter);
   const save = useSave();
   const debug = useDebug();
   const loadoutRef = useRef(save.equipped);
@@ -746,7 +745,8 @@ export function BattleScreen({
   const tileAtWorld = (x: number, y: number): string | null => {
     const b = battleRef.current;
     const half = map.cell / 2;
-    const tile = b.tiles.find((tl) => Math.abs(tl.x - x) <= half && Math.abs(tl.y - y) <= half);
+    // Only usable tiles exist for the player: unavailable ones are hidden and never interactive.
+    const tile = b.tiles.find((tl) => tl.unlocked && Math.abs(tl.x - x) <= half && Math.abs(tl.y - y) <= half);
     return tile ? tile.id : null;
   };
 

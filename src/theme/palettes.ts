@@ -15,9 +15,6 @@ export interface BoardPalette {
   tileGlow: string;
   tileBorder: string;
   tilePaw: string;
-  lockedFill: string;
-  lockedBorder: string;
-  lockIcon: string;
   treeGreens: string[];
   trunk: string;
   treeHighlight: string;
@@ -58,9 +55,6 @@ export const BOARD_PALETTES: Record<'light' | 'moonlit', BoardPalette> = {
     tileGlow: '#fbf6e6',
     tileBorder: '#d5bf8c',
     tilePaw: 'rgba(210,185,130,0.45)',
-    lockedFill: 'rgba(90,110,70,0.16)',
-    lockedBorder: 'rgba(90,110,70,0.45)',
-    lockIcon: 'rgba(90,100,80,0.55)',
     treeGreens: ['#6ab04a', '#7cc05a', '#5a9a40'],
     trunk: '#9a6a42',
     treeHighlight: 'rgba(255,255,255,0.18)',
@@ -97,9 +91,6 @@ export const BOARD_PALETTES: Record<'light' | 'moonlit', BoardPalette> = {
     tileGlow: '#8a83a8',
     tileBorder: '#d9ad72',
     tilePaw: 'rgba(245,233,213,0.18)',
-    lockedFill: 'rgba(20,18,36,0.28)',
-    lockedBorder: 'rgba(180,170,210,0.3)',
-    lockIcon: 'rgba(200,190,225,0.4)',
     treeGreens: ['#2f4a45', '#3a5752', '#294039'],
     trunk: '#4a3a3e',
     treeHighlight: 'rgba(210,225,255,0.14)',
@@ -123,7 +114,7 @@ export const BOARD_PALETTES: Record<'light' | 'moonlit', BoardPalette> = {
   },
 };
 
-export type Environment = 'forest' | 'mushroom';
+export type Environment = 'forest' | 'mushroom' | 'mushroom_deep';
 
 /**
  * Per-environment overrides on top of the theme palette. Chapter 2's Moonlit
@@ -164,5 +155,33 @@ export const ENV_OVERRIDES: Record<Environment, Partial<Record<'light' | 'moonli
       houseRoof: '#3f7a72',
       houseRoofEdge: '#1f4a44',
     },
+  },
+  mushroom_deep: {}, // filled in below (built on the mushroom overrides)
+};
+/** Deep Mushroom Forest (2-11 …): the same mushroom world, darker and mossier — deeper in. */
+ENV_OVERRIDES.mushroom_deep = {
+  light: {
+    ...ENV_OVERRIDES.mushroom.light,
+    grass: '#9cc49a',
+    grassChecker: 'rgba(40,70,50,0.06)',
+    tuft: '#7fae80',
+    road: '#dcc6b4',
+    roadEdge: '#a98a78',
+    tileBorder: '#c493d6',
+    mushroomCaps: ['#b07ad6', '#e85a8a', '#7fb8c8', '#f0a040'],
+    houseRoof: '#7a52b8',
+    houseRoofEdge: '#43286e',
+  },
+  moonlit: {
+    ...ENV_OVERRIDES.mushroom.moonlit,
+    grass: '#262a45',
+    grassChecker: 'rgba(160,140,255,0.06)',
+    tuft: '#3b4370',
+    road: '#958aac',
+    roadEdge: '#4f456a',
+    tileBorder: '#c9a0ff',
+    mushroomCaps: ['#c98af0', '#6fd0c4', '#f08ab8', '#e0b070'],
+    houseRoof: '#4a3f86',
+    houseRoofEdge: '#251e4d',
   },
 };

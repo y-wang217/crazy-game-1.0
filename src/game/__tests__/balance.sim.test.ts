@@ -1,5 +1,4 @@
-import { CHAPTERS } from '../../config/chapters';
-import { MAPS } from '../../config/maps';
+import { CHAPTERS, stageMap } from '../../config/chapters';
 import { runBot } from '../bot';
 
 // Headless balance report. Run with `npm run sim`.
@@ -11,7 +10,7 @@ describe('balance simulation', () => {
   const rows: string[] = [];
 
   for (const stage of CHAPTERS.flatMap((c) => c.stages)) {
-    const map = MAPS[CHAPTERS.find((c) => c.stages.includes(stage))!.mapId];
+    const map = stageMap(stage);
     it(`stage ${stage.id} is winnable`, () => {
       let naive = 0;
       let smart = 0;

@@ -1,4 +1,4 @@
-import { ALL_STAGE_IDS, PIERCE_LESSON_STAGE, findStage } from '../../config/chapters';
+import { ALL_STAGE_IDS, PIERCE_LESSON_STAGE, findStage, stageMap } from '../../config/chapters';
 import { CAN_MONSTER, GOLD_CHEST_CAN, MILESTONE_CANS, isCanMonsterStage, milestoneId, rollCanMonster } from '../../config/canRewards';
 import { CATS } from '../../config/cats';
 import { ENEMIES } from '../../config/enemies';
@@ -12,7 +12,7 @@ const STARTERS: CatId[] = ['kitten', 'tabby', 'orange', 'black', 'white'];
 const CAN_STAGES = ['2-6', '2-9', '2-15', '2-18'];
 const battleOn = (id: string, opts: { canMonster?: boolean; roster?: CatId[] } = {}) => {
   const { stage, chapter } = findStage(id)!;
-  return new Battle(stage, MAPS[chapter.mapId], { seed: 5, roster: opts.roster ?? STARTERS, canMonster: opts.canMonster });
+  return new Battle(stage, stageMap(stage, chapter), { seed: 5, roster: opts.roster ?? STARTERS, canMonster: opts.canMonster });
 };
 /** Run until `done` (or a time limit), draining events into `seen`. */
 const run = (b: Battle, done: () => boolean, maxT = 600, seen: string[] = []) => {

@@ -167,6 +167,25 @@ describe('battle snapshot / restore', () => {
     expect(Battle.restore(ch1.stages[0], MAPS[ch1.mapId], good)).toBeNull();
   });
 
+  it('a snapshot records its map and only restores onto that same map (V1.6 per-stage routes)', () => {
+    const a = busy();
+    const good = a.snapshot();
+    expect(good.mapId).toBe(a.map.id);
+    expect(Battle.restore(a.stage, a.map, good, false)).not.toBeNull();
+    // Same stage id, different map (e.g. the stage moved to a new route in an update): rejected,
+    // so cats can never land on another map's coordinates.
+    const other = { ...a.map, id: 'mushroom_deep' };
+    expect(Battle.restore(a.stage, other, good)).toBeNull();
+    const moved = JSON.parse(JSON.stringify(good));
+    moved.mapId = 'mushroom_deep';
+    expect(Battle.restore(a.stage, a.map, moved)).toBeNull();
+    // Snapshots from before V1.6 (v1, no map recorded) are never restored.
+    const old = JSON.parse(JSON.stringify(good));
+    old.v = 1;
+    delete old.mapId;
+    expect(Battle.restore(a.stage, a.map, old)).toBeNull();
+  });
+
   it('restoring never duplicates enemies or remaining spawns', () => {
     const a = busy();
     const b = Battle.restore(a.stage, a.map, a.snapshot(), false)!;

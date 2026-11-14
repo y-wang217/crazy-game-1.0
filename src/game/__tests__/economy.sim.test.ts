@@ -1,8 +1,7 @@
 import { CAT_ORDER, STARTER_CATS } from '../../config/cats';
-import { CHAPTERS } from '../../config/chapters';
+import { CHAPTERS, stageMap } from '../../config/chapters';
 import { CHESTS } from '../../config/enemies';
 import { RECRUIT, STARS } from '../../config/collection';
-import { MAPS } from '../../config/maps';
 import { runBeginnerBot } from '../bot';
 import { recruit, type CollectionState } from '../collection';
 import { Rng } from '../rng';
@@ -23,7 +22,7 @@ describe.skipIf(!process.env.ECONOMY)('economy', () => {
           chest = 0;
         const N = 30;
         for (let s = 1; s <= N; s++) {
-          const r = runBeginnerBot(st, MAPS[ch.mapId], 7000 + s, { roster: st.fixedRoster ? undefined : STARTERS });
+          const r = runBeginnerBot(st, stageMap(st, ch), 7000 + s, { roster: st.fixedRoster ? undefined : STARTERS });
           if (r.win) wins++;
           chest += r.chestCoins;
         }

@@ -230,7 +230,7 @@ export interface MapDef {
   /** Where the base/house is drawn (cell units). */
   base: [number, number];
   /** Visual environment (palette overrides + decorations). Defaults to 'forest'. */
-  environment?: 'forest' | 'mushroom';
+  environment?: 'forest' | 'mushroom' | 'mushroom_deep';
   theme: {
     grass: string;
     grassDark: string;
@@ -287,12 +287,18 @@ export interface StageDef {
   practice?: boolean;
   /** A scripted single-cat lesson (no waves, no win/lose; the lesson's steps drive it). */
   lesson?: 'pierce';
+  /**
+   * Map (route + placement grid) for this stage when it differs from its chapter's map — e.g. a
+   * new route every 10 stages. Resolve with `stageMap()` (config/chapters.ts), never chapter.mapId.
+   */
+  mapId?: string;
 }
 
 export interface ChapterDef {
   id: string;
   number: number;
   name: string;
+  /** The chapter's default map; a stage may override it with its own `mapId`. */
   mapId: string;
   stages: StageDef[];
 }
