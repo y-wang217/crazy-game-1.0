@@ -1144,13 +1144,14 @@ export const CAT_SCENES: Partial<Record<CatId, SceneDef>> = {
     },
   },
 
-  // Mr. Whiskers — a magical theatre stage. Special: Endless Trick. Ultimate: Hat of Wonders.
+  // Mr. Whiskers — his own little magic theatre. 1★ an empty stage → 5★ a sold-out show.
+  // Special: Endless Trick. Ultimate: Hat of Wonders.
   whiskers: {
     ground: 0.7,
     light: P({ skyTop: '#5b3d6e', skyBottom: '#7d5a8c', far: '#4a3158', mid: '#6b4a7a', ground: '#b98a5a', ground2: '#a87a4c', accent: '#d8434f', accent2: '#ffd34d', glow: '#fff1b0', wood: '#8a5d3b', stone: '#cdbfd8' }),
     moonlit: P({ skyTop: '#22163a', skyBottom: '#3a2659', far: '#1d1330', mid: '#33214f', ground: '#6f4d3a', ground2: '#5e402f', accent: '#e0505d', accent2: '#ffd96a', glow: '#fff1c2', wood: '#5e3f2b', stone: '#9a8db0' }),
     back: (s) => {
-      // Backdrop cloth + proscenium arch.
+      // 1★: a plain backdrop cloth and one work light over the boards.
       s.c.fillStyle = s.p.far;
       s.c.fillRect(0, 0, s.w, s.gy);
       s.c.strokeStyle = s.p.mid;
@@ -1161,25 +1162,29 @@ export const CAT_SCENES: Partial<Record<CatId, SceneDef>> = {
         s.c.lineTo(x, s.gy);
         s.c.stroke();
       }
+      glowAt(s, s.w * 0.5, s.h * 0.35, 26 * s.u, s.p.glow, 0.25);
       if (s.star >= 2) {
-        // Painted stars on the backdrop.
+        // 2★: painted stars and a crescent moon on the backdrop.
         for (const [x, y] of [
           [0.2, 0.2],
           [0.35, 0.1],
           [0.7, 0.16],
           [0.85, 0.3],
+          [0.28, 0.38],
         ])
           drawStar(s.c, s.w * x, s.h * y, 2.4 * s.u, s.p.accent2);
+        circle(s.c, s.w * 0.62, s.h * 0.12, 4.5 * s.u, s.p.accent2);
+        circle(s.c, s.w * 0.64, s.h * 0.1, 4 * s.u, s.p.far);
       }
       if (s.star >= 4) {
-        // Spotlights from the gallery.
+        // 4★: spotlights from the gallery.
         lightRays(s, s.w * 0.2, -6 * s.u, s.p.glow, 1, 0.5);
         lightRays(s, s.w * 0.8, -6 * s.u, s.p.glow, 1, 0.5);
         glowAt(s, s.w * 0.5, s.gy, 30 * s.u, s.p.glow, 0.45);
       }
     },
     mid: (s) => {
-      // Stage boards + footlights.
+      // Stage boards.
       for (let y = s.gy; y < s.h; y += 4 * s.u) {
         s.c.strokeStyle = s.p.ground2;
         s.c.lineWidth = lw(s, 0.4);
@@ -1188,20 +1193,21 @@ export const CAT_SCENES: Partial<Record<CatId, SceneDef>> = {
         s.c.lineTo(s.w, y);
         s.c.stroke();
       }
-      for (let x = s.w * 0.08; x < s.w; x += s.w * 0.12) {
-        glowAt(s, x, s.gy + 1, 4 * s.u, s.p.glow, 0.9);
-        circle(s.c, x, s.gy + 1, 1 * s.u, s.p.glow);
-      }
       if (s.star >= 3) {
-        // Endless Trick: a fan of playing cards and a bunny peeking from a hat.
-        const x = s.w * 0.85;
-        const y = s.gy - 2 * s.u;
+        // 3★: footlights, and Endless Trick — a magic table with a fan of cards and a bunny in a hat.
+        for (let x = s.w * 0.08; x < s.w; x += s.w * 0.12) {
+          glowAt(s, x, s.gy + 1, 4 * s.u, s.p.glow, 0.9);
+          circle(s.c, x, s.gy + 1, 1 * s.u, s.p.glow);
+        }
+        const tx = s.w * 0.85;
+        roundRect(s.c, tx - 0.8 * s.u, s.gy - 9 * s.u, 1.6 * s.u, 9 * s.u, 0.4 * s.u, s.p.wood, s.line, lw(s, 0.4));
+        poly(s.c, [tx - 7 * s.u, s.gy - 10 * s.u, tx + 7 * s.u, s.gy - 10 * s.u, tx + 6 * s.u, s.gy - 5 * s.u, tx - 6 * s.u, s.gy - 5 * s.u], s.p.accent, s.line, lw(s, 0.45));
         for (let i = -2; i <= 2; i++) {
           s.c.save();
-          s.c.translate(x, y);
+          s.c.translate(tx, s.gy - 10.5 * s.u);
           s.c.rotate(i * 0.22);
-          roundRect(s.c, -2.2 * s.u, -10 * s.u, 4.4 * s.u, 6.4 * s.u, 0.6 * s.u, '#ffffff', s.line, lw(s, 0.4));
-          drawHeart(s.c, 0, -7 * s.u, 1.2 * s.u, i % 2 ? '#222' : s.p.accent);
+          roundRect(s.c, -1.8 * s.u, -6.5 * s.u, 3.6 * s.u, 5.2 * s.u, 0.5 * s.u, '#ffffff', s.line, lw(s, 0.35));
+          drawHeart(s.c, 0, -4 * s.u, 1 * s.u, i % 2 ? '#222' : s.p.accent);
           s.c.restore();
         }
         const hx = s.w * 0.16;
@@ -1209,20 +1215,33 @@ export const CAT_SCENES: Partial<Record<CatId, SceneDef>> = {
         ellipse(s.c, hx + 3 * s.u, s.gy - 12 * s.u, 2 * s.u, 4 * s.u, '#ffffff', s.line, lw(s, 0.4));
         roundRect(s.c, hx - 4 * s.u, s.gy - 9 * s.u, 11 * s.u, 9 * s.u, 0.5 * s.u, '#26203a', s.line, lw(s, 0.5));
         ellipse(s.c, hx + 1.5 * s.u, s.gy - 0.5 * s.u, 8 * s.u, 1.4 * s.u, '#26203a', s.line, lw(s, 0.5));
+        s.c.fillStyle = s.p.accent;
+        s.c.fillRect(hx - 4 * s.u, s.gy - 4.5 * s.u, 11 * s.u, 1.4 * s.u);
       }
     },
     front: (s) => {
-      curtain(s, true, s.p.accent, s.star >= 4 ? s.p.accent2 : s.p.accent);
-      curtain(s, false, s.p.accent, s.star >= 4 ? s.p.accent2 : s.p.accent);
-      // Valance.
-      s.c.fillStyle = s.p.accent;
-      for (let x = 0; x < s.w; x += 8 * s.u) {
-        s.c.beginPath();
-        s.c.arc(x + 4 * s.u, 0, 4 * s.u, 0, Math.PI);
-        s.c.fill();
+      if (s.star >= 2) {
+        // 2★: the red curtains and valance (gold-trimmed from 4★).
+        curtain(s, true, s.p.accent, s.star >= 4 ? s.p.accent2 : s.p.accent);
+        curtain(s, false, s.p.accent, s.star >= 4 ? s.p.accent2 : s.p.accent);
+        s.c.fillStyle = s.p.accent;
+        for (let x = 0; x < s.w; x += 8 * s.u) {
+          s.c.beginPath();
+          s.c.arc(x + 4 * s.u, 0, 4 * s.u, 0, Math.PI);
+          s.c.fill();
+        }
+      }
+      if (s.star >= 4) {
+        // 4★: a full house — audience silhouettes in the front row.
+        const col = s.night ? 'rgba(10,6,20,0.7)' : 'rgba(40,24,50,0.55)';
+        for (const x of [0.03, 0.1, 0.17, 0.83, 0.9, 0.97]) {
+          circle(s.c, s.w * x, s.h * 0.97, 4 * s.u, col);
+          poly(s.c, [s.w * x - 3.4 * s.u, s.h * 0.95, s.w * x - 2 * s.u, s.h * 0.9, s.w * x - 0.8 * s.u, s.h * 0.94], col);
+          poly(s.c, [s.w * x + 3.4 * s.u, s.h * 0.95, s.w * x + 2 * s.u, s.h * 0.9, s.w * x + 0.8 * s.u, s.h * 0.94], col);
+        }
       }
       if (s.star >= 5) {
-        // Hat of Wonders: a giant floating top hat pouring out doves and stars.
+        // Hat of Wonders: a giant floating top hat pouring out doves, stars and confetti.
         const x = s.w * 0.5;
         const y = s.h * 0.12;
         roundRect(s.c, x - 6 * s.u, y - 7 * s.u, 12 * s.u, 8 * s.u, 0.6 * s.u, '#26203a', s.p.accent2, lw(s, 0.6));
@@ -1243,22 +1262,32 @@ export const CAT_SCENES: Partial<Record<CatId, SceneDef>> = {
           ellipse(s.c, x + dx * s.u, y + dy * s.u, 2.4 * s.u, 1.3 * s.u, '#ffffff', s.line, lw(s, 0.3));
           poly(s.c, [x + dx * s.u - s.u, y + dy * s.u, x + dx * s.u + s.u, y + dy * s.u, x + dx * s.u, y + (dy - 3) * s.u], '#ffffff', s.line, lw(s, 0.3));
         }
+        const r = rng(17);
+        const cols = [s.p.accent2, '#7fd1ff', '#ff8fb8', '#9be38a'];
+        for (let i = 0; i < 22; i++) {
+          const cx = r() * s.w;
+          const cy = r() * s.h * 0.6;
+          if (Math.abs(cx - s.w / 2) < s.w * 0.12 && cy > s.h * 0.25) continue;
+          roundRect(s.c, cx, cy, 1.4 * s.u, 0.7 * s.u, 0.2 * s.u, cols[i % 4]);
+        }
       }
     },
   },
 
-  // Sir Sable — a moonlit castle courtyard. Special: Armor-Piercing Form. Ultimate: Moonshadow Slash.
+  // Sir Sable — the courtyard of the moonlit castle he trained in. 1★ a bare wall → 5★ a knight's court.
+  // Special: Armor-Piercing Form. Ultimate: Moonshadow Slash.
   sable: {
     light: P({ skyTop: '#b5c7e8', skyBottom: '#eef1fb', far: '#a8a3b8', mid: '#8d879e', ground: '#bdb6a8', ground2: '#aaa293', accent: '#3b5bb5', accent2: '#c9d6ff', glow: '#f3f6ff', wood: '#7b5b44', stone: '#c9c3cf' }),
     moonlit: P({ skyTop: '#121735', skyBottom: '#2a3266', far: '#2c2f4f', mid: '#3a3d61', ground: '#4b4a63', ground2: '#3f3e56', accent: '#6f8cff', accent2: '#dfe6ff', glow: '#e9eeff', wood: '#4f3d33', stone: '#64627e' }),
     back: (s) => {
       skyStars(s, 26);
-      skyLight(s, s.w * 0.5, s.h * 0.16, 7 * s.u);
-      crenellatedWall(s, 0, s.w, s.gy - 16 * s.u, s.p.far);
+      skyLight(s, s.w * 0.5, s.h * 0.16, (s.star >= 5 ? 9 : 7) * s.u);
       if (s.star >= 4) {
+        // 4★: the castle towers rise behind the wall, windows lit.
         tower(s, s.w * 0.1, 10 * s.u, s.h * 0.12, s.p.mid, s.p.accent);
         tower(s, s.w * 0.9, 10 * s.u, s.h * 0.08, s.p.mid, s.p.accent);
       }
+      crenellatedWall(s, 0, s.w, s.gy - 16 * s.u, s.p.far);
       if (s.star >= 5) {
         // Moonshadow Slash: a great crescent cut across the sky beside the moon.
         s.c.save();
@@ -1274,23 +1303,43 @@ export const CAT_SCENES: Partial<Record<CatId, SceneDef>> = {
       }
     },
     mid: (s) => {
-      // Flagstones + an arched gate.
+      // Flagstones.
       for (let i = 0, x = 0; x < s.w; x += 7 * s.u, i++) {
         roundRect(s.c, x, i % 2 ? s.gy + 3 * s.u : s.gy + 9 * s.u, 6.4 * s.u, 3 * s.u, s.u, s.p.ground2);
         roundRect(s.c, x + 3.5 * s.u, s.gy + 17 * s.u, 6.4 * s.u, 3 * s.u, s.u, s.p.ground2);
       }
       if (s.star >= 2) {
-        // Banners on the wall + torches.
+        // 2★: his order's banners and wall torches.
         for (const x of [0.25, 0.75]) {
           poly(s.c, [s.w * x - 3.5 * s.u, s.gy - 16 * s.u, s.w * x + 3.5 * s.u, s.gy - 16 * s.u, s.w * x + 3.5 * s.u, s.gy - 4 * s.u, s.w * x, s.gy - 6 * s.u, s.w * x - 3.5 * s.u, s.gy - 4 * s.u], s.p.accent, s.line, lw(s, 0.5));
           drawStar(s.c, s.w * x, s.gy - 11 * s.u, 1.6 * s.u, s.p.accent2, 4);
         }
         for (const x of [0.06, 0.94]) lantern(s, s.w * x, s.gy - 14 * s.u, 0.9, '#ffb84d');
       }
+      if (s.star >= 4) {
+        // 4★: a stone fountain and rose bushes along the wall.
+        const fx = s.w * 0.13;
+        ellipse(s.c, fx, s.gy + 4 * s.u, 9 * s.u, 2.6 * s.u, s.p.stone, s.line, lw(s, 0.5));
+        ellipse(s.c, fx, s.gy + 3.4 * s.u, 7 * s.u, 1.6 * s.u, s.night ? '#5d7fd0' : '#9fd0f5');
+        roundRect(s.c, fx - 1.2 * s.u, s.gy - 7 * s.u, 2.4 * s.u, 10 * s.u, 0.6 * s.u, s.p.stone, s.line, lw(s, 0.4));
+        ellipse(s.c, fx, s.gy - 7 * s.u, 4 * s.u, 1.2 * s.u, s.p.stone, s.line, lw(s, 0.4));
+        s.c.strokeStyle = s.night ? 'rgba(170,200,255,0.7)' : 'rgba(120,180,230,0.8)';
+        s.c.lineWidth = lw(s, 0.5);
+        for (const d of [-1, 1]) {
+          s.c.beginPath();
+          s.c.moveTo(fx, s.gy - 8 * s.u);
+          s.c.quadraticCurveTo(fx + d * 4 * s.u, s.gy - 11 * s.u, fx + d * 6 * s.u, s.gy + 2 * s.u);
+          s.c.stroke();
+        }
+        for (const x of [0.36, 0.64]) {
+          bush(s, s.w * x, s.gy - 1 * s.u, 0.8, s.night ? '#2f4a45' : '#5e8f6a');
+          for (const dx of [-2, 1, 3]) circle(s.c, s.w * x + dx * s.u, s.gy - 3 * s.u + (dx % 2) * s.u, 0.9 * s.u, '#e2557a');
+        }
+      }
     },
     front: (s) => {
       if (s.star >= 3) {
-        // Armor-Piercing Form: a sword driven through a breastplate on a stand.
+        // 3★ Armor-Piercing Form: a sword driven through a breastplate on a stand, and a practice pell.
         const x = s.w * 0.86;
         const y = s.gy + 2 * s.u;
         s.c.fillStyle = s.p.wood;
@@ -1302,17 +1351,34 @@ export const CAT_SCENES: Partial<Record<CatId, SceneDef>> = {
         roundRect(s.c, -9 * s.u, -0.5 * s.u, 18 * s.u, 1 * s.u, 0.4 * s.u, s.p.accent2, s.line, lw(s, 0.4));
         roundRect(s.c, 8.5 * s.u, -1.6 * s.u, 1 * s.u, 3.2 * s.u, 0.3 * s.u, '#ffd34d', s.line, lw(s, 0.3));
         s.c.restore();
+        const px = s.w * 0.72;
+        roundRect(s.c, px - 1.6 * s.u, s.gy - 13 * s.u, 3.2 * s.u, 15 * s.u, 0.8 * s.u, s.p.wood, s.line, lw(s, 0.45));
+        for (const dy of [-10, -6]) {
+          s.c.strokeStyle = s.p.accent2;
+          s.c.lineWidth = lw(s, 0.7);
+          s.c.beginPath();
+          s.c.moveTo(px - 2.5 * s.u, s.gy + (dy - 1) * s.u);
+          s.c.lineTo(px + 2.5 * s.u, s.gy + (dy + 1) * s.u);
+          s.c.stroke();
+        }
+      }
+      if (s.star >= 5) {
+        // Silver petals drifting across the courtyard.
+        const r = rng(29);
+        for (let i = 0; i < 14; i++) ellipse(s.c, r() * s.w, r() * s.h * 0.9, 1 * s.u, 0.5 * s.u, s.p.accent2);
       }
     },
   },
 
-  // Captain Mallow — a cozy community headquarters. Special: Teamwork. Ultimate: Everyone Together!
+  // Captain Mallow — the team's cozy clubhouse. 1★ an empty hall → 5★ the whole crew together.
+  // Special: Teamwork. Ultimate: Everyone Together!
   mallow: {
     ground: 0.7,
     light: P({ skyTop: '#ffe7c7', skyBottom: '#fff6e8', far: '#f0c9a0', mid: '#e3ad7d', ground: '#d9b48a', ground2: '#c99f73', accent: '#4fa3e0', accent2: '#ffcf4d', glow: '#fff1c4', wood: '#a96f45', stone: '#efe2d0' }),
     moonlit: P({ skyTop: '#33283f', skyBottom: '#4f3d57', far: '#5c4652', mid: '#6d5260', ground: '#6a5458', ground2: '#5b484d', accent: '#6fb8f0', accent2: '#ffd46a', glow: '#ffd89a', wood: '#6b4a37', stone: '#857888' }),
+    floor: (s) => plankFloor(s, rgba(s.p.wood, 0.4)),
     back: (s) => {
-      // Wood-panelled HQ wall + a big round window.
+      // 1★: a wood-panelled hall.
       s.c.fillStyle = s.p.far;
       s.c.fillRect(0, 0, s.w, s.gy);
       s.c.strokeStyle = s.p.mid;
@@ -1323,37 +1389,45 @@ export const CAT_SCENES: Partial<Record<CatId, SceneDef>> = {
         s.c.lineTo(x, s.gy);
         s.c.stroke();
       }
-      circle(s.c, s.w * 0.5, s.h * 0.24, 11 * s.u, s.night ? '#3a3766' : '#cfeaff', s.p.wood, lw(s, 1.6));
+      skirting(s, s.p.wood);
+      if (s.star >= 2) {
+        // 2★: a big round window.
+        roundWindow(s, s.w * 0.5, s.h * 0.24, 11 * s.u, s.p.wood);
+      }
       if (s.star >= 4) {
-        // A shelf of trophies and a warm ceiling lamp.
-        roundRect(s.c, s.w * 0.04, s.h * 0.3, s.w * 0.24, 1.6 * s.u, 0.4 * s.u, s.p.wood, s.line, lw(s, 0.4));
-        for (const x of [0.08, 0.15, 0.22]) {
-          poly(s.c, [s.w * x - 1.6 * s.u, s.h * 0.3, s.w * x + 1.6 * s.u, s.h * 0.3, s.w * x + 2.6 * s.u, s.h * 0.22, s.w * x - 2.6 * s.u, s.h * 0.22], s.p.accent2, s.line, lw(s, 0.4));
-        }
+        // 4★: a trophy shelf, the team flag and a warm ceiling lamp.
+        roundRect(s.c, s.w * 0.72, s.h * 0.3, s.w * 0.24, 1.6 * s.u, 0.4 * s.u, s.p.wood, s.line, lw(s, 0.4));
+        for (const x of [0.76, 0.83, 0.9]) poly(s.c, [s.w * x - 1.6 * s.u, s.h * 0.3, s.w * x + 1.6 * s.u, s.h * 0.3, s.w * x + 2.6 * s.u, s.h * 0.22, s.w * x - 2.6 * s.u, s.h * 0.22], s.p.accent2, s.line, lw(s, 0.4));
+        const fx = s.w * 0.3;
+        poly(s.c, [fx, s.h * 0.06, fx + 10 * s.u, s.h * 0.06, fx + 8 * s.u, s.h * 0.14, fx + 10 * s.u, s.h * 0.22, fx, s.h * 0.22], s.p.accent, s.line, lw(s, 0.45));
+        pawPrint(s, fx + 4.5 * s.u, s.h * 0.16, 0.8, '#ffffff');
         lantern(s, s.w * 0.5, s.h * 0.05, 1.3, s.p.accent2);
         glowAt(s, s.w * 0.5, s.h * 0.1, 35 * s.u, s.p.glow, 0.45);
       }
     },
     mid: (s) => {
-      // Rug + a meeting table edge.
+      // The big blue meeting rug.
       ellipse(s.c, s.w * 0.5, s.gy + 12 * s.u, s.w * 0.4, 8 * s.u, s.p.accent, s.line, lw(s, 0.5));
       ellipse(s.c, s.w * 0.5, s.gy + 12 * s.u, s.w * 0.32, 5.5 * s.u, s.night ? '#5c7fa0' : '#a9d6f5');
       if (s.star >= 2) {
-        // Mugs on a crate and a bell on the post.
+        // 2★: tea time — mugs and a teapot on a crate.
         roundRect(s.c, s.w * 0.04, s.gy - 8 * s.u, 14 * s.u, 9 * s.u, s.u, s.p.wood, s.line, lw(s, 0.5));
-        for (const dx of [3, 9]) roundRect(s.c, s.w * 0.04 + dx * s.u, s.gy - 12 * s.u, 3.4 * s.u, 4 * s.u, 0.8 * s.u, '#ffffff', s.line, lw(s, 0.4));
-        const x = s.w * 0.9;
-        s.c.fillStyle = s.p.wood;
-        s.c.fillRect(x - 0.8 * s.u, s.gy - 22 * s.u, 1.6 * s.u, 22 * s.u);
-        poly(s.c, [x - 3.5 * s.u, s.gy - 14 * s.u, x + 3.5 * s.u, s.gy - 14 * s.u, x + 2 * s.u, s.gy - 20 * s.u, x - 2 * s.u, s.gy - 20 * s.u], s.p.accent2, s.line, lw(s, 0.5));
+        for (const dx of [2, 6.5]) roundRect(s.c, s.w * 0.04 + dx * s.u, s.gy - 12 * s.u, 3.4 * s.u, 4 * s.u, 0.8 * s.u, '#ffffff', s.line, lw(s, 0.4));
+        ellipse(s.c, s.w * 0.04 + 12 * s.u, s.gy - 11 * s.u, 2.6 * s.u, 2.4 * s.u, s.p.accent, s.line, lw(s, 0.4));
       }
       if (s.star >= 3) {
-        // Teamwork: a notice board pinned with everyone's paw prints.
+        // 3★ Teamwork: a notice board pinned with everyone's paw prints, a bell post and a plant.
         const x = s.w * 0.16;
-        const y = s.h * 0.08;
+        const y = s.h * 0.1;
         roundRect(s.c, x - 9 * s.u, y, 18 * s.u, 13 * s.u, s.u, '#c99566', s.line, lw(s, 0.6));
         const cols = [s.p.accent, s.p.accent2, '#ff8fb8', '#8ad18a', '#c8a2ff', '#ff9c5c'];
         cols.forEach((col, i) => pawPrint(s, x - 5.5 * s.u + (i % 3) * 5.5 * s.u, y + 5 * s.u + Math.floor(i / 3) * 5.5 * s.u, 0.8, col));
+        const bx = s.w * 0.9;
+        s.c.fillStyle = s.p.wood;
+        s.c.fillRect(bx - 0.8 * s.u, s.gy - 22 * s.u, 1.6 * s.u, 22 * s.u);
+        poly(s.c, [bx - 3.5 * s.u, s.gy - 14 * s.u, bx + 3.5 * s.u, s.gy - 14 * s.u, bx + 2 * s.u, s.gy - 20 * s.u, bx - 2 * s.u, s.gy - 20 * s.u], s.p.accent2, s.line, lw(s, 0.5));
+        roundRect(s.c, s.w * 0.76, s.gy - 5 * s.u, 5 * s.u, 5 * s.u, 1 * s.u, '#c97a4a', s.line, lw(s, 0.4));
+        bush(s, s.w * 0.76 + 2.5 * s.u, s.gy - 7 * s.u, 0.55, s.night ? '#4f7a5d' : '#79c47a');
       }
     },
     front: (s) => {
@@ -1370,30 +1444,35 @@ export const CAT_SCENES: Partial<Record<CatId, SceneDef>> = {
           poly(s.c, [x - 2.4 * s.u, y - 9.5 * s.u, x - 1 * s.u, y - 10.5 * s.u, x - 2 * s.u, y - 12.5 * s.u], col);
           poly(s.c, [x + 2.4 * s.u, y - 9.5 * s.u, x + 1 * s.u, y - 10.5 * s.u, x + 2 * s.u, y - 12.5 * s.u], col);
         }
+        sparkles(s, 10, s.p.accent2, 7, 4 * s.u, s.gy);
       }
     },
   },
 
-  // Shadow Pounce — rooftops and shadowy forest passages. Special: Hunting Instinct. Ultimate: Shadow Pursuit.
+  // Shadow Pounce — the shadowy forest edge where the town begins. 1★ a quiet treeline → 5★ the hunt.
+  // Special: Hunting Instinct. Ultimate: Shadow Pursuit.
   pounce: {
     light: P({ skyTop: '#b9b3d6', skyBottom: '#e9e4f5', far: '#7f86a8', mid: '#5d6b6c', ground: '#5e7a5c', ground2: '#4f6a4d', accent: '#9b6bff', accent2: '#c6ff6b', glow: '#efe6ff', wood: '#5d4a42', stone: '#8c869c' }),
     moonlit: P({ skyTop: '#0f1226', skyBottom: '#222846', far: '#1f2340', mid: '#1c2b2b', ground: '#22332b', ground2: '#1b2a23', accent: '#b48cff', accent2: '#d6ff7a', glow: '#e6dcff', wood: '#3c302c', stone: '#46445a' }),
     back: (s) => {
       skyStars(s, 22);
       skyLight(s, s.w * 0.2, s.h * 0.15, 5 * s.u);
-      // Rooftops on one side, a forest edge on the other.
-      s.c.save();
-      s.c.beginPath();
-      s.c.rect(s.w * 0.45, 0, s.w * 0.55, s.h);
-      s.c.clip();
-      rooftops(s, s.p.far, 12 * s.u);
-      s.c.restore();
+      if (s.star >= 2) {
+        // 2★: the town's rooftops beyond the trees.
+        s.c.save();
+        s.c.beginPath();
+        s.c.rect(s.w * 0.45, 0, s.w * 0.55, s.h);
+        s.c.clip();
+        rooftops(s, s.p.far, 12 * s.u);
+        s.c.restore();
+      }
+      // 1★: the forest edge.
       for (let i = 0; i < 5; i++) {
         const x = s.w * (0.02 + i * 0.1);
         poly(s.c, [x - 6 * s.u, s.gy + 1, x + 6 * s.u, s.gy + 1, x, s.gy - (22 + (i % 2) * 8) * s.u], s.p.mid);
       }
       if (s.star >= 4) {
-        // Mist between the trees and a wire running across the rooftops.
+        // 4★: mist between the trees, a wire across the rooftops with a hanging lantern, fireflies.
         s.c.fillStyle = s.night ? 'rgba(180,160,255,0.12)' : 'rgba(255,255,255,0.35)';
         for (let i = 0; i < 3; i++) ellipse(s.c, s.w * (0.2 + i * 0.3), s.gy - 2 * s.u, 18 * s.u, 3 * s.u, s.c.fillStyle as string);
         s.c.strokeStyle = s.line;
@@ -1402,19 +1481,27 @@ export const CAT_SCENES: Partial<Record<CatId, SceneDef>> = {
         s.c.moveTo(s.w * 0.45, s.h * 0.3);
         s.c.quadraticCurveTo(s.w * 0.75, s.h * 0.4, s.w, s.h * 0.28);
         s.c.stroke();
+        lantern(s, s.w * 0.74, s.h * 0.39, 0.8, s.p.accent);
+        const r = rng(51);
+        for (let i = 0; i < 12; i++) {
+          const fx = r() * s.w * 0.45;
+          const fy = s.gy - r() * 26 * s.u;
+          glowAt(s, fx, fy, 2.4 * s.u, s.p.accent2, 0.8);
+          circle(s.c, fx, fy, 0.45 * s.u, s.p.accent2);
+        }
       }
     },
     mid: (s) => {
-      // Leaf litter path.
+      // Leaf-litter path.
       ellipse(s.c, s.w * 0.5, s.gy + 10 * s.u, s.w * 0.38, 6 * s.u, s.p.ground2);
       if (s.star >= 2) {
-        // Ferns and a crate stack at the alley mouth.
+        // 2★: ferns at the treeline.
         for (const x of [0.06, 0.14]) bush(s, s.w * x, s.gy + s.u, 0.8, s.p.mid);
-        roundRect(s.c, s.w * 0.82, s.gy - 9 * s.u, 10 * s.u, 9 * s.u, 0.5 * s.u, s.p.wood, s.line, lw(s, 0.5));
-        roundRect(s.c, s.w * 0.85, s.gy - 16 * s.u, 7 * s.u, 7 * s.u, 0.5 * s.u, s.p.wood, s.line, lw(s, 0.5));
       }
       if (s.star >= 3) {
-        // Hunting Instinct: glowing eyes in the undergrowth and a trail of tracks.
+        // 3★ Hunting Instinct: crates at the alley mouth, glowing eyes in the undergrowth, a trail of tracks.
+        roundRect(s.c, s.w * 0.82, s.gy - 9 * s.u, 10 * s.u, 9 * s.u, 0.5 * s.u, s.p.wood, s.line, lw(s, 0.5));
+        roundRect(s.c, s.w * 0.85, s.gy - 16 * s.u, 7 * s.u, 7 * s.u, 0.5 * s.u, s.p.wood, s.line, lw(s, 0.5));
         for (const [x, y] of [
           [0.08, 0.66],
           [0.17, 0.6],
@@ -1448,13 +1535,14 @@ export const CAT_SCENES: Partial<Record<CatId, SceneDef>> = {
     },
   },
 
-  // Silver Devil — a mysterious potion workshop. Special: Venomous Kiss. Ultimate: Devil's Pact.
+  // Silver Devil — her secret potion workshop. 1★ a bare stone room → 5★ the full witch's lair.
+  // Special: Venomous Kiss. Ultimate: Devil's Pact.
   devil: {
     ground: 0.7,
     light: P({ skyTop: '#d9cbe8', skyBottom: '#efe7f5', far: '#b9a6cf', mid: '#9c86b5', ground: '#a993b8', ground2: '#9682a6', accent: '#7ed957', accent2: '#c86bff', glow: '#eaffd6', wood: '#7a5a6e', stone: '#cfc6da' }),
     moonlit: P({ skyTop: '#1d1530', skyBottom: '#33244d', far: '#2a1f40', mid: '#3a2b55', ground: '#3b2f4c', ground2: '#32283f', accent: '#8dff6a', accent2: '#d07aff', glow: '#d9ffc7', wood: '#4b3346', stone: '#5c5270' }),
     back: (s) => {
-      // Stone wall with shelves of bottles.
+      // 1★: a stone wall.
       s.c.fillStyle = s.p.far;
       s.c.fillRect(0, 0, s.w, s.gy);
       s.c.strokeStyle = rgba(s.p.mid, 0.6);
@@ -1469,37 +1557,53 @@ export const CAT_SCENES: Partial<Record<CatId, SceneDef>> = {
         }
         s.c.stroke();
       }
-      roundRect(s.c, s.w * 0.02, s.h * 0.32, s.w * 0.26, 1.6 * s.u, 0.3 * s.u, s.p.wood, s.line, lw(s, 0.4));
       const cols = [s.p.accent, s.p.accent2, '#ff7aa8', '#6bd7ff'];
-      for (let i = 0; i < 4; i++) {
-        const x = s.w * (0.05 + i * 0.06);
-        roundRect(s.c, x - 1.4 * s.u, s.h * 0.32 - 6 * s.u, 2.8 * s.u, 6 * s.u, 1.2 * s.u, cols[i], s.line, lw(s, 0.4));
+      if (s.star >= 2) {
+        // 2★: a shelf of potion bottles.
+        roundRect(s.c, s.w * 0.02, s.h * 0.32, s.w * 0.26, 1.6 * s.u, 0.3 * s.u, s.p.wood, s.line, lw(s, 0.4));
+        for (let i = 0; i < 4; i++) {
+          const x = s.w * (0.05 + i * 0.06);
+          roundRect(s.c, x - 1.4 * s.u, s.h * 0.32 - 6 * s.u, 2.8 * s.u, 6 * s.u, 1.2 * s.u, cols[i], s.line, lw(s, 0.4));
+        }
       }
       if (s.star >= 4) {
-        // Second shelf, a hanging herb bundle and a glowing round window.
+        // 4★: a second shelf of orbs, a round moon window, hanging herbs, a cobweb and a little bat.
         roundRect(s.c, s.w * 0.72, s.h * 0.24, s.w * 0.26, 1.6 * s.u, 0.3 * s.u, s.p.wood, s.line, lw(s, 0.4));
         for (let i = 0; i < 4; i++) circle(s.c, s.w * (0.76 + i * 0.06), s.h * 0.24 - 2.4 * s.u, 2.2 * s.u, cols[(i + 1) % 4], s.line, lw(s, 0.4));
-        circle(s.c, s.w * 0.5, s.h * 0.16, 8 * s.u, s.night ? '#3e2f6a' : '#efe0ff', s.p.wood, lw(s, 1.4));
-        if (s.night) skyLight(s, s.w * 0.52, s.h * 0.15, 2.4 * s.u);
+        roundWindow(s, s.w * 0.5, s.h * 0.16, 8 * s.u, s.p.wood);
+        for (const x of [0.36, 0.4, 0.62]) {
+          s.c.fillStyle = s.line;
+          s.c.fillRect(s.w * x, 0, 0.4 * s.u, 6 * s.u);
+          ellipse(s.c, s.w * x, 8 * s.u, 1.6 * s.u, 3 * s.u, s.night ? '#5c8f5a' : '#8fbf6a', s.line, lw(s, 0.3));
+        }
+        s.c.strokeStyle = 'rgba(255,255,255,0.35)';
+        s.c.lineWidth = lw(s, 0.35);
+        for (let i = 0; i < 4; i++) {
+          s.c.beginPath();
+          s.c.moveTo(s.w, 0);
+          s.c.lineTo(s.w - 12 * s.u * Math.cos((i * Math.PI) / 8), 12 * s.u * Math.sin((i * Math.PI) / 8));
+          s.c.stroke();
+        }
+        const bx = s.w * 0.86;
+        const by = s.h * 0.1;
+        poly(s.c, [bx, by, bx - 4 * s.u, by - 2 * s.u, bx - 2.5 * s.u, by + 0.5 * s.u, bx - 5 * s.u, by + 1 * s.u, bx, by + 2 * s.u, bx + 5 * s.u, by + 1 * s.u, bx + 2.5 * s.u, by + 0.5 * s.u, bx + 4 * s.u, by - 2 * s.u], '#2c2438');
         glowAt(s, s.w * 0.5, s.gy, 36 * s.u, s.p.accent, 0.22);
       }
     },
     mid: (s) => {
-      // Workbench with a book.
+      // Workbench with her spellbook.
       roundRect(s.c, s.w * 0.74, s.gy - 10 * s.u, s.w * 0.28, 10 * s.u, s.u, s.p.wood, s.line, lw(s, 0.5));
       roundRect(s.c, s.w * 0.8, s.gy - 13 * s.u, 9 * s.u, 3 * s.u, 0.6 * s.u, s.p.accent2, s.line, lw(s, 0.4));
       if (s.star >= 2) {
-        // Candles and mushrooms in jars.
+        // 2★: candles.
         for (const x of [0.06, 0.12]) {
           roundRect(s.c, s.w * x - 1 * s.u, s.gy - 7 * s.u, 2 * s.u, 7 * s.u, 0.4 * s.u, '#f4ecd8', s.line, lw(s, 0.3));
           ellipse(s.c, s.w * x, s.gy - 8.5 * s.u, 0.8 * s.u, 1.4 * s.u, '#ffcf5a');
           glowAt(s, s.w * x, s.gy - 8.5 * s.u, 5 * s.u, '#ffcf5a', 0.6);
         }
-        roundRect(s.c, s.w * 0.93, s.gy - 18 * s.u, 5 * s.u, 6 * s.u, 1.5 * s.u, 'rgba(255,255,255,0.4)', s.line, lw(s, 0.4));
-        ellipse(s.c, s.w * 0.93 + 2.5 * s.u, s.gy - 15 * s.u, 1.8 * s.u, 1 * s.u, '#ff7aa8');
       }
       if (s.star >= 3) {
-        // Venomous Kiss: a bubbling cauldron of heart-shaped poison bubbles.
+        // 3★ Venomous Kiss: a bubbling cauldron of heart-shaped poison bubbles, and a mushroom jar.
         const x = s.w * 0.2;
         const y = s.gy + 2 * s.u;
         ellipse(s.c, x, y - 5 * s.u, 8 * s.u, 6.5 * s.u, '#2c2438', s.line, lw(s, 0.6));
@@ -1511,6 +1615,8 @@ export const CAT_SCENES: Partial<Record<CatId, SceneDef>> = {
           [-0.5, -24, 0.9],
         ])
           drawHeart(s.c, x + dx * s.u, y + dy * s.u, 1.6 * k * s.u, s.p.accent);
+        roundRect(s.c, s.w * 0.93, s.gy - 18 * s.u, 5 * s.u, 6 * s.u, 1.5 * s.u, 'rgba(255,255,255,0.4)', s.line, lw(s, 0.4));
+        ellipse(s.c, s.w * 0.93 + 2.5 * s.u, s.gy - 15 * s.u, 1.8 * s.u, 1 * s.u, '#ff7aa8');
       }
     },
     front: (s) => {
@@ -1542,6 +1648,7 @@ export const CAT_SCENES: Partial<Record<CatId, SceneDef>> = {
         s.c.font = `${4 * s.u}px serif`;
         s.c.textAlign = 'center';
         ['ᚠ', 'ᚱ', 'ᛉ', 'ᛟ'].forEach((r, i) => s.c.fillText(r, s.w * (0.12 + i * 0.25), s.h * (0.2 + (i % 2) * 0.08)));
+        sparkles(s, 12, s.p.accent, 61, 3 * s.u, s.gy);
       }
     },
   },
