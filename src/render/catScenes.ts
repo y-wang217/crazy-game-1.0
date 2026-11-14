@@ -1762,6 +1762,9 @@ export function drawCatScene(ctx: Ctx, w: number, h: number, cat: string, star: 
   // 2★+: the place gets lived-in detail on the ground (tufts, specks, scuffs).
   if (s.star >= 2 && !def.floor) groundDetail(s);
   def.mid?.(s);
+  // Star upgrade layers: each star from 2★ adds that cat's next set of visible props.
+  const ups = UPGRADES[cat as CatId];
+  if (ups) for (const k of [2, 3, 4, 5] as const) if (s.star >= k) ups[k]?.(s);
   // 3★+: the Special Ability's colour gathers around the cat (a quiet halo, stronger at 5★).
   if (s.star >= 3) glowAt(s, w * 0.5, h * 0.5, (s.star >= 5 ? 34 : 26) * u, p.accent, s.star >= 5 ? 0.32 : 0.2);
   def.front?.(s);
@@ -1776,6 +1779,378 @@ export function drawCatScene(ctx: Ctx, w: number, h: number, cat: string, star: 
   if (s.star >= 5) cardFrame(s);
   ctx.restore();
 }
+
+// ---------------------------------------------------------------------------
+// Star upgrade layers (V1.6 consistency pass)
+// ---------------------------------------------------------------------------
+// Extra props each cat gains at 2★ / 3★ / … on top of its scene, placed where the cat
+// portrait never covers them (the sides, the top strip and the floor edge), so every upgrade
+// is visible at a glance. Rule of thumb (checked by the visual audit): every star step changes
+// at least ~8% of the visible background, in both themes.
+type Upgrade = (s: SceneCtx) => void;
+const UPGRADES: Partial<Record<CatId, Partial<Record<2 | 3 | 4 | 5, Upgrade>>>> = {
+  kitten: {
+    // 2★: paper stars hanging from the ceiling and a framed picture.
+    2: (s) => {
+      for (const [x, len] of [
+        [0.06, 8],
+        [0.26, 12],
+        [0.33, 6],
+        [0.92, 9],
+      ] as const) {
+        s.c.fillStyle = s.line;
+        s.c.fillRect(s.w * x, 0, 0.3 * s.u, len * s.u);
+        drawStar(s.c, s.w * x, (len + 2) * s.u, 2.2 * s.u, x < 0.3 ? s.p.accent2 : '#ffb3c8');
+      }
+      for (const d of [-1, 1]) {
+        const cx = s.w * 0.17 + d * 10 * s.u;
+        poly(s.c, [cx - 3 * s.u, s.h * 0.27 - 11 * s.u, cx + 3 * s.u, s.h * 0.27 - 11 * s.u, cx + d * 2 * s.u, s.h * 0.27 + 9 * s.u, cx - d * 2 * s.u, s.h * 0.27 + 9 * s.u], '#ffd0dc', s.line, lw(s, 0.4));
+      }
+      s.c.fillStyle = s.p.wood;
+      s.c.fillRect(s.w * 0.17 - 14 * s.u, s.h * 0.27 - 11.5 * s.u, 28 * s.u, 1 * s.u);
+      roundRect(s.c, s.w * 0.82, s.h * 0.24, 10 * s.u, 8 * s.u, 0.6 * s.u, '#ffffff', s.p.wood, lw(s, 0.9));
+      drawHeart(s.c, s.w * 0.82 + 5 * s.u, s.h * 0.24 + 4.5 * s.u, 3.4 * s.u, s.p.accent);
+    },
+    // 3★: a colourful foam play mat along the floor.
+    3: (s) => {
+      const cols = ['#ffb3c8', '#bfe1f2', '#ffe08a', '#c9f0c0'];
+      const y = s.h * 0.9;
+      for (let i = 0, x = 0; x < s.w; x += 9 * s.u, i++) roundRect(s.c, x, y, 9 * s.u, s.h - y + 2, 0.6 * s.u, cols[i % 4], s.line, lw(s, 0.35));
+    },
+  },
+  tabby: {
+    // 2★: pennant flags along the fence and a log pile.
+    2: (s) => {
+      for (const x of [0.04, 0.12, 0.2, 0.7, 0.78, 0.96]) {
+        s.c.fillStyle = s.line;
+        s.c.fillRect(s.w * x, s.gy - 15 * s.u, 0.5 * s.u, 10 * s.u);
+        poly(s.c, [s.w * x + 0.5 * s.u, s.gy - 15 * s.u, s.w * x + 8 * s.u, s.gy - 13 * s.u, s.w * x + 0.5 * s.u, s.gy - 10.5 * s.u], x < 0.5 ? s.p.accent : s.p.accent2, s.line, lw(s, 0.3));
+      }
+      for (const [dx, dy] of [
+        [0, 0],
+        [4.4, 0],
+        [2.2, -3.4],
+      ])
+        circle(s.c, s.w * 0.92 + dx * s.u, s.gy + 2 * s.u + dy * s.u, 2 * s.u, s.p.wood, s.line, lw(s, 0.4));
+    },
+    // 3★: archery targets on the fence and a chalk sparring ring on the ground.
+    3: (s) => {
+      for (const x of [0.07, 0.75]) for (const [r, col] of [[4.5, '#f4efe6'], [3, s.p.accent], [1.4, '#f4efe6']] as const) circle(s.c, s.w * x, s.gy - 9 * s.u, r * s.u, col, s.line, lw(s, 0.35));
+      s.c.strokeStyle = s.night ? 'rgba(255,240,210,0.45)' : 'rgba(255,255,255,0.75)';
+      s.c.lineWidth = lw(s, 0.9);
+      s.c.beginPath();
+      s.c.ellipse(s.w * 0.5, s.gy + 13 * s.u, s.w * 0.46, 8 * s.u, 0, 0, TAU);
+      s.c.stroke();
+      // Hay bales along the front of the yard.
+      for (const x of [0.02, 0.15, 0.85, 0.98]) {
+        roundRect(s.c, s.w * x - 6 * s.u, s.h * 0.88, 12 * s.u, 8 * s.u, 1.5 * s.u, '#e7c873', s.line, lw(s, 0.5));
+        s.c.strokeStyle = '#b8924a';
+        s.c.lineWidth = lw(s, 0.5);
+        for (const dx of [-3, 3]) {
+          s.c.beginPath();
+          s.c.moveTo(s.w * x + dx * s.u, s.h * 0.88);
+          s.c.lineTo(s.w * x + dx * s.u, s.h * 0.88 + 8 * s.u);
+          s.c.stroke();
+        }
+      }
+    },
+  },
+  orange: {
+    // 3★: a pile of floor cushions and a fish-shaped wall clock.
+    3: (s) => {
+      for (const [dx, dy, col] of [
+        [0, 0, '#ffd166'],
+        [6, 1.5, '#ff9ecb'],
+        [2.5, -3.5, '#9fd8f0'],
+      ] as const)
+        pillow(s, s.w * 0.08 + dx * s.u, s.h * 0.9 + dy * s.u, 0.7, col, '#ffffff');
+      const x = s.w * 0.9;
+      const y = s.h * 0.14;
+      ellipse(s.c, x, y, 6 * s.u, 4 * s.u, s.p.accent, s.line, lw(s, 0.5));
+      poly(s.c, [x + 5 * s.u, y, x + 9 * s.u, y - 3 * s.u, x + 9 * s.u, y + 3 * s.u], s.p.accent, s.line, lw(s, 0.5));
+      circle(s.c, x - 1 * s.u, y, 2.6 * s.u, '#ffffff', s.line, lw(s, 0.35));
+      s.c.strokeStyle = s.line;
+      s.c.lineWidth = lw(s, 0.4);
+      s.c.beginPath();
+      s.c.moveTo(x - 1 * s.u, y);
+      s.c.lineTo(x - 1 * s.u, y - 1.8 * s.u);
+      s.c.moveTo(x - 1 * s.u, y);
+      s.c.lineTo(x + 0.4 * s.u, y + 0.6 * s.u);
+      s.c.stroke();
+    },
+  },
+  black: {
+    // 2★: an iron railing along the roof ledge.
+    2: (s) => {
+      const top = s.gy - 8 * s.u;
+      s.c.fillStyle = s.night ? '#8a83a8' : '#4a4256';
+      s.c.fillRect(0, top, s.w, 1.2 * s.u);
+      s.c.fillRect(0, top + 4 * s.u, s.w, 0.6 * s.u);
+      for (let x = 1 * s.u; x < s.w; x += 3 * s.u) s.c.fillRect(x, top, 0.7 * s.u, 8 * s.u);
+      // A rooftop TV antenna.
+      s.c.fillStyle = s.line;
+      s.c.fillRect(s.w * 0.62, s.gy - 26 * s.u, 0.6 * s.u, 18 * s.u);
+      for (const [y, w] of [
+        [-26, 9],
+        [-23, 7],
+        [-20, 5],
+      ] as const)
+        s.c.fillRect(s.w * 0.62 - (w / 2) * s.u, s.gy + y * s.u, w * s.u, 0.6 * s.u);
+      // A laundry line strung across the rooftops.
+      s.c.strokeStyle = s.line;
+      s.c.lineWidth = lw(s, 0.4);
+      s.c.beginPath();
+      s.c.moveTo(0, s.h * 0.3);
+      s.c.quadraticCurveTo(s.w * 0.2, s.h * 0.38, s.w * 0.4, s.h * 0.3);
+      s.c.stroke();
+      for (const [x, col] of [
+        [0.06, '#ff8fb8'],
+        [0.14, '#7fc8e8'],
+        [0.24, '#ffe08a'],
+        [0.33, '#ffffff'],
+      ] as const)
+        roundRect(s.c, s.w * x - 2.2 * s.u, s.h * 0.33, 4.4 * s.u, 5 * s.u, 0.5 * s.u, col, s.line, lw(s, 0.3));
+    },
+    // 3★: a rooftop door hut and a telescope on its tripod.
+    3: (s) => {
+      const hx = s.w * 0.02;
+      roundRect(s.c, hx, s.gy - 20 * s.u, 14 * s.u, 20 * s.u, 0.4 * s.u, s.p.stone, s.line, lw(s, 0.5));
+      poly(s.c, [hx - 1.5 * s.u, s.gy - 20 * s.u, hx + 15.5 * s.u, s.gy - 20 * s.u, hx + 7 * s.u, s.gy - 25 * s.u], s.p.wood, s.line, lw(s, 0.5));
+      roundRect(s.c, hx + 4 * s.u, s.gy - 13 * s.u, 6 * s.u, 13 * s.u, 0.4 * s.u, s.p.wood, s.line, lw(s, 0.4));
+      if (s.night) glowAt(s, hx + 7 * s.u, s.gy - 6 * s.u, 9 * s.u, '#ffd98a', 0.5);
+      const tx = s.w * 0.26;
+      s.c.strokeStyle = s.line;
+      s.c.lineWidth = lw(s, 0.6);
+      s.c.beginPath();
+      for (const d of [-3, 0, 3]) {
+        s.c.moveTo(tx, s.gy - 9 * s.u);
+        s.c.lineTo(tx + d * s.u, s.gy + 1 * s.u);
+      }
+      s.c.stroke();
+      s.c.save();
+      s.c.translate(tx, s.gy - 10 * s.u);
+      s.c.rotate(-0.45);
+      roundRect(s.c, -2 * s.u, -1.3 * s.u, 12 * s.u, 2.6 * s.u, 0.8 * s.u, s.p.accent, s.line, lw(s, 0.45));
+      s.c.restore();
+      // Supply crates stacked on the ledge (two on the bottom, one on top).
+      for (const [dx, row, w] of [
+        [0, 0, 10],
+        [10.5, 0, 8],
+        [3, 1, 8],
+      ] as const)
+        roundRect(s.c, s.w * 0.72 + dx * s.u, s.gy - (row + 1) * 8 * s.u, w * s.u, 8 * s.u, 0.5 * s.u, s.p.wood, s.line, lw(s, 0.45));
+    },
+  },
+  white: {
+    // 3★: gold-framed portraits and a pearl garland swag along the top.
+    3: (s) => {
+      for (const x of [0.08, 0.92]) {
+        roundRect(s.c, s.w * x - 5.5 * s.u, s.h * 0.12, 11 * s.u, 13 * s.u, 5 * s.u, s.p.wood, s.line, lw(s, 0.5));
+        roundRect(s.c, s.w * x - 4 * s.u, s.h * 0.12 + 1.5 * s.u, 8 * s.u, 10 * s.u, 4 * s.u, s.night ? '#3e3260' : '#fff4fa');
+        drawHeart(s.c, s.w * x, s.h * 0.12 + 7 * s.u, 3 * s.u, s.p.accent);
+      }
+      for (let i = 0; i < 4; i++) {
+        const x0 = (i / 4) * s.w;
+        const x1 = ((i + 1) / 4) * s.w;
+        for (let k = 0; k <= 10; k++) {
+          const t = k / 10;
+          circle(s.c, x0 + (x1 - x0) * t, 1 * s.u + Math.sin(t * Math.PI) * 5 * s.u, 0.8 * s.u, '#fffaf0', s.line, lw(s, 0.2));
+        }
+      }
+      const r = rng(37);
+      for (let i = 0; i < 26; i++) ellipse(s.c, r() * s.w, s.h * (0.88 + r() * 0.11), 1.4 * s.u, 0.8 * s.u, i % 3 ? s.p.accent : '#ffffff');
+    },
+  },
+  whiskers: {
+    // 3★: a marquee sign with bulbs hanging over the stage, and floating cards.
+    3: (s) => {
+      const x = s.w * 0.5;
+      roundRect(s.c, x - 16 * s.u, 1 * s.u, 32 * s.u, 7 * s.u, 1.5 * s.u, s.p.accent, s.p.accent2, lw(s, 0.8));
+      for (let i = 0; i < 9; i++) circle(s.c, x - 14 * s.u + i * 3.5 * s.u, 4.5 * s.u, 0.8 * s.u, s.p.accent2);
+      const r = rng(23);
+      for (let i = 0; i < 6; i++) {
+        const cx = s.w * (i < 3 ? 0.04 + r() * 0.22 : 0.74 + r() * 0.22);
+        const cy = s.h * (0.15 + r() * 0.4);
+        s.c.save();
+        s.c.translate(cx, cy);
+        s.c.rotate((r() - 0.5) * 1.2);
+        roundRect(s.c, -1.6 * s.u, -2.2 * s.u, 3.2 * s.u, 4.4 * s.u, 0.4 * s.u, '#ffffff', s.line, lw(s, 0.3));
+        drawHeart(s.c, 0, -0.4 * s.u, 0.9 * s.u, i % 2 ? '#222' : s.p.accent);
+        s.c.restore();
+      }
+    },
+    // 5★: marquee bulbs all around the show.
+    5: (s) => {
+      for (let x = 2 * s.u; x < s.w; x += 6 * s.u)
+        for (const y of [s.h - 1.5 * s.u]) {
+          glowAt(s, x, y, 3 * s.u, s.p.accent2, 0.7);
+          circle(s.c, x, y, 0.9 * s.u, s.p.accent2);
+        }
+    },
+  },
+  sable: {
+    // 2★: ivy climbing the castle wall.
+    2: (s) => {
+      const leaf = s.night ? '#3f6b5c' : '#5f9a6a';
+      for (const x0 of [0.03, 0.16, 0.84, 0.96]) {
+        s.c.strokeStyle = leaf;
+        s.c.lineWidth = lw(s, 0.6);
+        s.c.beginPath();
+        s.c.moveTo(s.w * x0, s.gy - 18 * s.u);
+        s.c.quadraticCurveTo(s.w * x0 + 3 * s.u, s.gy - 10 * s.u, s.w * x0 - 1 * s.u, s.gy);
+        s.c.stroke();
+        for (let k = 0; k < 6; k++) ellipse(s.c, s.w * x0 + (k % 2 ? 1.5 : -0.5) * s.u, s.gy - (17 - k * 3) * s.u, 1.5 * s.u, 0.9 * s.u, leaf);
+      }
+      // Long tapestries of the order hanging at both sides.
+      for (const x of [0.09, 0.91]) {
+        s.c.fillStyle = s.line;
+        s.c.fillRect(s.w * x - 6 * s.u, 1 * s.u, 12 * s.u, 1 * s.u);
+        poly(s.c, [s.w * x - 5 * s.u, 2 * s.u, s.w * x + 5 * s.u, 2 * s.u, s.w * x + 5 * s.u, s.h * 0.42, s.w * x, s.h * 0.38, s.w * x - 5 * s.u, s.h * 0.42], s.p.accent, s.line, lw(s, 0.5));
+        drawStar(s.c, s.w * x, s.h * 0.2, 3 * s.u, s.p.accent2, 4);
+      }
+    },
+    // 3★: heraldic shields on the wall and a spear rack.
+    3: (s) => {
+      for (const x of [0.2, 0.68]) {
+        poly(s.c, [s.w * x - 5 * s.u, s.gy - 16 * s.u, s.w * x + 5 * s.u, s.gy - 16 * s.u, s.w * x + 5 * s.u, s.gy - 9 * s.u, s.w * x, s.gy - 4 * s.u, s.w * x - 5 * s.u, s.gy - 9 * s.u], s.p.accent2, s.p.accent, lw(s, 0.9));
+        drawStar(s.c, s.w * x, s.gy - 11 * s.u, 2 * s.u, s.p.accent, 4);
+      }
+      for (const x of [0.06, 0.94]) {
+        roundRect(s.c, s.w * x - 6 * s.u, s.h * 0.88, 12 * s.u, 8 * s.u, 1 * s.u, s.p.stone, s.line, lw(s, 0.5));
+        bush(s, s.w * x, s.h * 0.87, 0.8, s.night ? '#2f4a45' : '#5e8f6a');
+        for (const dx of [-3, 0, 3]) circle(s.c, s.w * x + dx * s.u, s.h * 0.84, 1.1 * s.u, '#7f9cff');
+      }
+      for (const dx of [0, 2.5, 5]) {
+        s.c.fillStyle = s.p.wood;
+        s.c.fillRect(s.w * 0.96 + dx * s.u - 6 * s.u, s.gy - 20 * s.u, 0.6 * s.u, 21 * s.u);
+        poly(s.c, [s.w * 0.96 + dx * s.u - 6.6 * s.u, s.gy - 20 * s.u, s.w * 0.96 + dx * s.u - 5.1 * s.u, s.gy - 20 * s.u, s.w * 0.96 + dx * s.u - 5.7 * s.u, s.gy - 23 * s.u], s.p.stone, s.line, lw(s, 0.3));
+      }
+    },
+  },
+  mallow: {
+    // 2★: team photos on the wall and a hanging plant.
+    2: (s) => {
+      for (const [x, y, w, h] of [
+        [0.78, 0.08, 8, 6],
+        [0.88, 0.1, 7, 9],
+        [0.8, 0.2, 9, 6],
+      ] as const) {
+        roundRect(s.c, s.w * x, s.h * y, w * s.u, h * s.u, 0.5 * s.u, s.p.wood, s.line, lw(s, 0.4));
+        roundRect(s.c, s.w * x + 0.9 * s.u, s.h * y + 0.9 * s.u, (w - 1.8) * s.u, (h - 1.8) * s.u, 0.3 * s.u, s.night ? '#556a8a' : '#bfe3f7');
+        circle(s.c, s.w * x + w * 0.5 * s.u, s.h * y + h * 0.6 * s.u, 1.2 * s.u, s.p.accent2);
+      }
+      // The team's big adventure map.
+      roundRect(s.c, s.w * 0.03, s.h * 0.34, s.w * 0.22, 13 * s.u, 0.6 * s.u, s.night ? '#c9b98f' : '#f6e7c1', s.p.wood, lw(s, 0.8));
+      s.c.strokeStyle = s.p.accent;
+      s.c.lineWidth = lw(s, 0.5);
+      s.c.setLineDash([1.2 * s.u, 1 * s.u]);
+      s.c.beginPath();
+      s.c.moveTo(s.w * 0.05, s.h * 0.34 + 10 * s.u);
+      s.c.bezierCurveTo(s.w * 0.1, s.h * 0.34 + 2 * s.u, s.w * 0.17, s.h * 0.34 + 12 * s.u, s.w * 0.23, s.h * 0.34 + 4 * s.u);
+      s.c.stroke();
+      s.c.setLineDash([]);
+      drawStar(s.c, s.w * 0.23, s.h * 0.34 + 4 * s.u, 1.6 * s.u, '#e2557a');
+      s.c.fillStyle = s.line;
+      s.c.fillRect(s.w * 0.04, 0, 0.4 * s.u, 8 * s.u);
+      roundRect(s.c, s.w * 0.04 - 3 * s.u, 8 * s.u, 6 * s.u, 4 * s.u, 1.5 * s.u, '#c97a4a', s.line, lw(s, 0.4));
+      bush(s, s.w * 0.04, 7 * s.u, 0.6, s.night ? '#4f7a5d' : '#79c47a');
+    },
+    // 3★: comfy floor cushions for the team meeting.
+    3: (s) => {
+      for (const [x, col] of [
+        [0.08, '#ff8fb8'],
+        [0.2, '#8ad18a'],
+        [0.8, '#ffcf4d'],
+        [0.92, '#c8a2ff'],
+      ] as const)
+        pillow(s, s.w * x, s.h * 0.93, 0.8, col, '#ffffff');
+    },
+  },
+  pounce: {
+    // 2★: lights come on across town (and a street lamp at the alley mouth).
+    2: (s) => {
+      const r = rng(19);
+      for (let i = 0; i < 38; i++) {
+        const x = s.w * (0.48 + r() * 0.5);
+        const y = s.gy - (3 + r() * 16) * s.u;
+        if (s.night) glowAt(s, x + 1 * s.u, y + 1.2 * s.u, 3 * s.u, '#ffd98a', 0.5);
+        roundRect(s.c, x, y, 2 * s.u, 2.4 * s.u, 0.3 * s.u, s.night ? '#ffd98a' : '#fff6d8');
+      }
+      const lx = s.w * 0.96;
+      s.c.fillStyle = s.line;
+      s.c.fillRect(lx, s.gy - 22 * s.u, 0.8 * s.u, 22 * s.u);
+      glowAt(s, lx - 1.5 * s.u, s.gy - 21 * s.u, 10 * s.u, '#ffe1a0', s.night ? 0.7 : 0.3);
+      roundRect(s.c, lx - 3 * s.u, s.gy - 22.5 * s.u, 3.6 * s.u, 2 * s.u, 0.5 * s.u, '#ffe1a0', s.line, lw(s, 0.3));
+    },
+    // 3★: an old tree marked with claw scratches, and undergrowth along the path.
+    3: (s) => {
+      const x = s.w * 0.03;
+      roundRect(s.c, x - 3 * s.u, 0, 7 * s.u, s.gy + 2 * s.u, 1 * s.u, s.p.wood, s.line, lw(s, 0.5));
+      s.c.strokeStyle = s.p.accent2;
+      s.c.lineWidth = lw(s, 0.7);
+      for (const d of [-1.4, 0, 1.4]) {
+        s.c.beginPath();
+        s.c.moveTo(x - 1.5 * s.u + d * s.u, s.gy - 24 * s.u);
+        s.c.lineTo(x + 1.5 * s.u + d * s.u, s.gy - 17 * s.u);
+        s.c.stroke();
+      }
+      for (let xx = 0; xx < s.w; xx += 8 * s.u) bush(s, xx, s.h * 0.97, 0.7, s.p.mid);
+    },
+  },
+  devil: {
+    // 2★: a bookcase of spellbooks and a broom.
+    2: (s) => {
+      roundRect(s.c, -1 * s.u, s.gy - 34 * s.u, s.w * 0.12, 34 * s.u, 0.6 * s.u, s.p.wood, s.line, lw(s, 0.5));
+      const cols = [s.p.accent2, '#6bd7ff', s.p.accent, '#ff7aa8', '#ffcf5a'];
+      for (let row = 0; row < 3; row++) {
+        const y = s.gy - (32 - row * 10) * s.u;
+        s.c.fillStyle = s.line;
+        s.c.fillRect(0, y + 8.5 * s.u, s.w * 0.12, 0.6 * s.u);
+        for (let i = 0, x = 1 * s.u; x < s.w * 0.11 - 2 * s.u; x += 2.6 * s.u, i++) roundRect(s.c, x, y + 1.5 * s.u + (i % 2) * s.u, 2.2 * s.u, 7 * s.u - (i % 2) * s.u, 0.3 * s.u, cols[(i + row) % 5]);
+      }
+      const bx = s.w * 0.97;
+      s.c.save();
+      s.c.translate(bx, s.gy);
+      s.c.rotate(-0.25);
+      s.c.fillStyle = s.p.wood;
+      s.c.fillRect(-0.5 * s.u, -24 * s.u, 1 * s.u, 22 * s.u);
+      poly(s.c, [-3 * s.u, 0, 3 * s.u, 0, 1.5 * s.u, -5 * s.u, -1.5 * s.u, -5 * s.u], '#c9a86b', s.line, lw(s, 0.4));
+      s.c.restore();
+    },
+    // 3★: glowing mushrooms and poison mist curling up the walls.
+    3: (s) => {
+      for (const [x, k] of [
+        [0.72, 1],
+        [0.78, 0.7],
+        [0.86, 1.2],
+      ] as const) {
+        roundRect(s.c, s.w * x - 0.6 * k * s.u, s.h * 0.92 - 4 * k * s.u, 1.2 * k * s.u, 4 * k * s.u, 0.4 * s.u, '#f4ecd8');
+        ellipse(s.c, s.w * x, s.h * 0.92 - 4 * k * s.u, 3 * k * s.u, 1.8 * k * s.u, s.p.accent, s.line, lw(s, 0.3));
+        glowAt(s, s.w * x, s.h * 0.9 - 4 * k * s.u, 7 * k * s.u, s.p.accent, 0.5);
+      }
+      s.c.save();
+      s.c.globalAlpha = s.night ? 0.35 : 0.28;
+      s.c.strokeStyle = s.p.accent;
+      s.c.lineWidth = lw(s, 2.2);
+      for (const x0 of [0.18, 0.88]) {
+        s.c.beginPath();
+        s.c.moveTo(s.w * x0, s.gy);
+        s.c.bezierCurveTo(s.w * x0 - 8 * s.u, s.gy - 14 * s.u, s.w * x0 + 8 * s.u, s.gy - 24 * s.u, s.w * x0, s.gy - 38 * s.u);
+        s.c.stroke();
+      }
+      s.c.restore();
+    },
+    // 4★: floating candles along the top of the room.
+    4: (s) => {
+      for (const x of [0.15, 0.3, 0.7, 0.85]) {
+        const y = s.h * (0.04 + (x * 7) % 0.06);
+        roundRect(s.c, s.w * x - 0.9 * s.u, y + 2 * s.u, 1.8 * s.u, 5 * s.u, 0.4 * s.u, '#f4ecd8', s.line, lw(s, 0.3));
+        ellipse(s.c, s.w * x, y + 1 * s.u, 0.7 * s.u, 1.2 * s.u, '#ffcf5a');
+        glowAt(s, s.w * x, y + 1 * s.u, 5 * s.u, '#ffcf5a', 0.7);
+      }
+    },
+  },
+};
 
 // ---------------------------------------------------------------------------
 // Cache (scenes are static: draw once per cat / rank / theme / size)
