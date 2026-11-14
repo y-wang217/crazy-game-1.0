@@ -865,3 +865,19 @@ It's a static Vite app, so no server or env vars are needed. Vercel auto-detects
   no level crown gear) — two hats never stack.
 - Encyclopedia level text: `gear.<cat>.<lv>` for the default look, `skingear.<skin>.<lv>` with a
   skin equipped. A test checks that every cat/skin draws something different at each level.
+
+### Dev tool: Lv.1–5 comparison sheets
+
+Development only — never part of the game build. It draws every cat (default look + every skin)
+at Lv.1–5 with the game's real art code, so new cats and skins appear automatically.
+
+- **In a browser:** `npm run dev`, then open http://localhost:5173/tools/level-sheets.html.
+  Switch between *Enlarged* and *Phone size* (actual Android portrait battle size), pick one cat,
+  try a shared hat, and use *Download PNG*. URL options: `view=art|phone`, `cats=sable,mallow`,
+  `skins=all|none|<id,…>`, `hat=hat_crown`, `scale=<n>`.
+- **Export PNGs:** `npm run sheets` writes `level-sheets/all-art.png`, `all-phone.png` and one
+  sheet per cat (`<cat>-art.png`, `<cat>-phone.png`). Options: `-- --cats=…`, `--views=phone`,
+  `--hat=…`, `--out=dir`. Phone sheets use a Pixel 7's pixel density. Needs Playwright with Chromium
+  (`npm i -D playwright && npx playwright install chromium`).
+- Files: `tools/level-sheets.html`, `src/devtools/levelSheets.ts`, `scripts/level-sheets.mjs`.
+  Check every adjacent pair by eye at phone size; `skins.test.ts` also fails if two levels draw the same thing.

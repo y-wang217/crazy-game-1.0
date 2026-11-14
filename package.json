@@ -10,7 +10,8 @@
     "test": "vitest run",
     "sim": "vitest run src/game/__tests__/balance.sim.test.ts",
     "sim:profiles": "PROFILES=1 vitest run src/game/__tests__/profiles.sim.test.ts",
-    "sim:economy": "ECONOMY=1 vitest run src/game/__tests__/economy.sim.test.ts"
+    "sim:economy": "ECONOMY=1 vitest run src/game/__tests__/economy.sim.test.ts",
+    "sheets": "node scripts/level-sheets.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",

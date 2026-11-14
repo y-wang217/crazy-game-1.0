@@ -1,0 +1,48 @@
+<!doctype html>
+<!-- DEV TOOL (not part of the game build): Lv.1–5 comparison sheets for every cat and skin.
+     Run `npm run dev`, then open http://localhost:5173/tools/level-sheets.html -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cat level sheets (dev)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Noto+Sans+HK:wght@500;700;900&display=swap" rel="stylesheet" />
+    <style>
+      body { margin: 0; font: 13px system-ui, sans-serif; background: #e8efe4; color: #21323a; }
+      nav { position: sticky; top: 0; display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; background: #fff; border-bottom: 1px solid #ccd; z-index: 1; }
+      nav a, nav button { padding: 4px 10px; border: 1px solid #99a; border-radius: 6px; background: #f6f8f4; color: inherit; text-decoration: none; cursor: pointer; font: inherit; }
+      nav .on { background: #21323a; color: #fff; }
+      #sheet { display: block; }
+    </style>
+  </head>
+  <body>
+    <nav id="nav"></nav>
+    <canvas id="sheet"></canvas>
+    <script type="module">
+      import { renderSheet } from '/src/devtools/levelSheets.ts';
+      import { CAT_ORDER } from '/src/config/cats.ts';
+      const params = new URLSearchParams(location.search);
+      const canvas = document.getElementById('sheet');
+      const link = (label, changes) => {
+        const p = new URLSearchParams(params);
+        for (const [k, v] of Object.entries(changes)) v === null ? p.delete(k) : p.set(k, v);
+        const on = Object.entries(changes).every(([k, v]) => (params.get(k) ?? null) === v);
+        return `<a class="${on ? 'on' : ''}" href="?${p}">${label}</a>`;
+      };
+      document.getElementById('nav').innerHTML =
+        link('Enlarged', { view: null, scale: null }) + link('Phone size', { view: 'phone', scale: null }) + link('All cats', { cats: null }) +
+        CAT_ORDER.map((c) => link(c, { cats: c })).join('') + link('With hat', { hat: 'hat_crown' }) + link('No hat', { hat: null }) +
+        '<button id="dl">Download PNG</button>';
+      // Fonts first, so labels render with the game font.
+      await document.fonts.ready;
+      renderSheet(canvas, params);
+      document.getElementById('dl').onclick = () => {
+        const a = document.createElement('a');
+        a.download = `level-sheet-${params.get('view') ?? 'art'}${params.get('cats') ? '-' + params.get('cats') : ''}.png`;
+        a.href = canvas.toDataURL('image/png');
+        a.click();
+      };
+      window.__sheetReady = true;
+    </script>
+  </body>
+</html>

@@ -33,6 +33,14 @@ export function resolvePalette(type: CatId, loadout: CosmeticLoadout): CatPalett
 
 const TAU = Math.PI * 2;
 
+/** Max-level sparkle: three gold stars circling the cat (also used by the dev comparison sheets). */
+export function drawLevelAura(ctx: CanvasRenderingContext2D, t: number): void {
+  for (let i = 0; i < 3; i++) {
+    const a = t * 1.5 + (i * TAU) / 3;
+    drawStar(ctx, Math.cos(a) * 19, Math.sin(a) * 15 - 2, 2.2, '#ffe066');
+  }
+}
+
 export class Renderer {
   private ctx: CanvasRenderingContext2D;
   private bg: HTMLCanvasElement | null = null;
@@ -410,12 +418,7 @@ export class Renderer {
       }
     }
     // Level-5 sparkle aura
-    if (cat.level >= BALANCE.levels.maxLevel) {
-      for (let i = 0; i < 3; i++) {
-        const a = t * 1.5 + (i * TAU) / 3;
-        drawStar(ctx, Math.cos(a) * 19, Math.sin(a) * 15 - 2, 2.2, '#ffe066');
-      }
-    }
+    if (cat.level >= BALANCE.levels.maxLevel) drawLevelAura(ctx, t);
     ctx.save();
     ctx.scale(s, s);
     drawCat(ctx, {
