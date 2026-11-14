@@ -2,5 +2,5 @@
 // notice). Bump it here only.
 export const APP_VERSION = '1.6';
 
-/** "V1.5" — how the version is displayed. */
+/** "V1.6" — how the version is displayed. */
 export const versionLabel = (): string => `V${APP_VERSION}`;
