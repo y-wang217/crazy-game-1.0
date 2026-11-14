@@ -4,7 +4,7 @@
 import type { CatId, CatPalette, ChestTier, EnemyId } from '../game/types';
 
 import { TAU, circle, drawHeart, drawStar, ellipse, poly, roundRect, type Ctx } from './shapes';
-import { costumeHasHeadwear, drawCostume } from './costumes';
+import { costumeCovers, costumeHasHeadwear, costumeTint, drawCostume, type CostumeGeom, type GearTint, type Slot } from './costumes';
 
 export { drawHeart, drawStar };
 
@@ -87,6 +87,28 @@ export function drawCat(ctx: Ctx, o: CatDrawOpts) {
 
   const fat = o.type === 'orange' ? 1.25 : 1;
   const ol = p.outline;
+  const L = o.level;
+  // Skin-aware level gear: a skin outfit "covers" some equipment slots. Default level gear in a
+  // covered slot is not drawn (the outfit draws its own themed upgrade there instead), so a skin
+  // never hides a level change by painting over it.
+  const free = (s: Slot) => !costumeCovers(o.costume, s);
+  const tint = costumeTint(o.costume);
+  const fluffy = o.type === 'white' || o.type === 'mallow';
+  const headR = HEAD_R[o.type] ?? 12;
+  // Just under the chin, in front of the head: neck pieces drawn here are never hidden by the head.
+  const ny = fluffy ? 7.5 : o.type === 'orange' ? 5.5 : 4.5;
+
+  // Paws (positions are needed by the outfit too)
+  const jab = o.type === 'tabby' && a < 0.07;
+  const jabSide = jab ? ((o.comboIndex ?? 0) % 2 === 0 ? -1 : 1) : 0;
+  const pawL = { x: -6 * fat, y: 15 };
+  const pawR = { x: 6 * fat, y: 15 };
+  if (jab) {
+    const reach = 9 * (1 - a / 0.07) + 3;
+    const tp = jabSide < 0 ? pawL : pawR;
+    tp.x += Math.cos(o.aim) * reach;
+    tp.y += Math.sin(o.aim) * reach - 4;
+  }
 
   // Tail
   ctx.lineCap = 'round';
@@ -100,24 +122,26 @@ export function drawCat(ctx: Ctx, o: CatDrawOpts) {
   ctx.strokeStyle = o.type === 'sable' || o.type === 'mallow' ? p.stripe : p.body;
   ctx.lineWidth = o.type === 'white' || o.type === 'mallow' ? 6.5 : 4.5;
   ctx.stroke();
+  const tail = { x: 17 * fat + tailWag, y: -4 };
   if (o.type === 'devil') {
-    // dark-tipped tail; at Lv.5 the tip becomes a tiny heart ("devil" tail)
-    if (o.level >= 5) drawHeart(ctx, 17 * fat + tailWag, -6, 3.2, '#9a5ac8');
-    else circle(ctx, 17 * fat + tailWag, -4, 2.4, p.stripe);
+    // dark-tipped tail; at Lv.5 the tip becomes a heart ("devil" tail)
+    if (L >= 5 && free('tail')) drawHeart(ctx, tail.x, tail.y - 2.5, 4.4, '#9a5ac8');
+    else circle(ctx, tail.x, tail.y, 2.4, p.stripe);
   }
-  if (o.type === 'whiskers') circle(ctx, 17 * fat + tailWag, -4, 2.3, p.belly);
-  if (o.type === 'white' && o.level >= 3) {
+  if (o.type === 'whiskers') circle(ctx, tail.x, tail.y, 2.3, p.belly);
+  if (o.type === 'white' && L >= 3 && free('tail')) {
     // ribbon on tail
-    poly(ctx, [17 + tailWag, -2, 22 + tailWag, -6, 22 + tailWag, 1], '#ff7fae', '#c04a7a', 1);
-    poly(ctx, [17 + tailWag, -2, 12 + tailWag, -6, 12 + tailWag, 1], '#ff7fae', '#c04a7a', 1);
+    poly(ctx, [17 + tailWag, -2, 23 + tailWag, -7, 23 + tailWag, 2], '#ff7fae', '#c04a7a', 1);
+    poly(ctx, [17 + tailWag, -2, 11 + tailWag, -7, 11 + tailWag, 2], '#ff7fae', '#c04a7a', 1);
+    circle(ctx, 17 + tailWag, -2.5, 1.6, '#ffb3d1', '#c04a7a', 0.8);
   }
 
-  const headR = HEAD_R[o.type] ?? 12;
-  const cg = { r: headR, fat, t: o.t };
+  const cg: CostumeGeom = { r: headR, fat, t: o.t, level: L, ny, pawL, pawR, tail, aim: o.aim, attackAge: a };
+  drawCostume(ctx, o.costume, 'tail', cg);
+  drawBackGear(ctx, o, free);
   drawCostume(ctx, o.costume, 'back', cg);
 
   // Body
-  const fluffy = o.type === 'white' || o.type === 'mallow';
   if (fluffy) {
     for (let i = 0; i < 7; i++) {
       const ang = (i / 7) * TAU;
@@ -143,34 +167,16 @@ export function drawCat(ctx: Ctx, o: CatDrawOpts) {
     }
   }
 
-  // Level accessories on body (under head)
-  drawBodyGear(ctx, o, fat);
+  // Level gear on the body (capes, belts, bibs, pouches), then the skin outfit's body pieces
+  drawBodyGear(ctx, o, fat, free, tint);
   drawCostume(ctx, o.costume, 'body', cg);
 
   // Paws
-  const jab = o.type === 'tabby' && a < 0.07;
-  const jabSide = jab ? ((o.comboIndex ?? 0) % 2 === 0 ? -1 : 1) : 0;
-  const pawL = { x: -6 * fat, y: 15 };
-  const pawR = { x: 6 * fat, y: 15 };
-  if (jab) {
-    const reach = 9 * (1 - a / 0.07) + 3;
-    const t = jabSide < 0 ? pawL : pawR;
-    t.x += Math.cos(o.aim) * reach;
-    t.y += Math.sin(o.aim) * reach - 4;
-  }
-  const pawColor = o.type === 'tabby' && o.level >= 3 ? '#ffffff' : o.type === 'sable' ? p.stripe : p.belly;
+  const pawColor = o.type === 'tabby' && L >= 3 && free('paws') ? '#ffffff' : o.type === 'sable' ? p.stripe : p.belly;
   circle(ctx, pawL.x, pawL.y, 3.6, pawColor, ol, 1.2);
   circle(ctx, pawR.x, pawR.y, 3.6, pawColor, ol, 1.2);
-  if (o.type === 'tabby' && o.level >= 3) {
-    // wrist wraps
-    ctx.strokeStyle = '#d84a4a';
-    ctx.lineWidth = 1.2;
-    for (const pw of [pawL, pawR]) {
-      ctx.beginPath();
-      ctx.arc(pw.x, pw.y, 3.6, Math.PI * 1.1, Math.PI * 1.9);
-      ctx.stroke();
-    }
-  }
+  drawPawGear(ctx, o, [pawL, pawR], free, tint);
+  drawCostume(ctx, o.costume, 'paws', cg);
 
   // Head
   const hy = -7;
@@ -180,13 +186,27 @@ export function drawCat(ctx: Ctx, o: CatDrawOpts) {
   ctx.save();
   ctx.translate(glance, hy);
   ctx.rotate(headTilt);
-  drawHead(ctx, o);
+  drawHead(ctx, o, free);
   ctx.restore();
 
-  // Black cat rifle in front
-  if (o.type === 'black') drawRifle(ctx, o);
+  // Neck / chest pieces in front of the chin, then the outfit's front pieces
+  drawNeckGear(ctx, o, ny, free, tint);
+  drawCostume(ctx, o.costume, 'front', cg);
+
+  // Held items and weapons
+  if (o.type === 'black') drawRifle(ctx, o, tint);
   if (o.type === 'sable') drawRapier(ctx, o);
-  if (o.type === 'whiskers' && o.level >= 4) drawWand(ctx, o);
+  if (o.type === 'whiskers' && L >= 4 && free('hand')) drawWand(ctx, o);
+  if (o.type === 'orange' && L >= 3 && free('hand')) {
+    // holding a fish snack
+    ctx.save();
+    ctx.translate(-10 * fat, 11);
+    ctx.rotate(-0.5);
+    ellipse(ctx, 0, 0, 4.5, 2.2, '#8ac0e8', '#3a6a9a', 1);
+    poly(ctx, [4, 0, 7, -2.5, 7, 2.5], '#8ac0e8', '#3a6a9a', 1);
+    ctx.restore();
+  }
+  drawCostume(ctx, o.costume, 'hand', cg);
 
   ctx.restore();
 
@@ -211,7 +231,7 @@ export function drawCat(ctx: Ctx, o: CatDrawOpts) {
   }
 }
 
-function drawHead(ctx: Ctx, o: CatDrawOpts) {
+function drawHead(ctx: Ctx, o: CatDrawOpts, free: (s: Slot) => boolean) {
   const p = o.palette;
   const ol = p.outline;
   const r = HEAD_R[o.type] ?? 12;
@@ -320,8 +340,8 @@ function drawHead(ctx: Ctx, o: CatDrawOpts) {
     ctx.clip();
     ellipse(ctx, 0, -r * 0.85, r * 0.9, r * 0.38, 'rgba(120,124,138,0.35)');
     ctx.restore();
-  } else if (o.type === 'kitten' && p.stripe !== '#e0a868') {
-    // Calico patches (skin)
+  } else if (o.type === 'kitten' && o.costume === 'skin_calico') {
+    // Calico patches (only the Calico skin — other Kitty B skins keep a plain face)
     ctx.save();
     ctx.beginPath();
     ctx.ellipse(0, 0, r, r * 0.92, 0, 0, TAU);
@@ -331,13 +351,8 @@ function drawHead(ctx: Ctx, o: CatDrawOpts) {
     ctx.restore();
   }
 
-  // Tabby headband (Lv2+)
-  if (o.type === 'tabby' && o.level >= 2 && !dressed) {
-    const col = o.level >= 5 ? '#f2c230' : '#e04848';
-    ctx.fillStyle = col;
-    ctx.fillRect(-r * 0.98, -r * 0.5, r * 1.96, 3.2);
-    poly(ctx, [r * 0.9, -r * 0.45, r * 1.4, -r * 0.75, r * 1.35, -r * 0.2], col);
-  }
+  // Forehead gear (under the eyes)
+  drawBrowGear(ctx, o, r, free);
 
   // Cheeks
   circle(ctx, -r * 0.55, r * 0.3, 2.4, 'rgba(255,130,150,0.35)');
@@ -449,77 +464,84 @@ function drawHead(ctx: Ctx, o: CatDrawOpts) {
     ctx.arc(0, 4.6, 3.2, 0.15 * Math.PI, 0.85 * Math.PI);
     ctx.stroke();
   }
-  // New cats' head accessories
-  if (o.type === 'whiskers' && !dressed) drawMagicianHat(ctx, r, o.level, o.t);
-  if (o.type === 'devil' && !dressed) {
-    // plum ribbon (always) — bigger and velvet at higher levels
-    const col = o.level >= 4 ? '#6a2a7a' : '#9a5ac8';
-    poly(ctx, [r * 0.35, -r * 0.82, r * 0.85, -r * 1.1, r * 0.8, -r * 0.55], col, '#4a1a5a', 0.9);
-    poly(ctx, [r * 0.35, -r * 0.82, r * 0.05, -r * 1.15, r * 0.0, -r * 0.6], col, '#4a1a5a', 0.9);
-    circle(ctx, r * 0.35, -r * 0.82, 1.6, '#e8b8f0');
-  }
-  if (o.type === 'mallow' && o.level >= 2 && !dressed) {
-    // little captain's cap
-    roundRect(ctx, -6, -r * 1.12, 12, 4.5, 2, '#8a7ab8', '#4a3a78', 1);
-    roundRect(ctx, -7.5, -r * 0.8, 15, 2, 1, '#4a3a78');
-    if (o.level >= 5) drawStar(ctx, 0, -r * 0.92, 2, '#ffd36a');
-  }
-  if (o.type === 'sable' && o.level >= 4 && !dressed) {
-    // plume on the side of the head
-    ctx.strokeStyle = o.level >= 5 ? '#ffd36a' : '#bfe0ff';
-    ctx.lineWidth = 2.2;
-    ctx.beginPath();
-    ctx.moveTo(-r * 0.6, -r * 0.7);
-    ctx.quadraticCurveTo(-r * 1.3, -r * 1.3, -r * 1.25, -r * 0.2);
-    ctx.stroke();
-  }
-
-  // White cat tiara (Lv4+)
-  if (o.type === 'white' && o.level >= 4 && !dressed) {
-    poly(ctx, [-5, -r * 0.82, -3, -r * 1.12, 0, -r * 0.88, 3, -r * 1.12, 5, -r * 0.82], '#ffd84a', '#c09020', 1);
-    circle(ctx, 0, -r * 0.98, 1.4, '#ff6fa8');
-  }
-  // Orange Lv5 donut crown / kitten Lv5 star on head side
-  if (o.type === 'kitten' && o.level >= 5) drawStar(ctx, -r * 0.75, -r * 0.75, 3.5, '#ffd84a');
-
-  // Skin costume headwear, else the cosmetic hat
-  if (dressed) drawCostume(ctx, o.costume, 'head', { r, fat: 1, t: o.t });
-  else if (o.hat) drawHat(ctx, o.hat, r);
+  // Top-of-head and side gear for this level, then the skin's headwear. The shared cosmetic hat is
+  // worn only when nothing else sits on top of the head (no skin headwear and no level crown gear),
+  // so two hats never stack.
+  drawCrownGear(ctx, o, r, free);
+  if (dressed) drawCostume(ctx, o.costume, 'head', { r, fat: 1, t: o.t, level: o.level });
+  else if (o.hat && !hasCrownGear(o.type, o.level)) drawHat(ctx, o.hat, r);
 }
 
-function drawBodyGear(ctx: Ctx, o: CatDrawOpts, fat: number) {
+// ---------------------------------------------------------------------------
+// In-battle level gear (Lv.1–5). Every piece belongs to an equipment slot; a skin outfit that
+// covers a slot replaces that piece with its own themed upgrade (see costumes.ts).
+// Each level adds or upgrades something big enough to read at phone battle size.
+// ---------------------------------------------------------------------------
+
+const GOLD = '#ffd36a';
+const GOLD_EDGE = '#a07a10';
+
+/** True when this cat wears its own hat/crown at this level (the shared cosmetic hat steps aside). */
+export function hasCrownGear(type: CatId, L: number): boolean {
+  switch (type) {
+    case 'whiskers':
+      return true; // top hat
+    case 'mallow':
+      return L >= 2; // captain's cap
+    case 'white':
+      return L >= 4; // tiara
+    case 'black':
+    case 'orange':
+    case 'devil':
+      return L >= 5; // beret / donut crown / horns
+    default:
+      return false;
+  }
+}
+
+/** Pieces behind the body (drawn before it). */
+function drawBackGear(ctx: Ctx, o: CatDrawOpts, free: (s: Slot) => boolean) {
+  if (o.type === 'white' && o.level >= 5 && free('cape')) {
+    // Noble White Lv.5: royal rose cape with a golden hem, spreading out on both sides
+    const s = Math.sin(o.t * 2.4) * 0.8;
+    poly(ctx, [-8, -3, 8, -3, 20 + s, 17, 0, 15, -20 + s, 17], '#f08ab8', '#a04a78', 1.3);
+    poly(ctx, [18 + s, 15, 20 + s, 17, 12, 3], GOLD);
+    poly(ctx, [-18 + s, 15, -20 + s, 17, -12, 3], GOLD);
+  }
+}
+
+function drawBodyGear(ctx: Ctx, o: CatDrawOpts, fat: number, free: (s: Slot) => boolean, tint: GearTint) {
   const L = o.level;
+  const belly = o.palette.belly;
   switch (o.type) {
     case 'kitten':
-      if (L >= 4) {
-        // little blue cape behind shoulders
-        poly(ctx, [-9, 0, 9, 0, 13, 15, -13, 15], '#5a8ae0', '#2a4a90', 1.2);
-        ellipse(ctx, 0, 9, 7, 6, o.palette.belly);
+      if (L >= 4 && free('cape')) {
+        // blue travel cape (gold-trimmed at Lv.5)
+        poly(ctx, [-9, 0, 9, 0, 13, 15, -13, 15], tint.cape ?? '#5a8ae0', L >= 5 ? GOLD : '#2a4a90', L >= 5 ? 2 : 1.2);
+        ellipse(ctx, 0, 9, 7, 6, belly);
       }
-      if (L >= 3) {
+      if (L >= 3 && free('waist')) {
+        // explorer satchel on a strap
         ctx.strokeStyle = '#8a5a2a';
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(-8, 1);
         ctx.lineTo(7, 13);
         ctx.stroke();
-        roundRect(ctx, 4, 9, 7, 6, 2, '#b07a40', '#6a4420', 1);
-      }
-      if (L >= 2) {
-        roundRect(ctx, -9, -1, 18, 4, 2, '#e04848', '#9a2a2a', 1);
-        poly(ctx, [-6, 2, -9, 10, -4, 9], '#e04848', '#9a2a2a', 1);
-        if (L >= 5) circle(ctx, 0, 1, 2.2, '#ffd84a', '#c09020', 1);
+        roundRect(ctx, 3, 8, 9.5, 8, 2, '#c0884a', '#6a4420', 1.1);
+        roundRect(ctx, 3, 8, 9.5, 3.2, 1.6, '#9a6630', '#6a4420', 0.9);
+        roundRect(ctx, 6.4, 10, 2.8, 2.4, 0.8, L >= 5 ? GOLD : '#f0d8a0');
       }
       break;
     case 'tabby':
-      if (L >= 4) {
+      if (L >= 4 && free('waist')) {
         const col = L >= 5 ? '#f2c230' : '#2a2a2a';
         roundRect(ctx, -12, 7, 24, 4, 1.5, col);
         roundRect(ctx, -3, 6, 6, 6, 1.5, L >= 5 ? '#ffffff' : '#f2c230', '#8a6a10', 1);
       }
       break;
     case 'orange':
-      if (L >= 4) {
+      if (L >= 4 && free('cape')) {
         // Plaid blanket cape
         poly(ctx, [-12 * fat, 0, 12 * fat, 0, 15 * fat, 14, -15 * fat, 14], '#5a9a6a', '#2a5a3a', 1.2);
         ctx.strokeStyle = 'rgba(255,255,255,0.4)';
@@ -530,118 +552,330 @@ function drawBodyGear(ctx: Ctx, o: CatDrawOpts, fat: number) {
           ctx.lineTo(x * fat * 1.2, 14);
         }
         ctx.stroke();
-        ellipse(ctx, 0, 9, 7 * fat, 6, o.palette.belly);
+        ellipse(ctx, 0, 9, 7 * fat, 6, belly);
       }
-      if (L >= 2) {
+      if (L >= 2 && free('chest')) {
+        // fish-print bib (low enough to show under the chin); golden at Lv.5
         const col = L >= 5 ? '#ffd84a' : '#ffffff';
-        poly(ctx, [-7, 0, 7, 0, 5, 9, -5, 9], col, '#b0a090', 1);
-        // fish print
-        ellipse(ctx, 0, 4.5, 2.5, 1.4, '#6ab0e0');
-        poly(ctx, [2.2, 4.5, 4, 3, 4, 6], '#6ab0e0');
-      }
-      if (L >= 3) {
-        // holding a fish snack
-        ctx.save();
-        ctx.translate(-10 * fat, 11);
-        ctx.rotate(-0.5);
-        ellipse(ctx, 0, 0, 4.5, 2.2, '#8ac0e8', '#3a6a9a', 1);
-        poly(ctx, [4, 0, 7, -2.5, 7, 2.5], '#8ac0e8', '#3a6a9a', 1);
-        ctx.restore();
+        poly(ctx, [-7.5, 3, 7.5, 3, 5.5, 13, -5.5, 13], col, '#b0a090', 1);
+        ellipse(ctx, -0.8, 8, 2.8, 1.6, '#6ab0e0');
+        poly(ctx, [1.6, 8, 3.8, 6.4, 3.8, 9.6], '#6ab0e0');
       }
       break;
     case 'black':
-      if (L >= 3) {
-        poly(ctx, [-11, -1, 11, -1, 13, 14, -13, 14], '#3a5a3a', '#1a2a1a', 1.2);
-        ellipse(ctx, 0, 9, 7, 6, o.palette.belly);
+      if (L >= 3 && free('cape')) {
+        poly(ctx, [-11, -1, 11, -1, 13, 14, -13, 14], tint.cape ?? '#3a5a3a', '#1a2a1a', 1.2);
+        ellipse(ctx, 0, 9, 7, 6, belly);
       }
-      if (L >= 2) {
-        roundRect(ctx, -8, -1, 16, 3.5, 1.5, '#9a2a3a');
-        poly(ctx, [-2, 2, 2, 2, 0, 7], '#9a2a3a');
-      }
-      if (L >= 5) drawStar(ctx, -6, 8, 3.5, '#ffd84a');
+      if (L >= 5 && free('chest')) drawStar(ctx, -5.5, 9.5, 4.2, '#ffd84a');
       break;
     case 'whiskers':
-      // short cape (Lv2+, purple → velvet gold trim at Lv5), golden bow tie (Lv3+)
-      if (L >= 2) {
-        poly(ctx, [-10, 0, 10, 0, 13, 13, -13, 13], '#5a3a8a', L >= 5 ? '#ffd36a' : '#2a1a4a', 1.2);
-        ellipse(ctx, 0, 8, 8, 8, o.palette.belly);
-      }
-      if (L >= 3) {
-        poly(ctx, [0, 1, -5, -2, -5, 4], '#ffd36a', '#a07a10', 0.9);
-        poly(ctx, [0, 1, 5, -2, 5, 4], '#ffd36a', '#a07a10', 0.9);
-        circle(ctx, 0, 1, 1.4, '#c89aff');
+      // velvet stage cape (Lv.2+), gold-trimmed at Lv.5
+      if (L >= 2 && free('cape')) {
+        poly(ctx, [-10, 0, 10, 0, 13, 13, -13, 13], '#5a3a8a', L >= 5 ? GOLD : '#2a1a4a', L >= 5 ? 2 : 1.2);
+        ellipse(ctx, 0, 8, 8, 8, belly);
       }
       break;
     case 'sable':
-      // navy cape (always), silver brooch (Lv2+), gold trim (Lv3+), sash (Lv5)
-      poly(ctx, [-10, -1, 10, -1, 13, 14, -13, 14], '#2a3a6a', L >= 3 ? '#d9ad72' : '#141c3a', 1.2);
-      ellipse(ctx, 0, 9, 7, 6, o.palette.belly);
-      if (L >= 2) circle(ctx, 0, 0.5, 2.1, '#dfe6ee', '#7a8aa0', 0.9);
-      if (L >= 5) {
-        ctx.strokeStyle = '#bfe0ff';
-        ctx.lineWidth = 2;
+      // navy cape (always), gold trim (Lv3+), duelist's sash (Lv5)
+      if (free('cape')) {
+        poly(ctx, [-10, -1, 10, -1, 13, 14, -13, 14], '#2a3a6a', L >= 3 ? '#e0b070' : '#141c3a', L >= 3 ? 2 : 1.2);
+        ellipse(ctx, 0, 9, 7, 6, belly);
+      }
+      if (L >= 5 && free('chest')) {
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = GOLD;
+        ctx.lineWidth = 3.6;
         ctx.beginPath();
-        ctx.moveTo(-7, 1);
-        ctx.lineTo(6, 13);
+        ctx.moveTo(-8, 3);
+        ctx.lineTo(7, 14);
+        ctx.stroke();
+        ctx.strokeStyle = '#3a5ab0';
+        ctx.lineWidth = 2;
         ctx.stroke();
       }
       break;
     case 'mallow':
-      // lavender captain's cape (always), golden bell collar (always), epaulettes (Lv4+)
-      poly(ctx, [-11, -1, 11, -1, 14, 14, -14, 14], '#b8a8e0', '#6a5aa0', 1.2);
-      ellipse(ctx, 0, 9, 7, 6, o.palette.belly);
-      roundRect(ctx, -7, -1.5, 14, 3, 1.5, '#e05a7a');
-      circle(ctx, 0, 2.5, L >= 3 ? 3 : 2.4, '#ffd36a', '#a07a10', 1);
-      if (L >= 4)
-        for (const sx of [-9, 9]) {
-          roundRect(ctx, sx - 3, -1, 6, 3, 1.5, '#ffd36a', '#a07a10', 0.8);
-        }
+      // lavender captain's cape (always), gold-trimmed at Lv.5
+      if (free('cape')) {
+        poly(ctx, [-11, -1, 11, -1, 14, 14, -14, 14], '#b8a8e0', L >= 5 ? GOLD : '#6a5aa0', L >= 5 ? 2 : 1.2);
+        ellipse(ctx, 0, 9, 7, 6, belly);
+      }
       break;
     case 'pounce':
-      // dark-green scarf (always; longer tails at Lv3+), wristbands (Lv2+), silver claw guards (Lv4+)
-      roundRect(ctx, -9, -1.5, 18, 4, 2, '#2f5a46', '#173426', 1);
-      poly(ctx, [6, 1, L >= 3 ? 16 : 12, L >= 3 ? 9 : 6, 9, 3], '#2f5a46', '#173426', 1);
-      if (L >= 5) ellipse(ctx, 0, 12, 14, 4, 'rgba(110,200,180,0.25)');
+      if (L >= 5) ellipse(ctx, 0, 13, 15, 4.5, tint.aura ?? 'rgba(110,200,180,0.32)');
       break;
     case 'devil':
-      // velvet pouch of herbs (Lv2+), a tiny vial (Lv3+), plum cape (Lv4+)
-      if (L >= 4) {
+      // plum cape (Lv4+), velvet herb pouch (Lv2+), glowing potion vial (Lv3+)
+      if (L >= 4 && free('cape')) {
         poly(ctx, [-10, 0, 10, 0, 13, 13, -13, 13], '#6a2a7a', '#3a1048', 1.2);
-        ellipse(ctx, 0, 9, 7, 6, o.palette.belly);
+        ellipse(ctx, 0, 9, 7, 6, belly);
       }
-      if (L >= 2) {
-        ellipse(ctx, -9, 11, 3.6, 3.2, '#8a4aa0', '#4a1a5a', 1);
-        roundRect(ctx, -10.5, 7, 3, 1.6, 0.8, '#ffd36a');
+      if (L >= 2 && free('waist')) {
+        ellipse(ctx, -9, 11, 4, 3.6, tint.pouch ?? '#8a4aa0', '#4a1a5a', 1);
+        roundRect(ctx, -10.8, 6.8, 3.6, 1.8, 0.8, GOLD);
       }
-      if (L >= 3) {
-        roundRect(ctx, 7, 5, 3, 6, 1.2, '#b8f0c8', '#3a6a4a', 0.9);
-        circle(ctx, 8.5, 4.4, 1, '#9a5ac8');
-      }
-      break;
-    case 'white':
-      if (L >= 2) {
-        const col = L >= 5 ? '#ffd84a' : '#ffffff';
-        for (let i = -3; i <= 3; i++) circle(ctx, i * 2.4, 1 + Math.abs(i) * -0.3 + (3 - Math.abs(i)) * 0.6, 1.4, col, '#c0b0c0', 0.6);
+      if (L >= 3 && free('waist')) {
+        circle(ctx, 8.8, 9, 4.6, 'rgba(160,240,190,0.35)');
+        roundRect(ctx, 6.8, 5, 4, 8, 1.6, tint.vial ?? '#b8f0c8', '#3a6a4a', 0.9);
+        roundRect(ctx, 7.6, 3.4, 2.4, 2, 0.6, '#8a5a2a');
+        circle(ctx, 8.8, 10, 1.1, '#ffffff');
       }
       break;
   }
 }
 
-function drawRifle(ctx: Ctx, o: CatDrawOpts) {
+/** Gear worn on the paws (drawn over them, following Tabby's jabs). */
+function drawPawGear(ctx: Ctx, o: CatDrawOpts, paws: { x: number; y: number }[], free: (s: Slot) => boolean, tint: GearTint) {
+  if (!free('paws')) return;
+  const L = o.level;
+  if (o.type === 'tabby' && L >= 3) {
+    // red boxing wraps
+    ctx.strokeStyle = '#d84a4a';
+    ctx.lineWidth = 1.6;
+    for (const pw of paws) {
+      ctx.beginPath();
+      ctx.arc(pw.x, pw.y, 3.6, Math.PI * 1.05, Math.PI * 1.95);
+      ctx.stroke();
+    }
+  }
+  if (o.type === 'pounce') {
+    for (const pw of paws) {
+      if (L >= 4) {
+        // silver claw guards: a plate over the paw with three claws sticking out
+        for (const k of [-1, 0, 1]) poly(ctx, [pw.x + k * 2.6 - 1.2, pw.y + 2, pw.x + k * 2.6 + 1.2, pw.y + 2, pw.x + k * 3, pw.y + 6.5], tint.guard ?? '#eef3f8', '#4a5a6a', 0.8);
+        ctx.strokeStyle = tint.guard ?? '#dfe6ee';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(pw.x, pw.y, 3.6, Math.PI * 0.15, Math.PI * 0.85);
+        ctx.stroke();
+      }
+      // racing wristbands (Lv.2+)
+      if (L >= 2) roundRect(ctx, pw.x - 4.4, pw.y - 4.8, 8.8, 3, 1.4, tint.band ?? '#3ab0a0', '#145048', 0.9);
+    }
+  }
+}
+
+/** Forehead gear: drawn before the eyes, so the eyes stay on top. */
+function drawBrowGear(ctx: Ctx, o: CatDrawOpts, r: number, free: (s: Slot) => boolean) {
+  if (!free('brow')) return;
+  const L = o.level;
+  if (o.type === 'tabby' && L >= 2) {
+    const col = L >= 5 ? '#f2c230' : '#e04848';
+    ctx.fillStyle = col;
+    ctx.fillRect(-r * 0.98, -r * 0.5, r * 1.96, 3.2);
+    poly(ctx, [r * 0.9, -r * 0.45, r * 1.45, -r * 0.8, r * 1.4, -r * 0.15], col);
+  }
+  if (o.type === 'pounce' && L >= 5) {
+    // stealth eye mask with a teal glint
+    roundRect(ctx, -r * 0.98, -4.8, r * 1.96, 6, 2.6, '#1c2a26', '#0a1410', 0.8);
+    poly(ctx, [r * 0.9, -3.5, r * 1.5, -5.5, r * 1.45, -1], '#1c2a26');
+    roundRect(ctx, -r * 0.9, -4.4, r * 1.8, 0.9, 0.4, '#5ae0c8');
+  }
+}
+
+/** Top-of-head and side pieces (hats, tiara, cap, plume, ribbon, horns…). */
+function drawCrownGear(ctx: Ctx, o: CatDrawOpts, r: number, free: (s: Slot) => boolean) {
+  const L = o.level;
+  switch (o.type) {
+    case 'kitten':
+      if (L >= 5 && free('side')) drawStar(ctx, -r * 0.78, -r * 0.72, 4.4, '#ffd84a');
+      break;
+    case 'orange':
+      if (L >= 5 && free('crown')) {
+        // a pink-frosted donut balanced on top like a crown
+        ellipse(ctx, 0, -r * 0.98, 6.4, 3.6, '#e0a860', '#8a5a20', 1);
+        ellipse(ctx, 0, -r * 1.06, 5.4, 2.6, '#ff8fb8');
+        for (const [x, c] of [
+          [-3, '#6ab0e0'],
+          [0.5, '#ffe066'],
+          [3, '#7ad08a'],
+        ] as const)
+          roundRect(ctx, x - 0.6, -r * 1.12, 1.4, 0.8, 0.3, c);
+        ellipse(ctx, 0, -r * 1.06, 1.8, 0.9, '#8a5a20');
+      }
+      break;
+    case 'black':
+      if (L >= 5 && free('crown')) {
+        // ace sniper's green beret with a gold star
+        ctx.save();
+        ctx.rotate(-0.2);
+        ellipse(ctx, -1, -r * 0.88, r * 0.92, r * 0.36, '#3a5a3a', '#1a2a1a', 1);
+        circle(ctx, -1, -r * 1.2, 1.4, '#3a5a3a');
+        drawStar(ctx, 3, -r * 0.9, 2.6, '#ffd84a');
+        ctx.restore();
+      }
+      break;
+    case 'white':
+      if (L >= 4 && free('crown')) {
+        // tiara: three points with pink gems (a bigger blue centre gem at Lv.5)
+        poly(ctx, [-6.5, -r * 0.8, -4.5, -r * 1.2, -2, -r * 0.92, 0, -r * 1.38, 2, -r * 0.92, 4.5, -r * 1.2, 6.5, -r * 0.8], '#ffd84a', '#c09020', 1);
+        circle(ctx, 0, -r * 1.05, L >= 5 ? 2 : 1.5, L >= 5 ? '#6ab0ff' : '#ff6fa8', '#ffffff', 0.5);
+        circle(ctx, -4.5, -r * 1.02, 1, '#ff6fa8');
+        circle(ctx, 4.5, -r * 1.02, 1, '#ff6fa8');
+      }
+      break;
+    case 'whiskers':
+      if (free('crown')) drawMagicianHat(ctx, r, L, o.t);
+      break;
+    case 'sable':
+      if (L >= 4 && free('side')) {
+        // a big feather plume: moonlit at Lv.4, golden at Lv.5
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = L >= 5 ? GOLD : '#bfe0ff';
+        ctx.lineWidth = 4.2;
+        ctx.beginPath();
+        ctx.moveTo(-r * 0.55, -r * 0.75);
+        ctx.quadraticCurveTo(-r * 1.4, -r * 1.45, -r * 1.35, -r * 0.1);
+        ctx.stroke();
+        ctx.strokeStyle = L >= 5 ? '#fff4c8' : '#ffffff';
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+      }
+      break;
+    case 'mallow':
+      if (L >= 2 && free('crown')) {
+        // captain's cap (gold star badge at Lv.5)
+        roundRect(ctx, -7, -r * 1.2, 14, 5.5, 2.2, '#8a7ab8', '#4a3a78', 1);
+        roundRect(ctx, -8.5, -r * 0.8, 17, 2.4, 1, '#4a3a78');
+        if (L >= 5) drawStar(ctx, 0, -r * 0.98, 3, GOLD);
+        else circle(ctx, 0, -r * 0.98, 1.3, '#e8e0ff');
+      }
+      break;
+    case 'devil':
+      if (L >= 5 && free('crown')) {
+        // little curled horns
+        for (const sg of [-1, 1]) {
+          ctx.beginPath();
+          ctx.moveTo(sg * r * 0.22, -r * 0.82);
+          ctx.quadraticCurveTo(sg * r * 0.3, -r * 1.55, sg * r * 0.8, -r * 1.45);
+          ctx.quadraticCurveTo(sg * r * 0.5, -r * 1.2, sg * r * 0.6, -r * 0.76);
+          ctx.closePath();
+          ctx.fillStyle = '#8a3a9a';
+          ctx.fill();
+          ctx.strokeStyle = '#3a1048';
+          ctx.lineWidth = 0.9;
+          ctx.stroke();
+        }
+      }
+      if (free('side')) {
+        // plum ribbon (always) — deep velvet from Lv.4
+        const col = L >= 4 ? '#6a2a7a' : '#9a5ac8';
+        poly(ctx, [r * 0.35, -r * 0.82, r * 0.85, -r * 1.1, r * 0.8, -r * 0.55], col, '#4a1a5a', 0.9);
+        poly(ctx, [r * 0.35, -r * 0.82, r * 0.05, -r * 1.15, r * 0.0, -r * 0.6], col, '#4a1a5a', 0.9);
+        circle(ctx, r * 0.35, -r * 0.82, 1.6, '#e8b8f0');
+      }
+      break;
+  }
+}
+
+/** Neck and shoulder pieces, drawn in front of the chin (never hidden by the head). */
+function drawNeckGear(ctx: Ctx, o: CatDrawOpts, y: number, free: (s: Slot) => boolean, tint: GearTint) {
+  const L = o.level;
+  if (free('neck'))
+    switch (o.type) {
+      case 'kitten':
+        if (L >= 2) {
+          // red adventurer scarf (golden badge at Lv.5)
+          roundRect(ctx, -8, y - 2, 16, 4, 2, '#e04848', '#9a2a2a', 1);
+          poly(ctx, [-5, y + 1, -10, y + 9, -3, y + 7], '#e04848', '#9a2a2a', 1);
+          if (L >= 5) circle(ctx, 1.5, y + 0.5, 2.8, '#ffd84a', '#c09020', 1);
+        }
+        break;
+      case 'black':
+        if (L >= 2) {
+          poly(ctx, [-7.5, y - 1.5, 7.5, y - 1.5, 0, y + 7], '#c83242', '#6a1020', 1);
+          circle(ctx, -7, y - 0.5, 1.8, '#c83242', '#6a1020', 0.8);
+        }
+        break;
+      case 'white':
+        if (L >= 2) {
+          // pearl necklace with a heart pendant; golden pearls and a sapphire at Lv.5
+          const pearl = L >= 5 ? '#ffd84a' : '#fff4fa';
+          const edge = L >= 5 ? '#b08a20' : '#c890b0';
+          for (let i = -3; i <= 3; i++) circle(ctx, i * 2.7, y - 0.5 + (3 - Math.abs(i)) * 0.75, 1.5, pearl, edge, 0.8);
+          if (L >= 5) circle(ctx, 0, y + 4.6, 2.8, '#4a8ae0', GOLD, 1.2);
+          else drawHeart(ctx, 0, y + 3.6, 3.2, '#ff6fa8');
+        }
+        break;
+      case 'whiskers':
+        if (L >= 3) {
+          // big golden bow tie
+          poly(ctx, [0, y, -6.5, y - 3.2, -6.5, y + 3.2], GOLD, GOLD_EDGE, 1);
+          poly(ctx, [0, y, 6.5, y - 3.2, 6.5, y + 3.2], GOLD, GOLD_EDGE, 1);
+          circle(ctx, 0, y, 1.8, '#c89aff', GOLD_EDGE, 0.8);
+        }
+        break;
+      case 'sable':
+        if (L >= 2) {
+          // white lace jabot pinned with a sapphire brooch (gold setting at Lv.5)
+          for (const [dy, w] of [
+            [6, 2.8],
+            [3.6, 3.6],
+            [1.2, 4.2],
+          ] as const)
+            ellipse(ctx, 0, y + dy, w, 2.2, '#ffffff', '#b8a890', 0.8);
+          circle(ctx, 0, y + 0.4, 2.7, L >= 5 ? GOLD : '#dfe6ee', '#5a6a80', 1);
+          circle(ctx, 0, y + 0.4, 1.3, '#3a6ad8');
+        }
+        break;
+      case 'mallow': {
+        // pink collar with a golden bell (always); bigger bell with a red bow from Lv.3
+        roundRect(ctx, -7.5, y - 2, 15, 3.2, 1.5, '#e05a7a', '#a03a54', 0.8);
+        const br = L >= 3 ? 4 : 2.8;
+        circle(ctx, 0, y + 1.2 + br * 0.6, br, GOLD, GOLD_EDGE, 1);
+        roundRect(ctx, -br * 0.7, y + 1.2 + br * 0.75, br * 1.4, 0.8, 0.4, GOLD_EDGE);
+        if (L >= 3) {
+          poly(ctx, [0, y - 0.5, -5, y - 3.5, -5, y + 2.5], '#d83a4a', '#7a1a24', 0.8);
+          poly(ctx, [0, y - 0.5, 5, y - 3.5, 5, y + 2.5], '#d83a4a', '#7a1a24', 0.8);
+        }
+        break;
+      }
+      case 'pounce': {
+        // dark-green scarf; long flowing tails from Lv.3
+        const fill = tint.scarf ?? '#2f5a46';
+        const edge = tint.scarfEdge ?? '#173426';
+        roundRect(ctx, -9, y - 2, 18, 4, 2, fill, edge, 1);
+        const s = Math.sin(o.t * 3) * 1.2;
+        if (L >= 3) {
+          poly(ctx, [5, y, 18, y + 4 + s, 17, y + 8 + s, 7, y + 2.5], fill, edge, 1);
+          poly(ctx, [5, y + 1, 15, y + 10 + s, 12.5, y + 12 + s, 6, y + 3], fill, edge, 1);
+        } else poly(ctx, [6, y + 0.5, 11, y + 7, 8.5, y + 2.5], fill, edge, 1);
+        break;
+      }
+    }
+  if (o.type === 'mallow' && L >= 4 && free('shoulder'))
+    for (const sx of [-1, 1]) {
+      // golden epaulettes with fringe, on the shoulders beside the fluffy head
+      roundRect(ctx, sx * 12.5 - 4, y - 3, 8, 3.8, 1.8, GOLD, GOLD_EDGE, 0.9);
+      ctx.strokeStyle = GOLD;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (const k of [-2.5, 0, 2.5]) {
+        ctx.moveTo(sx * 12.5 + k, y + 0.8);
+        ctx.lineTo(sx * 12.5 + k, y + 3.4);
+      }
+      ctx.stroke();
+    }
+}
+
+function drawRifle(ctx: Ctx, o: CatDrawOpts, tint: GearTint) {
   const a = o.attackAge;
   ctx.save();
   ctx.translate(2, 6);
   ctx.rotate(o.aim);
   if (Math.cos(o.aim) < 0) ctx.scale(1, -1);
   const gold = o.level >= 4;
+  const metal = gold ? (tint.rifle ?? '#c8a030') : '#6a6a78';
+  const trim = gold ? (tint.rifleTrim ?? '#f2c230') : '#4a4a58';
   // stock
   roundRect(ctx, -9, -2.5, 9, 5.5, 2, '#8a5a32', '#4a2a10', 1);
   // barrel
-  roundRect(ctx, -1, -1.8, 24, 3.6, 1.5, gold ? '#c8a030' : '#6a6a78', '#2a2a32', 1);
-  roundRect(ctx, 21, -2.4, 4, 4.8, 1, gold ? '#f2c230' : '#4a4a58');
+  roundRect(ctx, -1, -1.8, 24, 3.6, 1.5, metal, '#2a2a32', 1);
+  roundRect(ctx, 21, -2.4, 4, 4.8, 1, trim);
   // scope
-  roundRect(ctx, 3, -6.5, 11, 4, 2, gold ? '#f2c230' : '#3a3a48', '#1a1a22', 1);
-  circle(ctx, 14, -4.5, 1.6, o.level >= 2 ? '#ff5a5a' : '#8ad8ff');
+  roundRect(ctx, 3, -6.5, 11, 4, 2, gold ? trim : '#3a3a48', '#1a1a22', 1);
+  circle(ctx, 14, -4.5, 1.8, o.level >= 2 ? '#ff5a5a' : '#8ad8ff');
   if (o.windup !== undefined) {
     // scope glint pulses faster as the shot approaches
     ctx.globalAlpha = 0.5 + 0.5 * Math.abs(Math.sin(o.t * (8 + o.windup * 20)));
@@ -656,7 +890,7 @@ function drawRifle(ctx: Ctx, o: CatDrawOpts) {
   ctx.restore();
 }
 
-/** Sir Sable's thin rapier, held low and swept toward the target when he attacks. */
+/** Sir Sable's rapier, held low and swept toward the target when he attacks. */
 function drawRapier(ctx: Ctx, o: CatDrawOpts) {
   const a = o.attackAge;
   ctx.save();
@@ -664,38 +898,40 @@ function drawRapier(ctx: Ctx, o: CatDrawOpts) {
   const swing = a < 0.2 ? Math.sin((a / 0.2) * Math.PI) : 0;
   ctx.rotate(swing ? o.aim : -0.9 + Math.sin(o.t * 1.3) * 0.04);
   const gold = o.level >= 3;
-  ctx.strokeStyle = o.level >= 5 ? '#e8f4ff' : '#cfd8e2';
-  ctx.lineWidth = 1.6;
+  const len = o.level >= 5 ? 25 : 22;
+  ctx.strokeStyle = o.level >= 5 ? '#f4fbff' : '#cfd8e2';
+  ctx.lineWidth = o.level >= 5 ? 2.1 : 1.6;
   ctx.beginPath();
   ctx.moveTo(2, 0);
-  ctx.lineTo(22 + swing * 4, 0);
+  ctx.lineTo(len + swing * 4, 0);
   ctx.stroke();
-  roundRect(ctx, -1, -3, 3, 6, 1, gold ? '#d9ad72' : '#7a8aa0');
+  roundRect(ctx, -1, -3.5, 3.4, 7, 1, gold ? '#e0b070' : '#7a8aa0', gold ? GOLD_EDGE : undefined, 0.8);
   roundRect(ctx, -4, -1, 4, 2, 1, '#2a3a6a');
+  if (o.level >= 5) drawStar(ctx, len - 2 + swing * 4, 0, 2.6, '#ffffff', 4, 0.35);
   ctx.restore();
 }
 
-/** Mr. Whiskers' wand (Lv.4+), with a twinkle at the tip. */
+/** Mr. Whiskers' wand (Lv.4+), with a star at the tip (big and golden at Lv.5). */
 function drawWand(ctx: Ctx, o: CatDrawOpts) {
   ctx.save();
   ctx.translate(-9, 10);
   ctx.rotate(-0.6 + (o.attackAge < 0.25 ? -0.6 * Math.sin((o.attackAge / 0.25) * Math.PI) : 0));
-  roundRect(ctx, -1, -12, 2.2, 12, 1, '#1e1c26');
-  roundRect(ctx, -1.1, -12, 2.4, 2.4, 0.8, '#ffffff');
-  drawStar(ctx, 0, -14, o.level >= 5 ? 3.2 : 2.4, '#ffd36a');
+  roundRect(ctx, -1.1, -13, 2.4, 13, 1, '#1e1c26');
+  roundRect(ctx, -1.2, -13, 2.6, 2.6, 0.8, '#ffffff');
+  drawStar(ctx, 0, -15.5, o.level >= 5 ? 4.2 : 3, GOLD);
   ctx.restore();
 }
 
-/** Mr. Whiskers' little tilted top hat (always), with a band that improves with level. */
+/** Mr. Whiskers' little tilted top hat (always): purple band, gold band from Lv.3, gold star at Lv.5. */
 function drawMagicianHat(ctx: Ctx, r: number, level: number, t: number) {
   ctx.save();
   ctx.translate(r * 0.25, -r * 0.92);
   ctx.rotate(0.22 + Math.sin(t * 1.5) * 0.03);
   roundRect(ctx, -8, -1, 16, 2.6, 1.2, '#1e1c26', '#0e0c14', 1);
   roundRect(ctx, -5.2, -11, 10.4, 10.5, 1.5, '#2a2836', '#0e0c14', 1);
-  ctx.fillStyle = level >= 3 ? '#ffd36a' : '#8a5ac8';
-  ctx.fillRect(-5.2, -3.4, 10.4, 2.2);
-  if (level >= 5) drawStar(ctx, 0, -7, 2.6, '#ffd36a');
+  ctx.fillStyle = level >= 3 ? GOLD : '#8a5ac8';
+  ctx.fillRect(-5.2, -4, 10.4, level >= 3 ? 3 : 2.2);
+  if (level >= 5) drawStar(ctx, 0, -8, 3.4, GOLD);
   ctx.restore();
 }
 

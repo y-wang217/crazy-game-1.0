@@ -2,6 +2,7 @@ import { CATS, CAT_ORDER } from '../../config/cats';
 import { CHAPTERS } from '../../config/chapters';
 import { COSMETICS, SKIN_RULES, findCosmetic, skinBonusesFor, skinKind } from '../../config/cosmetics';
 import { MAPS } from '../../config/maps';
+import { en, zh } from '../../i18n';
 import { parseSave } from '../../save/store';
 import { COSTUME_IDS, costumeHasHeadwear, drawCostume } from '../../render/costumes';
 import { resolvePalette } from '../../render/renderer';
@@ -171,7 +172,7 @@ describe('skin costumes (real outfits, not just recolours)', () => {
     expect(costumeHasHeadwear('hat_crown')).toBe(false);
   });
 
-  it('a skin draws extra outfit pieces on the cat (body and head), on top of its colours', () => {
+  it('a skin draws extra outfit pieces on the cat (head and body/collar), on top of its colours', () => {
     for (const s of COSMETICS.filter((c) => c.slot === 'skin')) {
       const draw = (costume?: string) => {
         const ctx = countingCtx();
@@ -188,10 +189,58 @@ describe('skin costumes (real outfits, not just recolours)', () => {
         return ctx.ops;
       };
       expect(draw(s.id), s.id).toBeGreaterThan(draw(undefined) + 3);
-      for (const layer of ['body', 'head'] as const) {
+      const ops = (layer: 'back' | 'body' | 'front' | 'head') => {
         const ctx = countingCtx();
         drawCostume(ctx, s.id, layer, { r: 12, fat: 1, t: 0 });
-        expect(ctx.ops, `${s.id} ${layer}`).toBeGreaterThan(0);
+        return ctx.ops;
+      };
+      // headwear, plus a cape, clothing on the body or a collar in front of the chin
+      expect(ops('head'), `${s.id} head`).toBeGreaterThan(0);
+      expect(ops('back') + ops('body') + ops('front'), `${s.id} back/body/front`).toBeGreaterThan(0);
+    }
+  });
+
+  it('every skin outfit evolves: level gear text for Lv.1–5 in both languages', () => {
+    for (const s of COSMETICS.filter((c) => c.slot === 'skin'))
+      for (let lv = 1; lv <= 5; lv++) {
+        expect(en[`skingear.${s.id}.${lv}`], `${s.id} ${lv}`).toBeTruthy();
+        expect(zh[`skingear.${s.id}.${lv}`], `${s.id} ${lv}`).toBeTruthy();
+      }
+  });
+
+  it('every skin draws something different at each level (Lv.1 → Lv.5)', () => {
+    // Drawing-call fingerprints: a level-up must change what is drawn, never just repeat it.
+    function recordingCtx() {
+      const log: string[] = [];
+      const ctx: Record<string, unknown> = {};
+      const handler: ProxyHandler<Record<string, unknown>> = {
+        get: (target, key) => {
+          if (key === 'log') return log;
+          if (key in target) return target[key as string];
+          return (...args: unknown[]) => {
+            if (typeof key === 'string' && key !== 'save' && key !== 'restore')
+              log.push(`${key}(${args.map((a) => (typeof a === 'number' ? a.toFixed(1) : String(a))).join(',')})`);
+          };
+        },
+        set: (target, key, v) => {
+          if (typeof key === 'string' && (key === 'fillStyle' || key === 'strokeStyle')) log.push(`${key}=${String(v)}`);
+          target[key as string] = v;
+          return true;
+        },
+      };
+      return new Proxy(ctx, handler) as unknown as CanvasRenderingContext2D & { log: string[] };
+    }
+    const looks = (cat: CatId, costume?: string) =>
+      [1, 2, 3, 4, 5].map((level) => {
+        const ctx = recordingCtx();
+        drawCat(ctx, { type: cat, level, palette: resolvePalette(cat, { hat: null, skins: costume ? { [cat]: costume } : {} }), hat: null, costume, t: 0, attackAge: 9, aim: 0 });
+        return ctx.log.join(';');
+      });
+    for (const cat of CAT_ORDER) {
+      const variants = [undefined, ...COSMETICS.filter((c) => c.slot === 'skin' && c.cat === cat).map((c) => c.id)];
+      for (const v of variants) {
+        const l = looks(cat, v);
+        for (let i = 1; i < 5; i++) expect(l[i], `${cat} ${v ?? 'default'} Lv.${i} → Lv.${i + 1}`).not.toBe(l[i - 1]);
       }
     }
   });

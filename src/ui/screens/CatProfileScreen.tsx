@@ -6,7 +6,7 @@ import { RECRUIT } from '../../config/collection';
 import { SKILLS, SKILL_ORDER, skillParams } from '../../config/skills';
 import { getCatStats } from '../../game/combat';
 import type { CatId } from '../../game/types';
-import { t, useLang } from '../../i18n';
+import { has as hasKey, t, useLang } from '../../i18n';
 import { saveStore, useSave } from '../../save/store';
 import type { Screen } from '../App';
 import { CatPreview } from '../components/CatPreview';
@@ -248,7 +248,7 @@ export function CatProfileScreen({ cat, go }: { cat: CatId; go: (s: Screen) => v
           ))}
         </div>
         <div className="gear-line">
-          <b>{t('profile.gear')}:</b> {t(`gear.${cat}.${level}`)}
+          <b>{t('profile.gear')}:</b> {gearText(cat, level, save.equipped.skins[cat])}
         </div>
       </section>
 
@@ -304,4 +304,13 @@ export function CatProfileScreen({ cat, go }: { cat: CatId; go: (s: Screen) => v
       {upgrading && <StarUpgrade cat={cat} loadout={save.equipped} onClose={() => setUpgrading(false)} />}
     </div>
   );
+}
+
+/**
+ * What the cat wears at this in-battle level. With a skin equipped, the outfit's own evolution is
+ * described (the default gear in the slots it covers is not drawn), so the text matches the art.
+ */
+function gearText(cat: CatId, level: number, skin: string | undefined): string {
+  if (skin && hasKey(`skingear.${skin}.${level}`)) return `${t(`cosmetic.${skin}.name`)} · ${t(`skingear.${skin}.${level}`)}`;
+  return t(`gear.${cat}.${level}`);
 }

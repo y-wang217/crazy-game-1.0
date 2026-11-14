@@ -851,3 +851,17 @@ It's a static Vite app, so no server or env vars are needed. Vercel auto-detects
   tile) and `PROFILES=1 STAGES=…` (win rates) — tune `hpScale` to the previous targets.
 - **Safe recovery.** Battle snapshots (v2) record their map; a snapshot from another map or an
   older version is discarded instead of restored. Permanent progress is never affected.
+
+## In-battle cat looks (Lv.1–5) and skins (V1.6)
+
+- Every merge level changes the cat's outfit, for the default look and for all 20 skins. Level
+  gear lives in **equipment slots** (`crown`, `brow`, `side`, `neck`, `shoulder`, `chest`, `waist`,
+  `cape`, `paws`, `tail`, `hand`) in `src/render/sprites.ts`.
+- A skin (`src/render/costumes.ts`) lists the slots it **covers**; default gear there is skipped and
+  the outfit draws its own themed upgrade for Lv.2–5 (`g.level`). Gear in free slots still shows,
+  optionally recoloured with `tint`. Neck pieces are drawn in front of the chin (`front` layer) so
+  the head never hides them.
+- The shared cosmetic hat is worn only when nothing else sits on top of the head (no skin headwear,
+  no level crown gear) — two hats never stack.
+- Encyclopedia level text: `gear.<cat>.<lv>` for the default look, `skingear.<skin>.<lv>` with a
+  skin equipped. A test checks that every cat/skin draws something different at each level.
