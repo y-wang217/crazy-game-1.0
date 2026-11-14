@@ -56,7 +56,7 @@ describe('i18n', () => {
     setLang('zh-HK');
     expect(t('battle.summon')).toBe('召喚貓咪');
     expect(t('battle.skill')).toBe('隨機技能');
-    expect(t('cat.orange.name')).toBe('肥橘');
+    expect(t('cat.orange.name')).toBe('大肥橙');
     expect(t('cat.tabby.name')).toBe('虎紋戰士');
     expect(t('currency.coins')).toBe('魚幣');
     expect(t('currency.fish')).toBe('魚乾');

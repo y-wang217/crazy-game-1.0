@@ -23,7 +23,7 @@ export const COSMETICS: CosmeticDef[] = [
   // ---- Regular skins: looks only (the five originals keep their ids and prices) ----
   {
     id: 'skin_calico',
-    name: 'Calico Kitten',
+    name: 'Calico Kitty B',
     slot: 'skin',
     cat: 'kitten',
     price: 60,
@@ -113,7 +113,7 @@ export const COSMETICS: CosmeticDef[] = [
   },
 
   // ---- Special skins: looks + one small combat bonus for that cat ----
-  special('skin_kitten_star', 'kitten', 'Starlight Kitten', 'Twinkles every time it throws.', 220, { stat: 'attackSpeed', pct: 3 }, '#ffe066', {
+  special('skin_kitten_star', 'kitten', 'Starlight Kitty B', 'Twinkles every time it throws.', 220, { stat: 'attackSpeed', pct: 3 }, '#ffe066', {
     body: '#f8e7b0',
     belly: '#fffaf0',
     stripe: '#e8c060',
