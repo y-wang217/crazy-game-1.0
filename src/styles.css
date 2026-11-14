@@ -2437,7 +2437,9 @@ h2 {
 /* Main menu: emblem + layered scenery (both themes) */
 .home {
   position: relative;
-  overflow: hidden;
+  /* Never clip: on short phones the menu scrolls instead of hiding the top or bottom. */
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 .home > :not(.home-scenery) {
   position: relative;
@@ -4610,4 +4612,83 @@ body {
   color: var(--text-soft);
   background: transparent;
   font-size: 0.8rem;
+}
+
+/* ---- Home on shorter phone screens (most Android phones once the browser bars are shown) ----
+   The full layout is ~800px tall; these steps keep everything on one screen down to ~600px. */
+@media (max-height: 820px) {
+  .home-hero {
+    margin-top: 0;
+  }
+  .home-hero .brand-emblem {
+    width: 66px;
+    height: 66px;
+  }
+  .logo,
+  .logo.zh {
+    font-size: clamp(2.2rem, 6.9vh, 3.6rem);
+  }
+  .tagline {
+    margin: 4px 0 8px;
+  }
+  .home-cats canvas {
+    width: 48px !important;
+    height: 48px !important;
+  }
+  .home-menu {
+    gap: 8px;
+    margin-bottom: 0;
+  }
+  .home-menu .btn-big {
+    padding: 12px;
+  }
+  .home-team-btn {
+    margin-top: 2px;
+  }
+}
+@media (max-height: 680px) {
+  .home-hero .brand-emblem {
+    width: 52px;
+    height: 52px;
+  }
+  .logo,
+  .logo.zh {
+    font-size: clamp(2rem, 6.2vh, 3rem);
+  }
+  .tagline {
+    margin: 2px 0 6px;
+    font-size: 0.9rem;
+  }
+  .home-cats canvas {
+    width: 44px !important;
+    height: 44px !important;
+  }
+  .home-menu .btn-big {
+    padding: 10px;
+    font-size: 1.3rem;
+  }
+  .home-menu .row .btn {
+    padding: 6px 4px;
+  }
+}
+/* Very short screens: the language/theme switches would touch the emblem — let the title lead. */
+@media (max-height: 760px) {
+  .home-hero .brand-emblem {
+    display: none;
+  }
+  .home-hero {
+    margin-top: 0;
+  }
+}
+/* Home sections never get squashed by the flex column (a squashed header pushed the language /
+   theme switches above the screen); if space runs out, Home scrolls instead. */
+.home > :not(.home-scenery) {
+  flex-shrink: 0;
+}
+.home > .topbar {
+  align-items: flex-start;
+}
+/* The header now takes its real height, so the title needs no extra top gap of its own. */
+.home > .home-hero {
+  margin-top: 0;
 }

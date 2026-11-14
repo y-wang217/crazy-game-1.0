@@ -45,7 +45,8 @@ export function TourCoach({ screen }: { screen: string }) {
       targetRef.current = el;
       if (el) {
         if (!scrolled) {
-          el.scrollIntoView?.({ block: 'center' });
+          // Only scroll when the target is actually off-screen, and only as far as needed.
+          el.scrollIntoView?.({ block: 'nearest' });
           scrolled = true;
         }
         const r = el.getBoundingClientRect();
