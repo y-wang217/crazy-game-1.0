@@ -589,7 +589,7 @@ function sparkles(s: SceneCtx, n: number, color: string, seed: number, top = 0, 
 const P = (o: ScenePalette) => o;
 
 export const CAT_SCENES: Partial<Record<CatId, SceneDef>> = {
-  // Kitty B (貓B) — a cozy nursery for the baby of the team. Special: Brave Yarn. Ultimate: Heroic Burst.
+  // Kitten (貓B) — a cozy nursery for the baby of the team. Special: Brave Yarn. Ultimate: Heroic Burst.
   kitten: {
     ground: 0.7,
     light: P({ skyTop: '#ffe4d4', skyBottom: '#fff4ea', far: '#ffcdb8', mid: '#ffb8a0', ground: '#f3d9bb', ground2: '#e9c8a2', accent: '#ff8a5c', accent2: '#ffd166', glow: '#fff1c8', wood: '#e2b483', stone: '#bfe1f2' }),
@@ -814,7 +814,7 @@ export const CAT_SCENES: Partial<Record<CatId, SceneDef>> = {
     },
   },
 
-  // Big Orange (大肥橙) — a lazy snack corner at home: big beanbag, food everywhere. Special: Aftershock. Ultimate: Mega Belly Slam.
+  // Chubby Orange (大肥橙) — a lazy snack corner at home: big beanbag, food everywhere. Special: Aftershock. Ultimate: Mega Belly Slam.
   orange: {
     ground: 0.66,
     light: P({ skyTop: '#ffe1bd', skyBottom: '#fff1dc', far: '#f8c58e', mid: '#eaa46a', ground: '#f0d0a4', ground2: '#e3bb88', accent: '#ff8c42', accent2: '#e94f4f', glow: '#ffe8a8', wood: '#b9784a', stone: '#f1e6d6' }),

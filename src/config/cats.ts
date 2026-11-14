@@ -24,7 +24,7 @@ import type { CatDef, CatId, TargetMode } from '../game/types';
 export const CATS: Record<CatId, CatDef> = {
   kitten: {
     id: 'kitten',
-    name: 'Kitty B',
+    name: 'Kitten',
     title: 'Little Adventurer',
     personality: 'Curious, brave and always eager to help.',
     role: 'Balanced all-rounder',
@@ -67,7 +67,7 @@ export const CATS: Record<CatId, CatDef> = {
   },
   orange: {
     id: 'orange',
-    name: 'Big Orange',
+    name: 'Chubby Orange',
     title: 'Lazy Heavyweight',
     personality: 'Loves food and naps. Hits like a falling sofa.',
     role: 'Slow area slam',

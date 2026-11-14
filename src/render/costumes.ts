@@ -5,7 +5,7 @@
 //
 // Equipment slots: the default cat's level gear lives in slots (see sprites.ts). An outfit lists
 // the slots it COVERS; default gear in those slots is skipped and the outfit draws its own
-// themed upgrade there. Gear in slots the outfit leaves free still appears (e.g. Kitty B's
+// themed upgrade there. Gear in slots the outfit leaves free still appears (e.g. Kitten's
 // satchel on the Calico farm kid), optionally recoloured with `tint`.
 //
 // Layers, in drawing order:
@@ -16,7 +16,7 @@
 //   head  — on the head (hats, masks, headbands); replaces the shared cosmetic hat
 //   front — just under the chin, in front of the head (collars, scarves, bow ties, pendants)
 //   hand  — held items (wands, snacks)
-// Coordinates follow drawCat: body centred on (0,7) (≈12×10, ×fat for Big Orange), head drawn in
+// Coordinates follow drawCat: body centred on (0,7) (≈12×10, ×fat for Chubby Orange), head drawn in
 // its own frame centred on (0,0) with radius r, eyes at y≈-1, top of the head at -r.
 
 import { TAU, circle, drawHeart, drawStar, ellipse, poly, roundRect, type Ctx } from './shapes';
@@ -34,7 +34,7 @@ interface Pt {
 export interface CostumeGeom {
   /** Head radius (head layer). */
   r: number;
-  /** Body width factor (Big Orange is 1.25). */
+  /** Body width factor (Chubby Orange is 1.25). */
   fat: number;
   /** Time for small cloth sway. */
   t: number;
@@ -165,7 +165,7 @@ function held(ctx: Ctx, g: CostumeGeom, draw: () => void) {
 
 const COSTUMES: Record<string, Costume> = {
   // ================================================================== regular
-  // Calico Kitty B — farm kid: straw hat + red bandana → sunflower → satchel → cape → golden
+  // Calico Kitten — farm kid: straw hat + red bandana → sunflower → satchel → cape → golden
   skin_calico: {
     covers: ['crown', 'side', 'neck'],
     head: (ctx, g) => {
@@ -696,7 +696,7 @@ const COSTUMES: Record<string, Costume> = {
   },
 
   // ================================================================== special
-  // Starlight Kitty B — little wizard: hat + star cape → moon pendant → spellbook → grand cape → gold
+  // Starlight Kitten — little wizard: hat + star cape → moon pendant → spellbook → grand cape → gold
   skin_kitten_star: {
     covers: ['crown', 'side', 'neck', 'cape', 'waist'],
     back: (ctx, g) => {

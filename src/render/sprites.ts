@@ -341,7 +341,7 @@ function drawHead(ctx: Ctx, o: CatDrawOpts, free: (s: Slot) => boolean) {
     ellipse(ctx, 0, -r * 0.85, r * 0.9, r * 0.38, 'rgba(120,124,138,0.35)');
     ctx.restore();
   } else if (o.type === 'kitten' && o.costume === 'skin_calico') {
-    // Calico patches (only the Calico skin — other Kitty B skins keep a plain face)
+    // Calico patches (only the Calico skin — other Kitten skins keep a plain face)
     ctx.save();
     ctx.beginPath();
     ctx.ellipse(0, 0, r, r * 0.92, 0, 0, TAU);
