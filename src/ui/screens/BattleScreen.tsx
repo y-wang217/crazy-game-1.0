@@ -8,7 +8,8 @@ import { nextStageId } from '../../game/progression';
 import { tutorialBlocking } from '../../tutorial/gate';
 import type { CatId, SkillId } from '../../game/types';
 import { has, t, useLang } from '../../i18n';
-import { Renderer, type DragView } from '../../render/renderer';
+import { Renderer } from '../../render/renderer';
+import { DragController, boardBlocked } from '../battleInput';
 import { saveStore, useSave } from '../../save/store';
 import { TutorialDirector, type ActiveStep, type SeenStore, type TutAction } from '../../tutorial/director';
 import { teamTutorialCat } from '../../tutorial/teamTutorial';
@@ -236,10 +237,39 @@ export function BattleScreen({
   const [menuOpen, setMenuOpen] = useState(false);
   /** "Nice!" confirmation after a tutorial action succeeds. */
   const [success, setSuccess] = useState(0);
-  const dragRef = useRef<DragView | null>(null);
-  const pressRef = useRef<{ uid: number; pointerId: number; sx: number; sy: number; dragging: boolean; long: boolean; timer: number | null } | null>(
-    null,
-  );
+  // Board press / drag (see ui/battleInput.ts): every way a gesture can end cancels it safely.
+  const inputRef = useRef<DragController | null>(null);
+  if (!inputRef.current)
+    inputRef.current = new DragController({
+      clearTimer: (id) => window.clearTimeout(id),
+      release: (id) => {
+        const cv = canvasRef.current;
+        if (cv?.hasPointerCapture?.(id)) cv.releasePointerCapture(id);
+      },
+    });
+  const input = inputRef.current;
+  // Safety nets for interrupted gestures: a release that lands outside the board (on a popup), the
+  // page losing focus (system banner, notification, app switch) or being hidden.
+  useEffect(() => {
+    const onUp = (e: PointerEvent) => {
+      if (input.press?.pointerId === e.pointerId) input.cancel(); // the board never saw this release
+    };
+    const drop = () => input.cancel();
+    const onVis = () => document.hidden && input.cancel();
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    window.addEventListener('blur', drop);
+    window.addEventListener('pagehide', drop);
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      window.removeEventListener('blur', drop);
+      window.removeEventListener('pagehide', drop);
+      document.removeEventListener('visibilitychange', onVis);
+      input.cancel();
+    };
+  }, [input]);
   /** Cat whose details panel is open (battle is paused meanwhile). */
   const [inspectUid, setInspectUid] = useState<number | null>(null);
   const inspectRef = useRef<number | null>(null);
@@ -496,7 +526,20 @@ export function BattleScreen({
       if (dirtyRef.current || ((b.running || (b.preparing && b.status === 'playing')) && now - lastSaveRef.current > CHECKPOINT_MS))
         checkpointRef.current();
       const focusUids = active ? active.focus.flatMap((f) => (f.kind === 'cat' ? [f.uid] : [])) : undefined;
-      renderer.draw(b, dragRef.current, loadoutRef.current, { focusUids });
+      // A popup / lesson / reward / menu / hidden page covers the board: drop any held cat (no action).
+      if (
+        input.busy &&
+        boardBlocked({
+          step: active,
+          status: b.status,
+          inspecting: inspectRef.current !== null,
+          menuOpen: keysRef.current.menuOpen,
+          result: resultRef.current !== null,
+          hidden: document.hidden,
+        })
+      )
+        input.cancel();
+      renderer.draw(b, input.drag, loadoutRef.current, { focusUids });
       if (directorRef.current.successCount !== successSeen) {
         successSeen = directorRef.current.successCount;
         setSuccess((n) => n + 1);
@@ -624,8 +667,7 @@ export function BattleScreen({
     setPracticeEnd(null);
     setInspectUid(null);
     setMenuOpen(false);
-    dragRef.current = null;
-    pressRef.current = null;
+    input.cancel();
     resultLoggedRef.current = null;
     prevCost.current = battleRef.current.summonCost;
     setResult(null);
@@ -763,22 +805,17 @@ export function BattleScreen({
     setInspectUid(uid);
   };
 
-  const clearPressTimer = () => {
-    const p = pressRef.current;
-    if (p?.timer) window.clearTimeout(p.timer);
-    if (p) p.timer = null;
-  };
-
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const b = battleRef.current;
     const r = rendererRef.current;
-    if (!r || pressRef.current || inspectRef.current !== null) return;
+    if (!r || inspectRef.current !== null) return;
     if (e.button === 2) return; // right-click is handled by onContextMenu
     if (b.status !== 'playing' && b.status !== 'paused') return;
     const w = r.toWorld(e.clientX, e.clientY);
     const tileId = tileAtWorld(w.x, w.y);
     const cat = tileId ? b.catAt(tileId) : undefined;
     if (!cat) {
+      if (input.busy) return; // a second finger on empty ground while a cat is held
       // Tap-to-focus: tap a mouse or chest (forgiving hit area for fingers) to focus it,
       // tap it again to cancel. Cats that can reach it attack it first.
       if (focusEnabled && !directorRef.current.active) {
@@ -797,15 +834,16 @@ export function BattleScreen({
       return;
     }
     e.preventDefault();
+    // A new press always wins: a held cat whose release was lost is dropped back first (no action).
+    const press = input.begin(cat.uid, e.pointerId, e.clientX, e.clientY);
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
     } catch {
       /* ignore */
     }
-    const press = { uid: cat.uid, pointerId: e.pointerId, sx: e.clientX, sy: e.clientY, dragging: false, long: false, timer: null as number | null };
     // Long press → details (only if the pointer hasn't started dragging).
     press.timer = window.setTimeout(() => {
-      if (pressRef.current !== press || press.dragging) return;
+      if (input.press !== press || press.dragging) return;
       press.long = true;
       press.timer = null;
       try {
@@ -815,59 +853,44 @@ export function BattleScreen({
       }
       openInspect(press.uid);
     }, LONG_PRESS_MS);
-    pressRef.current = press;
   };
 
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    const p = pressRef.current;
     const r = rendererRef.current;
-    if (!p || !r || p.pointerId !== e.pointerId || p.long) return;
-    if (!p.dragging && Math.hypot(e.clientX - p.sx, e.clientY - p.sy) > BALANCE.dragThresholdPx) {
-      p.dragging = true;
-      clearPressTimer();
-    }
-    if (p.dragging) {
+    if (!r) return;
+    input.move(e.pointerId, e.clientX, e.clientY, BALANCE.dragThresholdPx, () => {
       const w = r.toWorld(e.clientX, e.clientY);
-      dragRef.current = { uid: p.uid, x: w.x, y: w.y, overTileId: tileAtWorld(w.x, w.y) };
-    }
+      return { uid: input.press!.uid, x: w.x, y: w.y, overTileId: tileAtWorld(w.x, w.y) };
+    });
   };
 
   const endPress = (e: React.PointerEvent<HTMLCanvasElement>, cancelled: boolean) => {
-    const p = pressRef.current;
-    if (!p || p.pointerId !== e.pointerId) return;
-    clearPressTimer();
-    pressRef.current = null;
-    const drag = dragRef.current;
-    dragRef.current = null;
-    try {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    } catch {
-      /* ignore */
-    }
-    if (cancelled || p.long) return; // a long press only opens details
+    const end = input.end(e.pointerId, cancelled);
+    if (end.kind === 'none') return;
     dirty();
     const b = battleRef.current;
     const d = directorRef.current;
-    if (p.dragging) {
-      const target = drag?.overTileId ?? null;
-      const preview = b.previewDrop(p.uid, target);
+    // Something covered the board in the meantime (it would have cancelled the press): never act.
+    if (b.status !== 'playing' && b.status !== 'paused') return;
+    if (end.kind === 'drop') {
+      const preview = b.previewDrop(end.uid, end.target);
       if (preview.result === 'cancel') {
         if (preview.reason) toast(errText(preview.reason), 'warn');
         return;
       }
       if (!gate(preview.result)) return;
-      const res = b.dropCat(p.uid, target);
+      const res = b.dropCat(end.uid, end.target);
       if (res.result !== 'cancel') d.onAction(res.result, b);
     } else {
       if (!gate('tap')) return;
-      if (b.cycleTarget(p.uid)) d.onAction('tap', b);
+      if (b.cycleTarget(end.uid)) d.onAction('tap', b);
     }
   };
 
   /** Desktop: right-click a cat for details. (Also swallows the mobile long-press menu.) */
   const onContextMenu = (e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
-    if (pressRef.current) return; // touch long-press already handled by the timer
+    if (input.busy) return; // touch long-press already handled by the timer
     const r = rendererRef.current;
     if (!r) return;
     const w = r.toWorld(e.clientX, e.clientY);
@@ -962,6 +985,7 @@ export function BattleScreen({
           onPointerMove={onPointerMove}
           onPointerUp={(e) => endPress(e, false)}
           onPointerCancel={(e) => endPress(e, true)}
+          onLostPointerCapture={(e) => endPress(e, true)}
           onContextMenu={onContextMenu}
         />
         {banner && !step && (
