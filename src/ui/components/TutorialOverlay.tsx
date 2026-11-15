@@ -213,11 +213,15 @@ function Hand({ from, to }: { from: Rect; to?: Rect }) {
   );
 }
 
+/** Enemies whose first-meeting card keeps everything but the name a secret (a hidden surprise). */
+const MYSTERY_INTRO = new Set<string>(['canMonster']);
+
 function PanelBody({ step, loadout }: { step: ActiveStep; loadout: CosmeticLoadout }) {
   const p = step.panel;
   if (p.kind === 'cat') return null; // shown by CatReveal
   if (p.kind === 'enemy') {
     const id = p.enemy;
+    const secret = MYSTERY_INTRO.has(id);
     return (
       <div className="intro">
         <div className={`intro-kicker bad ${ENEMIES[id].elite ? 'elite' : ''}`}>{ENEMIES[id].elite ? t('intro.newElite') : t('intro.newEnemy')}</div>
@@ -233,13 +237,13 @@ function PanelBody({ step, loadout }: { step: ActiveStep; loadout: CosmeticLoado
             </>
           )}
           <dt className="bad">{t('intro.watchOut')}</dt>
-          <dd>{t(`enemy.${id}.strength`)}</dd>
+          <dd className={secret ? 'mystery' : ''}>{secret ? t('intro.mystery') : t(`enemy.${id}.strength`)}</dd>
           <dt>{t('intro.behavior')}</dt>
-          <dd>{t(`enemy.${id}.behavior`)}</dd>
-          {has(`enemy.${id}.tip`) && (
+          <dd className={secret ? 'mystery' : ''}>{secret ? t('intro.mystery') : t(`enemy.${id}.behavior`)}</dd>
+          {(secret || has(`enemy.${id}.tip`)) && (
             <>
               <dt className="good">{t('intro.tip')}</dt>
-              <dd>{t(`enemy.${id}.tip`)}</dd>
+              <dd className={secret ? 'mystery' : ''}>{secret ? t('intro.mystery') : t(`enemy.${id}.tip`)}</dd>
             </>
           )}
         </dl>

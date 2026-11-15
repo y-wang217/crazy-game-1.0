@@ -297,6 +297,7 @@ export const zh: Record<string, string> = {
   'intro.watchOut': '注意',
   'intro.behavior': '行為',
   'intro.tip': '對策',
+  'intro.mystery': '？？？',
   'intro.chestSkills': '打破它就能從三個隨機技能中選一個。',
   'intro.chestCoins': '另送 {min}–{max} 魚幣，永久保存！',
   'intro.chestTip': '寶箱不會等你！要在它走到小屋前打破。試試「優先寶箱」模式。',

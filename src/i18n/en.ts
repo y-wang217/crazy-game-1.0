@@ -296,6 +296,7 @@ export const en: Record<string, string> = {
   'intro.watchOut': 'Watch out',
   'intro.behavior': 'Behavior',
   'intro.tip': 'Tip',
+  'intro.mystery': '???',
   'intro.chestSkills': 'Break it to choose 1 of 3 random skills.',
   'intro.chestCoins': 'Also gives {min}–{max} fish coins — kept forever!',
   'intro.chestTip': 'It won’t wait! Break it before it reaches the house. The “Treasure” targeting mode helps.',

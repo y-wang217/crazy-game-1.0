@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { BALANCE } from '../../config/balance';
 import { CATS } from '../../config/cats';
 import { findStage, stageMap } from '../../config/chapters';
@@ -19,7 +19,7 @@ import { GameIcon } from '../components/GameIcon';
 import { ResultPanel } from '../components/ResultPanel';
 import { SkillOwner } from '../components/SkillOwner';
 import { DebugPanel, StatsTable } from '../components/DebugPanel';
-import { FishIcon, HeartIcon } from '../components/Icons';
+import { CanIcon, CoinIcon, FishIcon, HeartIcon } from '../components/Icons';
 import { ChapterCutscene } from '../components/ChapterCutscene';
 import { ChapterReward } from '../components/ChapterReward';
 import { RewardModal } from '../components/RewardModal';
@@ -258,6 +258,8 @@ export function BattleScreen({
   const [banner, setBanner] = useState<{ text: string; sub?: string; tone: 'wave' | 'final' | 'stage'; key: number } | null>(null);
   const [skillPop, setSkillPop] = useState<{ id: SkillId; level: number; isNew: boolean; key: number } | null>(null);
   const [costBump, setCostBump] = useState<{ n: number; key: number } | null>(null);
+  /** Big "+1 can" celebration after defeating the Cat Food Can monster (fish coins on repeats). */
+  const [canPop, setCanPop] = useState<{ kind: 'can' | 'coins'; n: number; key: number } | null>(null);
   const [result, setResult] = useState<Result | null>(null);
   const [speed, setSpeed] = useState<number>(speedRef.current);
   const [shake, setShake] = useState<'summon' | 'skill' | null>(null);
@@ -386,7 +388,7 @@ export function BattleScreen({
             const r = saveStore.claimCanMonster(stage.id); // 1 can the first time per stage, coins after
             earnedRef.current.cans += r.cans;
             earnedRef.current.coins += r.coins;
-            toast(r.cans ? t('battle.canMonsterCan', { n: r.cans }) : t('battle.canMonsterCoins', { n: r.coins }), 'good');
+            if (r.cans || r.coins) setCanPop(r.cans ? { kind: 'can', n: r.cans, key: Date.now() } : { kind: 'coins', n: r.coins, key: Date.now() });
             checkpointRef.current();
             break;
           }
@@ -630,6 +632,7 @@ export function BattleScreen({
     setToasts([]);
     setSkillPop(null);
     setCostBump(null);
+    setCanPop(null);
     showStageBanner();
   };
 
@@ -978,6 +981,24 @@ export function BattleScreen({
             </span>
             <span className="skill-pop-for">
               <SkillOwner id={skillPop.id} loadout={save.equipped} size={26} label />
+            </span>
+          </div>
+        )}
+        {canPop && (
+          <div
+            key={canPop.key}
+            className={`can-pop ${canPop.kind}`}
+            role="status"
+            onAnimationEnd={(e) => e.target === e.currentTarget && setCanPop(null)}
+          >
+            <span className="can-pop-rays" aria-hidden />
+            {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+              <span key={i} className="can-pop-spark" style={{ '--a': `${i * 45}deg` } as CSSProperties} aria-hidden />
+            ))}
+            <span className="can-pop-icon">{canPop.kind === 'can' ? <CanIcon size={84} /> : <CoinIcon size={72} />}</span>
+            <span className="can-pop-amount">+{canPop.n}</span>
+            <span className="can-pop-label">
+              {canPop.kind === 'can' ? t('battle.canMonsterCan', { n: canPop.n }) : t('battle.canMonsterCoins', { n: canPop.n })}
             </span>
           </div>
         )}
