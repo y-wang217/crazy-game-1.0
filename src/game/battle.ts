@@ -1093,8 +1093,11 @@ export class Battle {
       this.events.push({ type: 'chestAppeared', tier: def.tier });
     } else {
       const def = ENEMIES[g.enemy];
-      const hp = Math.round(def.hp * hpMult);
-      const shield = Math.round(def.shield * hpMult);
+      // Stage challenge (rewards unchanged; never the Living Cat Food Can).
+      const C = def.id === 'canMonster' ? undefined : this.stage.challenge;
+      const cm = !C ? 1 : def.isBoss ? (C.bossHp ?? 1) : def.elite ? (C.eliteHp ?? C.hp ?? 1) : (C.hp ?? 1);
+      const hp = Math.round(def.hp * hpMult * cm);
+      const shield = Math.round(def.shield * hpMult * cm);
       foe = {
         ...base,
         kind: 'enemy',
@@ -1103,8 +1106,8 @@ export class Battle {
         maxHp: hp,
         shield,
         maxShield: shield,
-        armor: def.armor > 0 ? def.armor + (this.stage.armorBonus ?? 0) : 0,
-        speed: def.speed * this.tuning.enemySpeedMult,
+        armor: def.armor > 0 ? def.armor + (this.stage.armorBonus ?? 0) + (C?.armor ?? 0) : 0,
+        speed: def.speed * this.tuning.enemySpeedMult * (C && !def.isBoss ? (C.speed ?? 1) : 1),
         // Regular mice keep their exact (fractional) value — paid out with a carry in kill(), so
         // e.g. 2.5 no longer always rounds up to 3. Elites and bosses keep their rounded reward.
         reward: isRegularEnemy(def)
@@ -1900,13 +1903,26 @@ export class Battle {
     return false;
   }
 
-  /** Moonshadow Emperor's second phase: at half HP its veil regrows once and guards arrive. */
+  /**
+   * A boss's second phase (once): at its threshold its shield regrows and guards arrive behind it.
+   * The Moonshadow Emperor always has one; a stage can give its boss one (StageChallenge.bossPhase).
+   */
+  private bossPhaseFor(f: Foe): { at: number; shield: number; guards: EnemyId[] } | null {
+    if (!f.isBoss) return null;
+    const ph = this.stage.challenge?.bossPhase;
+    if (ph) return ph;
+    if (f.defId !== 'moonEmperor') return null;
+    return { at: BALANCE.boss.regrowAt, shield: BALANCE.boss.regrowShield, guards: Array(BALANCE.boss.regrowGuards).fill('normal') };
+  }
+
   private checkBossPhase(f: Foe): void {
-    if (f.defId !== 'moonEmperor' || f.phased || !f.alive || f.hp > f.maxHp * BALANCE.boss.regrowAt) return;
+    if (f.phased || !f.alive) return;
+    const ph = this.bossPhaseFor(f);
+    if (!ph || f.hp > f.maxHp * ph.at) return;
     f.phased = true;
-    f.shield = Math.max(f.shield, Math.round(f.maxShield * BALANCE.boss.regrowShield));
-    for (let i = 0; i < BALANCE.boss.regrowGuards; i++) {
-      const g = this.spawn({ enemy: 'normal', count: 1, interval: 1 });
+    f.shield = Math.max(f.shield, Math.round(f.maxShield * ph.shield));
+    for (let i = 0; i < ph.guards.length; i++) {
+      const g = this.spawn({ enemy: ph.guards[i], count: 1, interval: 1 });
       const d = Math.max(0, f.dist - 18 - i * 16);
       const p = this.path.pointAt(d);
       Object.assign(g, { dist: d, x: p.x, y: p.y });

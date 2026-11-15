@@ -1,10 +1,13 @@
 import { CHAPTERS, stageMap } from '../../config/chapters';
 import { runBot } from '../bot';
+import { band, developed } from './profileTeams';
 
 // Headless balance report. Run with `npm run sim`.
 // "naive" never moves cats; "smart" keeps its strongest cats on the best tiles.
 // Both always take the first chest option and never change targeting, so a human
 // who positions, merges and targets deliberately should beat these numbers.
+// Chapter 1 is played with the 1★ starters; Chapter 2 is designed to need progression (V1.6.2),
+// so it is checked with the Average profile's realistic team (Sir Sable, a recruit, modest stars).
 describe('balance simulation', () => {
   const SEEDS = 10;
   const rows: string[] = [];
@@ -22,8 +25,9 @@ describe('balance simulation', () => {
       let chestsOpened = 0;
       let chestsTotal = 0;
       for (let s = 1; s <= SEEDS; s++) {
-        const a = runBot(stage, map, s * 7919);
-        const b = runBot(stage, map, s * 7919, { smart: true });
+        const team = stage.id.startsWith('2-') ? developed('average', band(stage), s) : {};
+        const a = runBot(stage, map, s * 7919, team);
+        const b = runBot(stage, map, s * 7919, { smart: true, ...team });
         if (a.win) naive++;
         if (b.win) smart++;
         time += b.time;

@@ -253,6 +253,32 @@ export interface StartCat {
   tile: string;
 }
 
+/**
+ * Extra challenge for a stage (V1.6.2): makes enemies tougher WITHOUT changing their dried-fish
+ * rewards (unlike hpScale). Never applies to treasure chests or the Living Cat Food Can.
+ */
+export interface StageChallenge {
+  /** HP/shield multiplier for regular mice. */
+  hp?: number;
+  /** HP/shield multiplier for elites (Brute, Iron Helm, Thief, Captain). Defaults to `hp`. */
+  eliteHp?: number;
+  /** HP/shield multiplier for bosses. */
+  bossHp?: number;
+  /** Walking-speed multiplier for regular mice and elites (bosses keep their pace). */
+  speed?: number;
+  /** Extra armor on enemies that already have armor (stacks with armorBonus). */
+  armor?: number;
+  /** The boss's half-HP phase on this stage (overrides the Moonshadow Emperor's default). */
+  bossPhase?: BossPhase;
+}
+
+/** At `at` × max HP the boss regrows `shield` × its original shield once and calls `guards`. */
+export interface BossPhase {
+  at: number;
+  shield: number;
+  guards: EnemyId[];
+}
+
 export interface StageDef {
   id: string;
   number: number;
@@ -276,6 +302,8 @@ export interface StageDef {
   order?: number;
   /** Flat armor added to every mouse that already has armor (later chapters). */
   armorBonus?: number;
+  /** Extra challenge that does not change rewards (see StageChallenge). */
+  challenge?: StageChallenge;
   /** Chest HP multiplier; defaults to 1 + BALANCE.chest.hpPerStage × (order − 1). */
   chestHpScale?: number;
   /**

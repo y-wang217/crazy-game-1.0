@@ -547,7 +547,7 @@ export const zh: Record<string, string> = {
   'result.chapterText.ch2': '月影鼠皇的月光薄紗散去了，整個蘑菇森林重新亮起溫柔的光。貓咪們成為傳說了！',
   'enemy.mushroomKing.name': '蘑菇鼠王',
   'enemy.mushroomKing.strength': '巨大的蘑菇傘帽是護盾，底下還有盔甲和大量血量。',
-  'enemy.mushroomKing.behavior': '走得很慢——但讓牠逃到小屋會扣 8 顆愛心！',
+  'enemy.mushroomKing.behavior': '走得很慢。血量降到一半時，傘帽會重新長出一次，還會召來孢子護衛。逃到小屋會扣 8 顆愛心！',
   'enemy.mushroomKing.tip': '在小屋附近放高等級貓咪，切換成「最強」目標。',
   'tut.ch2.title': '道路會繞圈！',
   'tut.ch2.body': '老鼠會繞圈走向中間的貓屋。內圈的格子可以同時守住幾段道路！',
@@ -1099,6 +1099,8 @@ export const zh: Record<string, string> = {
   'enemy.moonEmperor.behavior': '血量降到一半時，薄紗會重新長出一次，還會召來護衛。',
   'enemy.moonEmperor.tip': '為第二階段留力：把強力貓咪設為「最強」，放在小屋附近。',
   'battle.bossPhase': '{boss}：月光薄紗重新長出來了！',
+  'battle.bossPhase.mushroomKing': '{boss}：蘑菇傘帽重新長出，孢子護衛出現了！',
+  'battle.bossPhase.boss': '{boss}召喚芝士小偷！',
   // 經濟調整
   'star.topUp': '補足 {n} 個碎片・{c} 魚幣',
   'star.topUpNote': '招募最划算；補足碎片可以培養你最想要的那隻貓咪。',

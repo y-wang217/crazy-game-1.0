@@ -7,7 +7,7 @@ import { Battle, type BattleEvent, type BattleStats } from '../../game/battle';
 import { nextStageId } from '../../game/progression';
 import { tutorialBlocking } from '../../tutorial/gate';
 import type { CatId, SkillId } from '../../game/types';
-import { t, useLang } from '../../i18n';
+import { has, t, useLang } from '../../i18n';
 import { Renderer, type DragView } from '../../render/renderer';
 import { saveStore, useSave } from '../../save/store';
 import { TutorialDirector, type ActiveStep, type SeenStore, type TutAction } from '../../tutorial/director';
@@ -372,7 +372,7 @@ export function BattleScreen({
             toast(t('battle.bossAppeared', { boss: t(`enemy.${e.enemy}.name`) }), 'warn');
             break;
           case 'bossPhase':
-            toast(t('battle.bossPhase', { boss: t(`enemy.${e.enemy}.name`) }), 'warn');
+            toast(t(has(`battle.bossPhase.${e.enemy}`) ? `battle.bossPhase.${e.enemy}` : 'battle.bossPhase', { boss: t(`enemy.${e.enemy}.name`) }), 'warn');
             break;
           case 'eliteAppeared':
             toast(t('battle.eliteAppeared', { name: t(`enemy.${e.enemy}.name`) }), 'warn');

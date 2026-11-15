@@ -1,6 +1,6 @@
 import { BALANCE } from './balance';
 import { MAPS } from './maps';
-import type { ChapterDef, ChestTier, EnemyId, MapDef, SpawnGroup, StageDef, WaveDef } from '../game/types';
+import type { ChapterDef, ChestTier, EnemyId, MapDef, SpawnGroup, StageChallenge, StageDef, WaveDef } from '../game/types';
 
 // ---------------------------------------------------------------------------
 // Wave builder
@@ -91,6 +91,31 @@ function buildWaves(p: WavePlan): BuiltWaves {
 // ---- Placement tile sets (ids are "col-row" on the compact map, see maps.ts) ----
 // The core eight tiles sit between the road passes, so each covers two stretches of road.
 const CORE = ['1-1', '2-1', '1-2', '2-2', '2-4', '3-4', '2-5', '3-5'];
+
+// ---- Chapter 2 challenge (V1.6.2) -------------------------------------------------------------
+// Tougher Chapter 2 without touching dried-fish income: these multipliers raise enemy HP / speed
+// but not rewards (see StageChallenge), and never apply to chests or the Living Cat Food Can.
+// Elites scale more than regular mice, and every boss gets a half-HP phase so checkpoints are
+// tactical, not just bigger HP bars. Chapter 1 has no challenge entries.
+const CH2_BAND: StageChallenge[] = [
+  { hp: 1.06, eliteHp: 1.15 }, // 2-1 … 2-5
+  { hp: 1.12, eliteHp: 1.35, speed: 1.05 }, // 2-6 … 2-9
+  { hp: 1.15, eliteHp: 1.4, speed: 1.06, armor: 1 }, // 2-11 … 2-14
+  { hp: 1.18, eliteHp: 1.55, speed: 1.08, armor: 2 }, // 2-16 … 2-19
+];
+// Boss stages set their own values (a lighter crowd, so the boss and its phase are the test).
+const CH2_BOSS: Record<string, StageChallenge> = {
+  // Mushroom King: at half HP its cap (shield) regrows halfway and spore guards march in behind it.
+  '2-10': { hp: 1.09, eliteHp: 1.15, speed: 1.02, bossHp: 1.1, bossPhase: { at: 0.5, shield: 0.5, guards: ['ironclad', 'brute', 'normal', 'normal'] } },
+  // Cheese King (mini-boss): at half HP he sends his Cheese Thieves running for the house.
+  '2-15': { hp: 1.11, eliteHp: 1.2, speed: 1.03, bossHp: 1.1, bossPhase: { at: 0.5, shield: 0, guards: ['thief', 'thief', 'normal', 'normal'] } },
+  // Moonshadow Emperor: the veil regrows stronger and a Captain-led guard arrives.
+  '2-20': { hp: 1.14, eliteHp: 1.25, speed: 1.04, bossHp: 1.12, bossPhase: { at: 0.5, shield: 0.8, guards: ['captain', 'ironclad', 'normal', 'normal', 'normal'] } },
+};
+function ch2Challenge(id: string): StageChallenge {
+  const n = Number(id.split('-')[1]);
+  return CH2_BOSS[id] ?? CH2_BAND[Math.min(3, Math.floor((n - 1) / 5))];
+}
 
 const STAGES: StageDef[] = [
   {
@@ -802,6 +827,8 @@ const CH2_STAGES: StageDef[] = [
 // To add a chapter: give it a map in maps.ts, a stage list built like the ones above,
 // names in the i18n files (`chapter.<id>`, `stage.<id>`), and append it here.
 // Unlocking is linear across ALL_STAGE_IDS, so the new chapter opens after the previous boss.
+for (const s of CH2_STAGES) s.challenge = ch2Challenge(s.id);
+
 export const CHAPTERS: ChapterDef[] = [
   { id: 'ch1', number: 1, name: 'Beginner Forest', mapId: 'forest_compact', stages: STAGES },
   { id: 'ch2', number: 2, name: 'Moonlit Mushroom Forest', mapId: 'mushroom', stages: CH2_STAGES },

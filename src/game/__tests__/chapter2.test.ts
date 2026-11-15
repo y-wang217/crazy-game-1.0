@@ -444,12 +444,15 @@ describe('Chapter 2 second half (2-11…2-20)', () => {
     b.drainEvents();
     hit(emp.maxHp * 0.25); // below half
     expect(emp.phased).toBe(true);
-    expect(emp.shield).toBe(Math.round(emp.maxShield * BALANCE.boss.regrowShield));
-    expect(b.foes.filter((f) => f.defId === 'normal').length).toBe(BALANCE.boss.regrowGuards);
+    // 2-20 sets a stronger phase (V1.6.2): more of the veil returns and a Captain-led guard arrives.
+    const ph = s.challenge?.bossPhase ?? { shield: BALANCE.boss.regrowShield, guards: Array(BALANCE.boss.regrowGuards).fill('normal') };
+    expect(emp.shield).toBe(Math.round(emp.maxShield * ph.shield));
+    const guards = () => b.foes.filter((f) => f !== emp).map((f) => f.defId).sort();
+    expect(guards()).toEqual([...ph.guards].sort());
     expect(b.drainEvents()).toContainEqual({ type: 'bossPhase', enemy: 'moonEmperor' });
     emp.shield = 0;
     hit(emp.maxHp * 0.1);
-    expect(b.foes.filter((f) => f.defId === 'normal').length).toBe(BALANCE.boss.regrowGuards); // only once
+    expect(guards()).toEqual([...ph.guards].sort()); // only once
   });
 
   it('existing progress past the old ending unlocks 2-11 and keeps every cleared stage', () => {

@@ -881,3 +881,20 @@ at Lv.1–5 with the game's real art code, so new cats and skins appear automati
   (`npm i -D playwright && npx playwright install chromium`).
 - Files: `tools/level-sheets.html`, `src/devtools/levelSheets.ts`, `scripts/level-sheets.mjs`.
   Check every adjacent pair by eye at phone size; `skins.test.ts` also fails if two levels draw the same thing.
+
+## Chapter 2 challenge (V1.6.2)
+
+Chapter 2 is tuned so progression matters: early stages are fine with the 1★ starters, mid
+stages reward recruits and upgrades, late stages are a wall for an unupgraded roster, and a
+reasonably developed team still wins reliably. Chapter 1 is untouched.
+
+- `StageDef.challenge` (`src/game/types.ts`) raises regular-mouse HP, elite HP, boss HP, speed and
+  armor **without changing dried-fish rewards** (unlike `hpScale`). It never applies to treasure
+  chests or the Living Cat Food Can. Values live in `CH2_BAND` / `CH2_BOSS` in `src/config/chapters.ts`.
+- Boss phases: `challenge.bossPhase` gives a boss a once-only half-HP phase (shield regrowth +
+  guards). 2-10 Mushroom King: cap regrows, spore guards. 2-15 Cheese King: calls Cheese Thieves.
+  2-20 Moonshadow Emperor: stronger veil, Captain-led guard.
+- Check it with `npm run sim:progression` (`STAGES=2-10,2-20 N=40`): Beginner (1★ starters, casual),
+  Unupgraded (1★ starters, skilled), Average and Experienced (realistic teams from
+  `src/game/__tests__/profileTeams.ts`). `npm test` checks every Chapter 2 stage is winnable with the
+  Average team.

@@ -546,7 +546,7 @@ export const en: Record<string, string> = {
   'result.chapterText.ch2': 'The Moonshadow Emperor’s veil fades and the whole forest glows peacefully again. Your cats are legends!',
   'enemy.mushroomKing.name': 'Mushroom King',
   'enemy.mushroomKing.strength': 'A giant cap works as a shield; under it: armor and huge HP.',
-  'enemy.mushroomKing.behavior': 'Very slow — but escaping costs you 8 hearts!',
+  'enemy.mushroomKing.behavior': 'Very slow. At half HP its cap regrows once and spore guards march in. Escaping costs 8 hearts!',
   'enemy.mushroomKing.tip': 'Merge strong cats near the cat house and set them to “Strongest”.',
   'tut.ch2.title': 'The road spirals in!',
   'tut.ch2.body': 'Mice spiral toward the cat house in the middle. Inner tiles guard several paths!',
@@ -1098,6 +1098,8 @@ export const en: Record<string, string> = {
   'enemy.moonEmperor.behavior': 'At half HP the veil regrows once and guards rush in.',
   'enemy.moonEmperor.tip': 'Save strength for the second phase: keep strong cats on "Strongest" near the house.',
   'battle.bossPhase': '{boss}: the moonlight veil regrows!',
+  'battle.bossPhase.mushroomKing': '{boss}: its cap regrows and spore guards appear!',
+  'battle.bossPhase.boss': '{boss} calls his Cheese Thieves!',
   // Economy audit
   'star.topUp': 'Top up {n} fragments · {c} coins',
   'star.topUpNote': 'Recruiting is the best value; top-ups let you finish the exact cat you want.',
