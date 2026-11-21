@@ -4935,3 +4935,299 @@ body {
     animation: none;
   }
 }
+
+/* ---- V1.6.2 character classification chips (shared by cards, profile, team) ---- */
+.class-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 3px;
+}
+.role-chip,
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+.class-chips.compact .role-chip,
+.class-chips.compact .tag-chip {
+  font-size: 0.68rem;
+  padding: 1px 7px;
+}
+.role-chip {
+  color: #fff;
+}
+.role-chip.role-attacker {
+  background: #e0704a;
+}
+.role-chip.role-controller {
+  background: #5a8ad8;
+}
+.role-chip.role-support {
+  background: #4ea866;
+}
+.role-chip.role-specialist {
+  background: #9a62c8;
+}
+.tag-chip {
+  background: var(--surface-2);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-soft) 35%, transparent);
+}
+.tag-chip.locked {
+  color: var(--text-soft);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-soft) 35%, transparent);
+  border: 1px dashed transparent;
+  opacity: 0.85;
+}
+.tag-star {
+  font-size: 0.85em;
+  font-weight: 900;
+  color: #c88a10;
+}
+.tag-chip.locked .tag-star {
+  color: var(--text-soft);
+  font-weight: 700;
+}
+/* In-team corner badge on Encyclopedia cards */
+.collection-team {
+  position: absolute !important;
+  top: 7px;
+  right: 7px;
+  z-index: 2 !important;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: 0 2px 0 var(--shadow-ink);
+}
+
+/* ---- V1.6.2 profile: compact header + tabs (progressive disclosure) ---- */
+.profile-hero .class-chips {
+  justify-content: center;
+  margin-top: 6px;
+}
+.star-card.star-strip {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 10px;
+}
+.profile-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  background: var(--surface-2);
+  border-radius: 14px;
+  padding: 4px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.profile-tabs button {
+  border: 0;
+  background: transparent;
+  color: var(--text-soft);
+  font: inherit;
+  font-weight: 800;
+  font-size: 0.9rem;
+  padding: 8px 2px;
+  border-radius: 10px;
+  min-height: 40px;
+}
+.profile-tabs button.on {
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 2px 0 var(--shadow-ink);
+}
+.profile-intro {
+  margin: 0;
+  line-height: 1.5;
+  font-weight: 600;
+}
+.profile-facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  font-size: 0.9rem;
+}
+.profile-facts dt {
+  font-weight: 800;
+  color: var(--text-soft);
+}
+.profile-facts dd {
+  margin: 0;
+}
+.profile-pane > .link-btn {
+  align-self: flex-start;
+}
+.profile-more {
+  border-top: 1px dashed var(--line);
+  padding-top: 6px;
+}
+.profile-more > summary {
+  cursor: pointer;
+  font-weight: 800;
+  font-size: 0.9rem;
+  color: var(--text-soft);
+  padding: 4px 0;
+  list-style-position: inside;
+}
+.profile-more[open] > summary {
+  margin-bottom: 6px;
+}
+.level-mini {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.level-mini button {
+  border: 2px solid transparent;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-weight: 800;
+  font-size: 0.8rem;
+  border-radius: 10px;
+  padding: 5px 0;
+}
+.level-mini button.on {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+.star-path {
+  list-style: none;
+  margin: 2px 0 6px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  position: relative;
+}
+.star-path::before {
+  content: '';
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  top: 15px;
+  height: 3px;
+  background: var(--star-off);
+  border-radius: 2px;
+}
+.star-path li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  position: relative;
+}
+.star-path-dot {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  font-size: 0.75rem;
+  background: var(--surface-2);
+  color: var(--text-soft);
+  border: 2px solid var(--star-off);
+}
+.star-path li.on .star-path-dot {
+  background: var(--accent);
+  border-color: var(--accent-dark);
+  color: var(--accent-ink);
+}
+.star-path li.milestone .star-path-dot {
+  box-shadow: 0 0 0 3px var(--panel), 0 0 0 5px var(--accent2);
+}
+.star-path-label {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: var(--accent2-dark);
+  text-align: center;
+}
+.profile .story {
+  white-space: pre-line;
+  margin: 0;
+}
+
+/* ---- V1.6.2 role / skill filter (Encyclopedia + Edit Team) ---- */
+.cat-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px 0 8px;
+}
+.cat-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cat-filter-toggle.on {
+  border-color: var(--accent);
+}
+.cat-filter-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  margin-left: 4px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 0.7rem;
+  font-weight: 900;
+}
+.cat-filter-panel {
+  background: var(--panel);
+  border-radius: 14px;
+  padding: 8px 10px;
+  box-shadow: 0 2px 0 var(--shadow-ink);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cat-filter-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+.cat-filter-label {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--text-soft);
+  min-width: 2.6em;
+}
+.chip-btn {
+  font-family: inherit;
+  cursor: pointer;
+  min-height: 30px;
+  padding: 3px 10px;
+  border: 2px solid transparent;
+}
+.chip-btn:not(.on) {
+  opacity: 0.72;
+}
+.chip-btn.on {
+  opacity: 1;
+  border-color: var(--text);
+}
+.pool-card .class-chips {
+  justify-content: center;
+}

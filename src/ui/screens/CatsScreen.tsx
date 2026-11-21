@@ -9,9 +9,11 @@ import { CHAPTER_REWARDS } from '../../config/collection';
 import { GameIcon } from '../components/GameIcon';
 import { Stars } from '../components/Stars';
 import { CatScene } from '../components/CatScene';
+import { CatClassChips } from '../components/CatClassChips';
 import { FeatureButton } from '../components/FeatureUnlock';
 import { isFeatureUnlocked } from '../../config/unlocks';
 import { useState } from 'react';
+import { CatFilter, NO_FILTER, applyCatFilter, filterActive } from '../components/CatFilter';
 
 /** First stage where a cat can appear (for "Meet in Stage N"). */
 export function firstStageOf(cat: CatId): number {
@@ -25,6 +27,12 @@ export function CatsScreen({ go }: { go: (s: Screen) => void }) {
   const save = useSave();
   const found = CAT_ORDER.filter((id) => save.collection[id]).length;
   const [note, setNote] = useState<string | null>(null);
+  // Role / skill filter: discovered cats only; undiscovered cards are hidden while it is on.
+  const [filter, setFilter] = useState(NO_FILTER);
+  const discovered = CAT_ORDER.filter((id) => save.collection[id]).map((id) => ({ id, stars: save.collection[id]!.stars }));
+  const filtering = filterActive(filter);
+  const shown = filtering ? applyCatFilter(discovered, filter).map((c) => c.id) : CAT_ORDER;
+  const hiddenUnknown = CAT_ORDER.length - discovered.length;
   const flash = (m: string) => {
     setNote(m);
     window.setTimeout(() => setNote(null), 2000);
@@ -62,8 +70,10 @@ export function CatsScreen({ go }: { go: (s: Screen) => void }) {
         />
       </div>
       {note && <div className="toast-inline">{note}</div>}
+      {discovered.length > 1 && <CatFilter pool={discovered} value={filter} onChange={setFilter} />}
+      {filtering && shown.length === 0 && <p className="muted center small">{t('filter.none')}</p>}
       <div className="collection-grid">
-        {CAT_ORDER.map((id) => {
+        {shown.map((id) => {
           const own = save.collection[id];
           const accent = CATS[id].palette.body;
           const reward = Object.entries(CHAPTER_REWARDS).find(([, r]) => r.cat === id);
@@ -84,26 +94,31 @@ export function CatsScreen({ go }: { go: (s: Screen) => void }) {
               <div className="collection-portrait">
                 <CatPreview type={id} level={own ? 3 : 1} loadout={save.equipped} size={92} animate={!!own} />
               </div>
+              {/* In the team: a small corner badge (not a big pill). */}
+              {own && save.team.includes(id) && (
+                <span className="collection-team" title={t('team.inTeam')} aria-label={t('team.inTeam')}>
+                  <GameIcon name="team" size={13} />
+                </span>
+              )}
               <div className="collection-name">{own ? t(`cat.${id}.name`) : t('guide.unknown')}</div>
-              {own ? <Stars n={own.stars} size={12} /> : null}
-              <div className="collection-role">{own ? t(`cat.${id}.role`) : hint}</div>
-              <div className={`collection-state ${own ? 'met' : ''}`}>
-                {own ? (
-                  save.team.includes(id) ? (
-                    t('team.inTeam')
-                  ) : (
-                    t('guide.tapToView')
-                  )
-                ) : (
-                  <>
+              {own ? (
+                <>
+                  <Stars n={own.stars} size={12} />
+                  <CatClassChips cat={id} stars={own.stars} compact />
+                </>
+              ) : (
+                <>
+                  <div className="collection-role">{hint}</div>
+                  <div className="collection-state">
                     <GameIcon name="lock" size={13} /> {t('guide.lockedHint')}
-                  </>
-                )}
-              </div>
+                  </div>
+                </>
+              )}
             </button>
           );
         })}
       </div>
+      {filtering && hiddenUnknown > 0 && <p className="muted tiny center">{t('filter.undiscovered', { n: hiddenUnknown })}</p>}
     </div>
   );
 }

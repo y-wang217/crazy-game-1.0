@@ -18,13 +18,18 @@ import { specialStats } from '../components/statText';
 import { Stars } from '../components/Stars';
 import { TUTORIALS, isFeatureUnlocked } from '../../config/unlocks';
 import { CatScene } from '../components/CatScene';
+import { CatClassChips } from '../components/CatClassChips';
+
+/** Profile tabs: meet the cat first (Intro); battle data, growth and the full story on demand. */
+type ProfileTab = 'intro' | 'battle' | 'growth' | 'story';
+const TABS: ProfileTab[] = ['intro', 'battle', 'growth', 'story'];
 
 const fmt = (n: number, d = 1) => (Math.round(n * 10 ** d) / 10 ** d).toString();
 
 /**
- * A character page: permanent star rank + fragments + upgrade, Special & Ultimate,
- * star evolution, a live demo (real combat engine), stats per in-battle level, gear, story.
- * Permanent stars (★) and in-battle levels (Lv.) are always shown separately.
+ * A character page (V1.6.2, progressive disclosure): the cat first — room, art, name, its line, role
+ * and skill tags — then a compact star row, then tabs: Intro (default), Battle (real demo; numbers in
+ * expandables), Growth (permanent ★ path vs in-battle Lv. sprites, kept apart) and Story.
  */
 export function CatProfileScreen({ cat, go }: { cat: CatId; go: (s: Screen) => void }) {
   useLang();
@@ -35,6 +40,7 @@ export function CatProfileScreen({ cat, go }: { cat: CatId; go: (s: Screen) => v
   const [level, setLevel] = useState(1);
   const [demoStar, setDemoStar] = useState<number | null>(null);
   const [upgrading, setUpgrading] = useState(false);
+  const [tab, setTab] = useState<ProfileTab>('intro');
   const def = CATS[cat];
   const star = own?.stars ?? 1;
   const st = getCatStats(def, level, undefined, star);
@@ -114,6 +120,7 @@ export function CatProfileScreen({ cat, go }: { cat: CatId; go: (s: Screen) => v
         </div>
       </div>
 
+      {/* 1. Meet the cat: its room, its look, its name and voice, and what it does in one glance. */}
       <div className="profile-hero">
         {/* Same evolving scene as the collection card, at full size (permanent ★, not the Lv. picker). */}
         <div className={`profile-scene rank-${star}`}>
@@ -123,13 +130,8 @@ export function CatProfileScreen({ cat, go }: { cat: CatId; go: (s: Screen) => v
           <CatPreview key={`${cat}-${level}`} type={cat} level={level} loadout={save.equipped} size={176} attackLoop />
         </div>
         <h1 className="profile-name">{t(`cat.${cat}.name`)}</h1>
-        <div className="profile-title">{t(`cat.${cat}.title`)}</div>
-        <div className="info-tags center-tags">
-          <span className="info-tag">{t(`cat.${cat}.role`)}</span>
-          <span className="info-tag">{t(`attack.${def.attack}`)}</span>
-        </div>
-        <p className="profile-quote">“{t(`cat.${cat}.personality`)}”</p>
         <p className="profile-line">「{t(`cat.${cat}.line`)}」</p>
+        <CatClassChips cat={cat} stars={own.stars} />
       </div>
 
       {/* Players who already had Sir Sable before his lesson existed: offered here, never forced. */}
@@ -144,166 +146,207 @@ export function CatProfileScreen({ cat, go }: { cat: CatId; go: (s: Screen) => v
           </button>
         </div>
       )}
-      {/* Permanent progression: star rank + fragments — hidden until Recruitment (2-5), when fragments first exist. */}
+
+      {/* 2. Permanent stars + upgrade — compact, and only once Recruitment (2-5) brings fragments. */}
       {starsOpen && (
-        <section className="profile-card star-card">
-          <h3>{t('star.title')}</h3>
-          <div className="star-row">
-            <Stars n={own.stars} size={26} />
-            <span className="star-frag">
-              <GameIcon name="fragment" size={16} />{' '}
-              {maxed ? t('star.fragmentsMax', { n: own.fragments }) : t('star.fragments', { n: own.fragments, need: cost!.fragments })}
-            </span>
-          </div>
+        <section className="profile-card star-card star-strip">
+          <Stars n={own.stars} size={22} />
+          <span className="star-frag">
+            <GameIcon name="fragment" size={15} />{' '}
+            {maxed ? t('star.fragmentsMax', { n: own.fragments }) : t('star.fragments', { n: own.fragments, need: cost!.fragments })}
+          </span>
           {maxed ? (
-            <>
-              <div className="star-max">{t('star.max')}</div>
-              {own.fragments > 0 && (
-                <button className="btn btn-secondary btn-small" onClick={() => saveStore.exchangeFragments(cat)}>
-                  <CoinIcon size={14} /> {t('star.exchange', { n: own.fragments, c: own.fragments * RECRUIT.maxedFragmentCoins })}
-                </button>
-              )}
-            </>
-          ) : (
-            <>
-              <div className="muted small">{t('star.cost', { f: cost!.fragments, c: cost!.coins })}</div>
-              <button className="btn btn-primary" onClick={() => setUpgrading(true)}>
-                <GameIcon name="star" size={18} /> {t('star.upgrade')}
+            own.fragments > 0 && (
+              <button className="btn btn-secondary btn-small" onClick={() => saveStore.exchangeFragments(cat)}>
+                <CoinIcon size={14} /> {t('star.exchange', { n: own.fragments, c: own.fragments * RECRUIT.maxedFragmentCoins })}
               </button>
-            </>
+            )
+          ) : (
+            <button className="btn btn-primary btn-small" onClick={() => setUpgrading(true)}>
+              <GameIcon name="star" size={16} /> {t('star.upgrade')}
+            </button>
           )}
-          <div className="muted tiny">{t('star.permanentNote')}</div>
         </section>
       )}
 
-      {/* Special (3★) and Ultimate (5★) */}
-      <section className="profile-card">
-        <h3>{t('profile.abilities')}</h3>
-        {(['special', 'ult'] as const).map((which) => {
-          const need = which === 'special' ? STARS.specialAt : STARS.ultimateAt;
-          const unlocked = own.stars >= need;
-          return (
-            <div key={which} className={`ability ${unlocked ? 'on' : 'locked'}`}>
-              <div className="ability-head">
-                <GameIcon name={which === 'ult' ? 'ult' : 'flag'} size={20} />
-                <b>{t(`ability.${cat}.${which}.name`)}</b>
-                <span className="ability-tag">{which === 'special' ? t('ability.special') : t('ability.ultimate')}</span>
-                <span className={`ability-state ${unlocked ? 'good' : ''}`}>
-                  {unlocked ? t('ability.unlocked') : (
-                    <>
-                      <GameIcon name="lock" size={12} /> {t('ability.locked', { n: need })}
-                    </>
-                  )}
-                </span>
-              </div>
-              <div className="small">{t(`ability.${cat}.${which}.desc`, abilityParams(cat, which))}</div>
-            </div>
-          );
-        })}
-        <div className="muted tiny">{t('ability.ultNote', { s: ULTIMATE.cooldown })}</div>
-      </section>
-
-      {/* Live demo with star preview */}
-      <section className="profile-card">
-        <h3>{t('profile.signature')}</h3>
-        <SimDemo type={cat} level={level} star={shownStar} loadout={save.equipped} />
-        <div className="demo-stars" role="group" aria-label={t('profile.starFx')}>
-          {Array.from({ length: STARS.max }, (_, i) => i + 1).map((s) => (
-            <button key={s} className={`demo-star ${s === shownStar ? 'on' : ''} ${s > own.stars ? 'preview' : ''}`} onClick={() => setDemoStar(s === star ? null : s)}>
-              {s}★
-            </button>
-          ))}
-        </div>
-        <p className="small">{t(`cat.${cat}.attack`)}</p>
-        <p className="small">{t(`cat.${cat}.signature`)}</p>
-        <div className="sw-grid">
-          <div>
-            <div className="good small b">{t('intro.strengths')}</div>
-            <div className="small">{t(`cat.${cat}.strengths`)}</div>
-          </div>
-          <div>
-            <div className="bad small b">{t('intro.weaknesses')}</div>
-            <div className="small">{t(`cat.${cat}.weaknesses`)}</div>
-          </div>
-        </div>
-      </section>
-
-      {/* ★1–★5 attack-effect evolution */}
-      <section className="profile-card">
-        <h3>{t('profile.starFx')}</h3>
-        <ol className="star-fx">
-          {Array.from({ length: STARS.max }, (_, i) => i + 1).map((s) => (
-            <li key={s} className={s <= own.stars ? 'on' : ''}>
-              <span className="star-fx-n">{s}★</span> {t(`starfx.${s}`)}
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      {/* In-battle level evolution (Lv.1–5, merging): gear + stats */}
-      <section className="profile-card">
-        <h3>{t('profile.levels')}</h3>
-        <div className="level-strip">
-          {Array.from({ length: BALANCE.levels.maxLevel }, (_, i) => i + 1).map((lv) => (
-            <button key={lv} className={`level-pick ${lv === level ? 'on' : ''}`} onClick={() => setLevel(lv)} aria-label={`Lv.${lv}`}>
-              <CatPreview type={cat} level={lv} loadout={save.equipped} size={50} animate={false} />
-              <span>Lv.{lv}</span>
-            </button>
-          ))}
-        </div>
-        <div className="gear-line">
-          <b>{t('profile.gear')}:</b> {gearText(cat, level, save.equipped.skins[cat])}
-        </div>
-      </section>
-
-      <section className="profile-card">
-        <h3>
-          {t('profile.stats', { n: level })} · <Stars n={star} size={12} />
-        </h3>
-        <div className="stat-compare">
-          {bars.map((b) => (
-            <div key={b.label} className="stat-compare-row">
-              <span className="stat-compare-label">{b.label}</span>
-              <div className="stat-track">
-                <div className="stat-fill" style={{ width: `${Math.max(6, Math.round(b.frac * 100))}%` }} />
-              </div>
-              <span className="stat-compare-val">{b.value}</span>
-            </div>
-          ))}
-        </div>
-        {extras.length > 0 && (
-          <table className="info-stats">
-            <tbody>
-              {extras.map(([k, v]) => (
-                <tr key={k}>
-                  <td>{k}</td>
-                  <td>{v}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-        <div className="muted tiny">{t('profile.statsNote')}</div>
-      </section>
-
-      <section className="profile-card">
-        <h3>{t('profile.story')}</h3>
-        <p className="small story">{t(`cat.${cat}.story`)}</p>
-      </section>
-
-      <section className="profile-card">
-        <h3>{t('profile.skills')}</h3>
-        {skills.map((id) => (
-          <div key={id} className="info-bonus">
-            <GameIcon name={id} size={20} />
-            <b>
-              {t(`skill.${id}.name`)} <span className="muted tiny">{t('profile.maxLv', { n: SKILLS[id].maxLevel })}</span>
-            </b>
-            <span className="muted tiny">{t(`skill.${id}.desc`, skillParams(id, 1))}</span>
-          </div>
+      {/* 3. Details on demand: four tabs. */}
+      <div className="profile-tabs" role="tablist">
+        {TABS.map((k) => (
+          <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>
+            {t(`profile.tab.${k}`)}
+          </button>
         ))}
-        <div className="muted tiny">{t('profile.skillsNote')}</div>
-      </section>
+      </div>
+
+      {tab === 'intro' && (
+        <section className="profile-card profile-pane" role="tabpanel">
+          <p className="profile-intro">{t(`cat.${cat}.intro`)}</p>
+          <dl className="profile-facts">
+            <dt>{t('profile.personality')}</dt>
+            <dd>{t(`cat.${cat}.personality`)}</dd>
+            <dt>{t('profile.fightingStyle')}</dt>
+            <dd>{t(`cat.${cat}.attack`)}</dd>
+          </dl>
+          <button className="link-btn" onClick={() => setTab('story')}>
+            {t('profile.readStory')} ›
+          </button>
+        </section>
+      )}
+
+      {tab === 'battle' && (
+        <section className="profile-card profile-pane" role="tabpanel">
+          <SimDemo type={cat} level={level} star={shownStar} loadout={save.equipped} />
+          <div className="demo-stars" role="group" aria-label={t('profile.starFx')}>
+            {Array.from({ length: STARS.max }, (_, i) => i + 1).map((s) => (
+              <button key={s} className={`demo-star ${s === shownStar ? 'on' : ''} ${s > own.stars ? 'preview' : ''}`} onClick={() => setDemoStar(s === star ? null : s)}>
+                {s}★
+              </button>
+            ))}
+          </div>
+          <p className="small">{t(`cat.${cat}.signature`)}</p>
+          <div className="sw-grid">
+            <div>
+              <div className="good small b">{t('intro.strengths')}</div>
+              <div className="small">{t(`cat.${cat}.strengths`)}</div>
+            </div>
+            <div>
+              <div className="bad small b">{t('intro.weaknesses')}</div>
+              <div className="small">{t(`cat.${cat}.weaknesses`)}</div>
+            </div>
+          </div>
+          <details className="profile-more">
+            <summary>
+              {t('profile.detailStats')} · Lv.{level} · <Stars n={star} size={11} />
+            </summary>
+            <div className="level-mini" role="group" aria-label={t('profile.mergeLevels')}>
+              {Array.from({ length: BALANCE.levels.maxLevel }, (_, i) => i + 1).map((lv) => (
+                <button key={lv} className={lv === level ? 'on' : ''} onClick={() => setLevel(lv)}>
+                  Lv.{lv}
+                </button>
+              ))}
+            </div>
+            <div className="stat-compare">
+              {bars.map((b) => (
+                <div key={b.label} className="stat-compare-row">
+                  <span className="stat-compare-label">{b.label}</span>
+                  <div className="stat-track">
+                    <div className="stat-fill" style={{ width: `${Math.max(6, Math.round(b.frac * 100))}%` }} />
+                  </div>
+                  <span className="stat-compare-val">{b.value}</span>
+                </div>
+              ))}
+            </div>
+            {extras.length > 0 && (
+              <table className="info-stats">
+                <tbody>
+                  {extras.map(([k, v]) => (
+                    <tr key={k}>
+                      <td>{k}</td>
+                      <td>{v}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <div className="muted tiny">{t('profile.statsNote')}</div>
+          </details>
+          <details className="profile-more">
+            <summary>{t('profile.moreSkills')}</summary>
+            {skills.map((id) => (
+              <div key={id} className="info-bonus">
+                <GameIcon name={id} size={20} />
+                <b>
+                  {t(`skill.${id}.name`)} <span className="muted tiny">{t('profile.maxLv', { n: SKILLS[id].maxLevel })}</span>
+                </b>
+                <span className="muted tiny">{t(`skill.${id}.desc`, skillParams(id, 1))}</span>
+              </div>
+            ))}
+            <div className="muted tiny">{t('profile.skillsNote')}</div>
+          </details>
+        </section>
+      )}
+
+      {tab === 'growth' && (
+        <>
+          {/* Permanent stars (★): a visual path with the 3★ Special and 5★ Ultimate. */}
+          <section className="profile-card profile-pane" role="tabpanel">
+            <h3>{t('profile.permanentStars')}</h3>
+            <ol className="star-path">
+              {Array.from({ length: STARS.max }, (_, i) => i + 1).map((s) => (
+                <li key={s} className={`${s <= own.stars ? 'on' : ''} ${s === STARS.specialAt || s === STARS.ultimateAt ? 'milestone' : ''}`}>
+                  <span className="star-path-dot">{s}★</span>
+                  {s === STARS.specialAt && <span className="star-path-label">{t('ability.special')}</span>}
+                  {s === STARS.ultimateAt && <span className="star-path-label">{t('ability.ultimate')}</span>}
+                </li>
+              ))}
+            </ol>
+            {(['special', 'ult'] as const).map((which) => {
+              const need = which === 'special' ? STARS.specialAt : STARS.ultimateAt;
+              const unlocked = own.stars >= need;
+              return (
+                <div key={which} className={`ability ${unlocked ? 'on' : 'locked'}`}>
+                  <div className="ability-head">
+                    <GameIcon name={which === 'ult' ? 'ult' : 'flag'} size={20} />
+                    <b>{t(`ability.${cat}.${which}.name`)}</b>
+                    <span className={`ability-state ${unlocked ? 'good' : ''}`}>
+                      {unlocked ? (
+                        t('ability.unlocked')
+                      ) : (
+                        <>
+                          <GameIcon name="lock" size={12} /> {t('ability.locked', { n: need })}
+                        </>
+                      )}
+                    </span>
+                  </div>
+                  <div className="small">{t(`ability.${cat}.${which}.desc`, abilityParams(cat, which))}</div>
+                </div>
+              );
+            })}
+            {starsOpen ? (
+              !maxed && <div className="muted small">{t('star.cost', { f: cost!.fragments, c: cost!.coins })}</div>
+            ) : (
+              <div className="muted small">{t('profile.starsLater')}</div>
+            )}
+            <details className="profile-more">
+              <summary>{t('profile.starFx')}</summary>
+              <ol className="star-fx">
+                {Array.from({ length: STARS.max }, (_, i) => i + 1).map((s) => (
+                  <li key={s} className={s <= own.stars ? 'on' : ''}>
+                    <span className="star-fx-n">{s}★</span> {t(`starfx.${s}`)}
+                  </li>
+                ))}
+              </ol>
+              <div className="muted tiny">{t('ability.ultNote', { s: ULTIMATE.cooldown })}</div>
+            </details>
+          </section>
+
+          {/* In-battle merge levels (Lv.): real sprites, reset after every battle. */}
+          <section className="profile-card">
+            <h3>{t('profile.mergeLevels')}</h3>
+            <div className="level-strip">
+              {Array.from({ length: BALANCE.levels.maxLevel }, (_, i) => i + 1).map((lv) => (
+                <button key={lv} className={`level-pick ${lv === level ? 'on' : ''}`} onClick={() => setLevel(lv)} aria-label={`Lv.${lv}`}>
+                  <CatPreview type={cat} level={lv} loadout={save.equipped} size={50} animate={false} />
+                  <span>Lv.{lv}</span>
+                </button>
+              ))}
+            </div>
+            <div className="muted small">{t('profile.starsVsLevels')}</div>
+            <details className="profile-more">
+              <summary>
+                {t('profile.showGear')} · Lv.{level}
+              </summary>
+              <div className="gear-line">{gearText(cat, level, save.equipped.skins[cat])}</div>
+            </details>
+          </section>
+        </>
+      )}
+
+      {tab === 'story' && (
+        <section className="profile-card profile-pane" role="tabpanel">
+          <p className="story">{t(`cat.${cat}.story`)}</p>
+        </section>
+      )}
 
       {upgrading && <StarUpgrade cat={cat} loadout={save.equipped} onClose={() => setUpgrading(false)} />}
     </div>

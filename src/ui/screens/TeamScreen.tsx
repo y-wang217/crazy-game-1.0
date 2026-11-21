@@ -10,6 +10,8 @@ import { TUTORIALS } from '../../config/unlocks';
 import type { Screen } from '../App';
 import { CatPreview } from '../components/CatPreview';
 import { Stars } from '../components/Stars';
+import { CatClassChips } from '../components/CatClassChips';
+import { CatFilter, NO_FILTER, applyCatFilter } from '../components/CatFilter';
 
 /**
  * Battle team: TEAM_SIZE species that random summons choose from. Tap a team member to
@@ -24,11 +26,16 @@ export function TeamScreen({ go, back, practice = false }: { go: (s: Screen) => 
   // Tutorial replay: practise with a cat outside the team (a trial cat if every owned cat is in it).
   const [practiceCat] = useState<CatId | null>(() => (practice ? practiceTeamCat(save) : null));
   const owned = CAT_ORDER.filter((id) => save.collection[id] || id === practiceCat);
+  // Role / skill filter over owned cats (+ the trial cat). The tutorial's target cat is never hidden.
+  const [filter, setFilter] = useState(NO_FILTER);
+  const pool = owned.map((id) => ({ id, stars: save.collection[id]?.stars ?? 1 }));
+  const matched = applyCatFilter(pool, filter).map((c) => c.id);
   // Edit Team tutorial (first new cat): fixed for this visit, with a draft team.
   const [tut, setTut] = useState(() => practiceCat ?? teamTutorialCat(save));
   const [draft, setDraft] = useState<CatId[] | null>(() => (tut ? [...save.team] : null));
   const [practiceDone, setPracticeDone] = useState(false);
   const team = draft ?? save.team;
+  const visible = owned.filter((id) => matched.includes(id) || id === tut);
   const step = tut ? teamTutorialStep(team, tut, slot) : null;
   // Bring the highlighted target into view at each tutorial step.
   useEffect(() => {
@@ -143,8 +150,9 @@ export function TeamScreen({ go, back, practice = false }: { go: (s: Screen) => 
         {team.length < TEAM_SIZE && <div className="team-slot empty">＋</div>}
       </div>
       <p className="muted tiny center">{t('team.tapSlot')}</p>
+      {owned.length > 1 && <CatFilter pool={pool} value={filter} onChange={setFilter} />}
       <div className="team-pool">
-        {owned.map((id) => {
+        {visible.map((id) => {
           const inTeam = team.includes(id);
           return (
             <button
@@ -157,7 +165,11 @@ export function TeamScreen({ go, back, practice = false }: { go: (s: Screen) => 
               </div>
               <div className="pool-name">{t(`cat.${id}.name`)}</div>
               <Stars n={save.collection[id]?.stars ?? 1} size={10} />
-              <div className="tiny muted">{inTeam ? t('team.inTeam') : !save.collection[id] ? t('practice.trial') : t(`cat.${id}.role`)}</div>
+              {inTeam || !save.collection[id] ? (
+                <div className="tiny muted">{inTeam ? t('team.inTeam') : t('practice.trial')}</div>
+              ) : (
+                <CatClassChips cat={id} stars={save.collection[id]?.stars ?? 1} compact />
+              )}
             </button>
           );
         })}

@@ -7,6 +7,7 @@ import type { Battle, CatUnit } from '../../game/battle';
 import { getCatStats, NO_MODS, type CatStats } from '../../game/combat';
 import type { CosmeticLoadout, SkillId } from '../../game/types';
 import { t, useLang } from '../../i18n';
+import { CatClassChips } from './CatClassChips';
 import { CatPreview } from './CatPreview';
 import { GameIcon } from './GameIcon';
 import { FishIcon } from './Icons';
@@ -106,7 +107,7 @@ export function CatInfoPanel({
             <div className="info-name">
               {t(`cat.${cat.type}.name`)} <span className="info-lv">{t('info.level', { n: cat.level })}</span> <Stars n={star} size={11} />
             </div>
-            <div className="muted small">{t(`cat.${cat.type}.title`)}</div>
+            <CatClassChips cat={cat.type} stars={star} compact />
             <div className="small info-quote">{t(`cat.${cat.type}.personality`)}</div>
           </div>
         </div>

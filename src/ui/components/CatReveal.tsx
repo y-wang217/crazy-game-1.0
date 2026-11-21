@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { CATS } from '../../config/cats';
 import type { CatId, CosmeticLoadout } from '../../game/types';
 import { t, useLang } from '../../i18n';
+import { CatClassChips } from './CatClassChips';
 import { CatPreview } from './CatPreview';
 import { GameIcon, type IconName } from './GameIcon';
 
@@ -83,7 +84,7 @@ export function CatIntroCard({ cat, loadout }: { cat: CatId; loadout: CosmeticLo
         <CatPreview type={cat} level={1} loadout={loadout} size={120} attackLoop />
       </div>
       <h2 className="intro-name">{t(`cat.${cat}.name`)}</h2>
-      <div className="intro-sub">{t(`cat.${cat}.title`)}</div>
+      <CatClassChips cat={cat} stars={1} compact />
       <p className="intro-quote">“{t(`cat.${cat}.personality`)}”</p>
       <dl className="intro-facts">
         <dt>{t('intro.role')}</dt>
