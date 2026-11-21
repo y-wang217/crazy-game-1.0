@@ -837,6 +837,13 @@ for (const s of CH2_STAGES) s.challenge = ch2Challenge(s.id);
 const CH1_CHESTS: StageDef['chestTuning'] = { hpMult: 1.4, speed: { bronze: 40, silver: 39, gold: 38 } };
 for (const s of STAGES) s.chestTuning = CH1_CHESTS;
 
+// Chapter 1 dried fish (V1.6.2): 1-3 and 1-4 have no Random Skill shop yet, so once the board is
+// full (around wave 4) fish piled up with nothing to buy (~300 left on a beginner win, 550 seen in
+// playtests). Regular mice there pay less; 1-5/1-6 a little less (the skill shop absorbs the rest).
+// The 1-1/1-2 lessons and 1-7+ are unchanged. Beginner win rates stay the same (fishTune sim).
+const CH1_FISH: Record<string, number> = { '1-3': 0.75, '1-4': 0.7, '1-5': 0.85, '1-6': 0.85 };
+for (const s of STAGES) if (CH1_FISH[s.id]) s.fishMult = CH1_FISH[s.id];
+
 export const CHAPTERS: ChapterDef[] = [
   { id: 'ch1', number: 1, name: 'Beginner Forest', mapId: 'forest_compact', stages: STAGES },
   { id: 'ch2', number: 2, name: 'Moonlit Mushroom Forest', mapId: 'mushroom', stages: CH2_STAGES },

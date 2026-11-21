@@ -16,7 +16,7 @@ import { SimDemo } from '../components/SimDemo';
 import { StarUpgrade } from '../components/StarUpgrade';
 import { specialStats } from '../components/statText';
 import { Stars } from '../components/Stars';
-import { TUTORIALS } from '../../config/unlocks';
+import { TUTORIALS, isFeatureUnlocked } from '../../config/unlocks';
 import { CatScene } from '../components/CatScene';
 
 const fmt = (n: number, d = 1) => (Math.round(n * 10 ** d) / 10 ** d).toString();
@@ -30,6 +30,8 @@ export function CatProfileScreen({ cat, go }: { cat: CatId; go: (s: Screen) => v
   useLang();
   const save = useSave();
   const own = save.collection[cat];
+  /** Star upgrades open with Recruitment (2-5): before that no fragments exist, so the card would only confuse. */
+  const starsOpen = isFeatureUnlocked(save, 'recruit');
   const [level, setLevel] = useState(1);
   const [demoStar, setDemoStar] = useState<number | null>(null);
   const [upgrading, setUpgrading] = useState(false);
@@ -142,35 +144,37 @@ export function CatProfileScreen({ cat, go }: { cat: CatId; go: (s: Screen) => v
           </button>
         </div>
       )}
-      {/* Permanent progression: star rank + fragments */}
-      <section className="profile-card star-card">
-        <h3>{t('star.title')}</h3>
-        <div className="star-row">
-          <Stars n={own.stars} size={26} />
-          <span className="star-frag">
-            <GameIcon name="fragment" size={16} />{' '}
-            {maxed ? t('star.fragmentsMax', { n: own.fragments }) : t('star.fragments', { n: own.fragments, need: cost!.fragments })}
-          </span>
-        </div>
-        {maxed ? (
-          <>
-            <div className="star-max">{t('star.max')}</div>
-            {own.fragments > 0 && (
-              <button className="btn btn-secondary btn-small" onClick={() => saveStore.exchangeFragments(cat)}>
-                <CoinIcon size={14} /> {t('star.exchange', { n: own.fragments, c: own.fragments * RECRUIT.maxedFragmentCoins })}
+      {/* Permanent progression: star rank + fragments — hidden until Recruitment (2-5), when fragments first exist. */}
+      {starsOpen && (
+        <section className="profile-card star-card">
+          <h3>{t('star.title')}</h3>
+          <div className="star-row">
+            <Stars n={own.stars} size={26} />
+            <span className="star-frag">
+              <GameIcon name="fragment" size={16} />{' '}
+              {maxed ? t('star.fragmentsMax', { n: own.fragments }) : t('star.fragments', { n: own.fragments, need: cost!.fragments })}
+            </span>
+          </div>
+          {maxed ? (
+            <>
+              <div className="star-max">{t('star.max')}</div>
+              {own.fragments > 0 && (
+                <button className="btn btn-secondary btn-small" onClick={() => saveStore.exchangeFragments(cat)}>
+                  <CoinIcon size={14} /> {t('star.exchange', { n: own.fragments, c: own.fragments * RECRUIT.maxedFragmentCoins })}
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="muted small">{t('star.cost', { f: cost!.fragments, c: cost!.coins })}</div>
+              <button className="btn btn-primary" onClick={() => setUpgrading(true)}>
+                <GameIcon name="star" size={18} /> {t('star.upgrade')}
               </button>
-            )}
-          </>
-        ) : (
-          <>
-            <div className="muted small">{t('star.cost', { f: cost!.fragments, c: cost!.coins })}</div>
-            <button className="btn btn-primary" onClick={() => setUpgrading(true)}>
-              <GameIcon name="star" size={18} /> {t('star.upgrade')}
-            </button>
-          </>
-        )}
-        <div className="muted tiny">{t('star.permanentNote')}</div>
-      </section>
+            </>
+          )}
+          <div className="muted tiny">{t('star.permanentNote')}</div>
+        </section>
+      )}
 
       {/* Special (3★) and Ultimate (5★) */}
       <section className="profile-card">

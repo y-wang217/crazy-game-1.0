@@ -1112,7 +1112,7 @@ export class Battle {
         // Regular mice keep their exact (fractional) value — paid out with a carry in kill(), so
         // e.g. 2.5 no longer always rounds up to 3. Elites and bosses keep their rounded reward.
         reward: isRegularEnemy(def)
-          ? def.reward * Math.pow(tough, BALANCE.rewardScaleExponent) * BALANCE.waves.fishMult * BALANCE.waves.regularFishMult
+          ? def.reward * Math.pow(tough, BALANCE.rewardScaleExponent) * BALANCE.waves.fishMult * BALANCE.waves.regularFishMult * (this.stage.fishMult ?? 1)
           : Math.max(1, Math.round(def.reward * Math.pow(tough, BALANCE.rewardScaleExponent) * BALANCE.waves.fishMult)),
         baseDamage: def.baseDamage,
         radius: def.radius,

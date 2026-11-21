@@ -308,6 +308,8 @@ export interface StageDef {
    * out in front of the pack where the player notices them. Coins and skills are unchanged.
    */
   chestTuning?: { hpMult?: number; speed?: Partial<Record<ChestTier, number>> };
+  /** Dried fish from regular mice on this stage is multiplied by this (default 1). */
+  fishMult?: number;
   /** Extra challenge that does not change rewards (see StageChallenge). */
   challenge?: StageChallenge;
   /** Chest HP multiplier; defaults to 1 + BALANCE.chest.hpPerStage × (order − 1). */

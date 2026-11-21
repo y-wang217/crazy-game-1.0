@@ -156,9 +156,15 @@ export function ResultPanel({
         {result.victory && tutorialWaiting ? (
           <>
             <p className="gate-hint">{t('gate.resultHint')}</p>
-            <button className="btn btn-primary gate-home" onClick={onHome}>
-              <GameIcon name="home" size={18} /> {t('gate.resultHome')}
-            </button>
+            {/* A pointing hand and a pulsing glow guide the player Home, where the new feature's tutorial waits. */}
+            <div className="gate-home-wrap">
+              <button className="btn btn-primary gate-home" onClick={onHome}>
+                <GameIcon name="home" size={18} /> {t('gate.resultHome')}
+              </button>
+              <span className="gate-home-hand" aria-hidden>
+                <GameIcon name="tap" size={38} />
+              </span>
+            </div>
             <button className="btn btn-secondary" onClick={onReplay}>
               <GameIcon name="replay" size={18} /> {t('result.replay')}
             </button>

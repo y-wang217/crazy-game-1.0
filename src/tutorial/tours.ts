@@ -27,7 +27,8 @@ export const TOURS: Record<TourId, TourStep[]> = {
     { screen: 'shop', target: '.topbar .btn', textKey: 'tour.shopCats.backHome', action: 'tap' },
     { screen: 'home', target: '[data-feature="encyclopedia"]', textKey: 'tour.shopCats.openCats', action: 'tap' },
     { screen: 'cats', target: '.collection-card.met', textKey: 'tour.shopCats.pickCat', action: 'tap' },
-    { screen: 'catProfile', target: '.star-card', textKey: 'tour.shopCats.stars', action: 'next', viewOnly: true },
+    // Star upgrades are introduced with Recruitment (2-5), when fragments first exist.
+    { screen: 'catProfile', target: '.level-strip', textKey: 'tour.shopCats.levels', action: 'next', viewOnly: true },
     { screen: 'catProfile', target: '.topbar .btn', textKey: 'tour.shopCats.backCats', action: 'tap' },
     { screen: 'cats', target: '.topbar .btn', textKey: 'tour.shopCats.backHome2', action: 'tap' },
     { screen: 'home', target: '.home-menu .btn-primary', textKey: 'tour.shopCats.done', action: 'finish', viewOnly: true },
@@ -37,7 +38,8 @@ export const TOURS: Record<TourId, TourStep[]> = {
     { screen: 'recruit', target: '.can-pill', textKey: 'tour.recruit.cans', action: 'next' },
     { screen: 'recruit', target: '.recruit-btn', textKey: 'tour.recruit.draw', action: 'next' },
     { screen: 'recruit', target: '.recruit-guarantee', textKey: 'tour.recruit.odds', action: 'next' },
-    { screen: 'recruit', target: '.recruit-pool', textKey: 'tour.recruit.pool', action: 'finish' },
+    { screen: 'recruit', target: '.recruit-pool', textKey: 'tour.recruit.pool', action: 'next' },
+    { screen: 'recruit', target: '.recruit-pool', textKey: 'tour.recruit.stars', action: 'finish' },
   ],
 };
 
