@@ -5055,8 +5055,7 @@ body {
 }
 .profile-intro {
   margin: 0;
-  line-height: 1.5;
-  font-weight: 600;
+  line-height: 1.6;
 }
 .profile-facts {
   margin: 0;
@@ -5230,4 +5229,86 @@ body {
 }
 .pool-card .class-chips {
   justify-content: center;
+}
+
+.cat-filter-summary {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-soft);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cat-filter-clear {
+  margin-left: auto;
+}
+
+/* ---- Redeem codes (兌換碼) + testing access ---- */
+.redeem-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: stretch;
+  text-align: center;
+}
+.redeem-card h2 {
+  margin: 0;
+}
+.redeem-input {
+  font: inherit;
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-align: center;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 2px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+}
+.redeem-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.redeem-msg {
+  font-weight: 800;
+  border-radius: 12px;
+  padding: 8px 10px;
+  animation: pop 0.35s ease-out;
+}
+.redeem-msg.ok {
+  background: #e3f6dc;
+  color: #2f7a2a;
+  font-size: 1.05rem;
+}
+.redeem-msg.err {
+  background: #fde4e1;
+  color: #b23a2e;
+  font-size: 0.9rem;
+}
+.redeem-wallet {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+.redeem-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.test-access-note {
+  margin: 4px 0 8px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  border: 2px dashed #5a8ad8;
+  color: #3a64a8;
+  background: color-mix(in srgb, #5a8ad8 10%, var(--panel));
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-align: center;
+}
+.stage-card.test-open {
+  outline: 2px dashed #5a8ad8;
+  outline-offset: -4px;
 }

@@ -53,6 +53,31 @@ While dragging, tiles are tinted to show what the drop will do: green = move, go
 - **Version:** shown from `src/config/version.ts` (`APP_VERSION`, displayed as e.g. `V1.4` via `versionLabel()`), the same constant as the Home footer. Bump the version there only.
 - **No side effects:** it never touches the save. If an interrupted battle was saved, the "Resume previous battle?" prompt appears right after the notice is dismissed.
 
+## V1.6.2 — Character identity, Encyclopedia V2, redeem codes
+
+### Redeem codes (兌換碼) — Home → bottom links → "Redeem Code"
+All codes live in `src/config/redeemCodes.ts` (`REDEEM_CODES`); the dialog never hard-codes one.
+Each entry has a stable `id` (stored in saves), the `code` players type (case, spaces and full-width
+characters are ignored), `rewards` (`fishCoins`, `cans`, `fragments`, `cosmetic`, `testAccess`),
+`policy` (`once` per save / `unlimited`), `enabled`, optional `startsAt` / `endsAt`, `audience`
+(`testing` / `public`) and an optional custom `message` (en / zh).
+
+| Code | Gives | Policy |
+|---|---|---|
+| `UNLOCK88` | Testing access: every implemented stage can be entered from Stage Select | once per save |
+| `MONEY999` | +999 fish coins | unlimited |
+| `CAT CAN 00` | +10 Cat Food Cans | unlimited |
+
+- **Disable a code:** set `enabled: false` (it then answers like an unknown code). **Remove:** delete the entry.
+  Never reuse an `id`.
+- Rewards are applied in one save write; the dialog ignores a second submit within 0.45 s, so one press
+  (double tap, Enter + click) is processed once, while deliberate repeats of unlimited codes still work.
+- `UNLOCK88` only opens the door (`save.testAccess`): stages are not cleared, no first-clear, chapter or
+  milestone rewards, no tutorials marked done, no feature unlocked. Clearing a stage for real still gives its
+  normal first-clear rewards and starts its unlock tutorial (with its usual mandatory gate). Test-opened stages
+  have a dashed blue outline and Stage Select shows a "Test access" note.
+- Codes are client-side and therefore not secret.
+
 ## V1.6 (continued) — Unlock tutorials, Sir Sable's story & lesson, Living Cat Food Can, Cat Food Can sources
 
 ### Unlock tutorials: automatic, ended only by finishing or a visible Skip Tutorial

@@ -18,6 +18,23 @@ export interface CatFilterValue {
 export const NO_FILTER: CatFilterValue = { archetype: null, tag: null };
 export const filterActive = (f: CatFilterValue) => !!(f.archetype || f.tag);
 
+// Selections survive leaving the screen (e.g. opening a profile and coming back) for this session.
+const remembered = new Map<string, CatFilterValue>();
+export function useCatFilter(
+  key: string,
+): [CatFilterValue, (v: CatFilterValue) => void] {
+  const [value, setValue] = useState<CatFilterValue>(
+    () => remembered.get(key) ?? NO_FILTER,
+  );
+  return [
+    value,
+    (v) => {
+      remembered.set(key, v);
+      setValue(v);
+    },
+  ];
+}
+
 /** The cats from `pool` that match (tags only count once unlocked at the cat's permanent ★). */
 export function applyCatFilter<T extends { id: CatId; stars: number }>(
   pool: T[],
@@ -27,7 +44,8 @@ export function applyCatFilter<T extends { id: CatId; stars: number }>(
 }
 
 /**
- * A compact, collapsible chip panel: one role and/or one skill tag (tap again to clear). Only roles
+ * A compact chip panel, collapsed by default (the button shows how many filters are on, and a short
+ * summary stays visible while collapsed): one role and/or one skill tag (tap again to clear). Only roles
  * and unlocked tags that the given cats actually have are offered, so it never hints at cats or
  * abilities the player hasn't found. Habitat is intentionally not a filter (dormant feature).
  */
@@ -50,6 +68,12 @@ export function CatFilter({
     ),
   );
   const count = (value.archetype ? 1 : 0) + (value.tag ? 1 : 0);
+  const summary = [
+    value.archetype && t(`archetype.${value.archetype}`),
+    value.tag && t(`ctag.${value.tag}`),
+  ]
+    .filter(Boolean)
+    .join(" · ");
   return (
     <div className={`cat-filter ${open ? "open" : ""}`}>
       <div className="cat-filter-bar">
@@ -61,8 +85,14 @@ export function CatFilter({
           {t("filter.open")}
           {count > 0 && <span className="cat-filter-count">{count}</span>}
         </button>
+        {count > 0 && !open && (
+          <span className="cat-filter-summary">{summary}</span>
+        )}
         {count > 0 && (
-          <button className="link-btn tiny" onClick={() => onChange(NO_FILTER)}>
+          <button
+            className="link-btn tiny cat-filter-clear"
+            onClick={() => onChange(NO_FILTER)}
+          >
             {t("filter.clear")}
           </button>
         )}

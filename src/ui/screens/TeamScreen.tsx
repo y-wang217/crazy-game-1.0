@@ -11,7 +11,7 @@ import type { Screen } from '../App';
 import { CatPreview } from '../components/CatPreview';
 import { Stars } from '../components/Stars';
 import { CatClassChips } from '../components/CatClassChips';
-import { CatFilter, NO_FILTER, applyCatFilter } from '../components/CatFilter';
+import { CatFilter, applyCatFilter, useCatFilter } from '../components/CatFilter';
 
 /**
  * Battle team: TEAM_SIZE species that random summons choose from. Tap a team member to
@@ -27,7 +27,7 @@ export function TeamScreen({ go, back, practice = false }: { go: (s: Screen) => 
   const [practiceCat] = useState<CatId | null>(() => (practice ? practiceTeamCat(save) : null));
   const owned = CAT_ORDER.filter((id) => save.collection[id] || id === practiceCat);
   // Role / skill filter over owned cats (+ the trial cat). The tutorial's target cat is never hidden.
-  const [filter, setFilter] = useState(NO_FILTER);
+  const [filter, setFilter] = useCatFilter('team');
   const pool = owned.map((id) => ({ id, stars: save.collection[id]?.stars ?? 1 }));
   const matched = applyCatFilter(pool, filter).map((c) => c.id);
   // Edit Team tutorial (first new cat): fixed for this visit, with a draft team.

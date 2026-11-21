@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { lookupCode, type CodeReward, type RedeemCodeDef, type TestAccess } from '../config/redeemCodes';
 import { ALL_STAGE_IDS, findStage } from '../config/chapters';
 import { findCosmetic } from '../config/cosmetics';
 import { computeStars, nextStageId, stageClearCoins } from '../game/progression';
@@ -44,6 +45,10 @@ export const CANS_INTRO = 'cans:intro';
 // parseSave() accepts any older version and fills new fields with safe defaults.
 
 const KEY = 'catdefense.save.v1';
+
+export type RedeemResult =
+  | { ok: true; def: RedeemCodeDef; granted: CodeReward[] }
+  | { ok: false; error: 'empty' | 'invalid' | 'notYet' | 'expired' | 'used' };
 export const SAVE_VERSION = 5;
 
 export type TutorialState = 'done' | 'skipped' | 'legacy';
@@ -77,6 +82,10 @@ export interface SaveData {
   recruitDraws: number;
   /** Chapters whose completion cat was granted. */
   chapterRewards: string[];
+  /** Redeem codes: times each code id was redeemed (one-time codes stop at 1). */
+  redeemed: Record<string, number>;
+  /** Testing access from codes (e.g. 'allStages'). Kept apart from real progress: never clears stages. */
+  testAccess: TestAccess[];
 }
 
 export function defaultSave(): SaveData {
@@ -98,6 +107,8 @@ export function defaultSave(): SaveData {
     recruitStreak: 0,
     recruitDraws: 0,
     chapterRewards: [],
+    redeemed: {},
+    testAccess: [],
   };
 }
 
@@ -161,10 +172,21 @@ export function parseSave(raw: string | null): SaveData {
       recruitStreak: int(o.recruitStreak),
       recruitDraws: int(o.recruitDraws),
       chapterRewards: Array.isArray(o.chapterRewards) ? o.chapterRewards.filter((x: unknown) => typeof x === 'string') : [],
+      redeemed: cleanCounts(o.redeemed),
+      testAccess: Array.isArray(o.testAccess) ? Array.from(new Set(o.testAccess.filter((x: unknown) => TEST_ACCESS.includes(x as TestAccess)))) as TestAccess[] : [],
     };
   } catch {
     return d;
   }
+}
+
+const TEST_ACCESS: TestAccess[] = ['allStages'];
+
+function cleanCounts(raw: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (raw && typeof raw === 'object')
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) if (typeof v === 'number' && v > 0) out[k] = Math.floor(v);
+  return out;
 }
 
 function cleanAttempts(raw: unknown): Record<string, number> {
@@ -382,6 +404,38 @@ export const saveStore = {
     if (!isFeatureUnlocked(state, 'recruit') || state.milestones.includes(CANS_INTRO)) return 0;
     commit({ ...state, cans: state.cans + CANS.introGift, milestones: [...state.milestones, CANS_INTRO] });
     return CANS.introGift;
+  },
+
+  /**
+   * Redeem a code from src/config/redeemCodes.ts. All of its rewards are applied in ONE save write
+   * (so a refresh can never half-apply it). One-time codes are refused the second time; unlimited
+   * codes grant again on every call — the UI is responsible for not double-submitting one press.
+   */
+  redeemCode(input: string, now: Date = new Date()): RedeemResult {
+    const found = lookupCode(input, now);
+    if (!found.ok) return found;
+    const def = found.def;
+    if (def.policy === 'once' && (state.redeemed[def.id] ?? 0) > 0) return { ok: false, error: 'used' };
+    let next: SaveData = { ...state, redeemed: { ...state.redeemed, [def.id]: (state.redeemed[def.id] ?? 0) + 1 } };
+    const granted: CodeReward[] = [];
+    for (const r of def.rewards) {
+      if (r.type === 'fishCoins' && r.amount > 0) next = { ...next, fishCoins: next.fishCoins + Math.floor(r.amount) };
+      else if (r.type === 'cans' && r.amount > 0) next = { ...next, cans: next.cans + Math.floor(r.amount) };
+      else if (r.type === 'fragments' && r.amount > 0) {
+        const own = next.collection[r.cat];
+        if (!own) continue;
+        next = { ...next, collection: { ...next.collection, [r.cat]: { ...own, fragments: own.fragments + Math.floor(r.amount) } } };
+      } else if (r.type === 'cosmetic') {
+        if (!findCosmetic(r.id) || next.owned.includes(r.id)) continue;
+        next = { ...next, owned: [...next.owned, r.id] };
+      } else if (r.type === 'testAccess') {
+        if (next.testAccess.includes(r.access)) continue;
+        next = { ...next, testAccess: [...next.testAccess, r.access] };
+      } else continue;
+      granted.push(r);
+    }
+    commit(next);
+    return { ok: true, def, granted };
   },
 
   /** Show every tutorial and introduction again (keeps coins, unlocks and cosmetics). */

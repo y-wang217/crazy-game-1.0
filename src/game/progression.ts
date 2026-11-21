@@ -60,3 +60,11 @@ export function currentChapter(progress: ChapterProgress[]): ChapterProgress {
   const open = progress.filter((c) => c.open);
   return open.find((c) => !c.complete) ?? open[open.length - 1] ?? progress[0];
 }
+
+/**
+ * Can Stage Select open this stage? Real progress (`unlocked`) or the UNLOCK88 testing access.
+ * Testing access only opens the door: clears, stars, rewards and tutorials still come from playing.
+ */
+export function canEnterStage(save: { unlocked: string[]; testAccess?: string[] }, stageId: string): boolean {
+  return save.unlocked.includes(stageId) || !!save.testAccess?.includes('allStages');
+}

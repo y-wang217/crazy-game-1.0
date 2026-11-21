@@ -1,3 +1,4 @@
+import { canEnterStage } from '../../game/progression';
 import { BALANCE } from '../../config/balance';
 import { teamTutorialCat } from '../../tutorial/teamTutorial';
 import { useEffect, useRef, useState } from 'react';
@@ -91,10 +92,11 @@ export function StageSelect({ go, play }: { go: (s: Screen) => void; play: (id: 
         </div>
         <div className="muted tiny">{t('team.tutorialNote')}</div>
       </div>
+      {save.testAccess.includes('allStages') && <div className="test-access-note">{t('redeem.testAccessOn')}</div>}
       {CHAPTERS.map((ch, ci) => {
         const first = ch.stages[0];
         const last = ch.stages[ch.stages.length - 1];
-        const open = save.unlocked.includes(first.id);
+        const open = ch.stages.some((x) => canEnterStage(save, x.id));
         const stars = ch.stages.reduce((a, s) => a + (save.cleared[s.id] ?? 0), 0);
         const prevBoss = ci > 0 ? CHAPTERS[ci - 1].stages[CHAPTERS[ci - 1].stages.length - 1] : null;
         return (
@@ -121,7 +123,9 @@ export function StageSelect({ go, play }: { go: (s: Screen) => void; play: (id: 
             </div>
             <div className="stage-grid">
               {ch.stages.map((s, i) => {
-                const unlocked = save.unlocked.includes(s.id);
+                const unlocked = canEnterStage(save, s.id);
+                // Opened only by testing access (UNLOCK88), not by real progress.
+                const testOnly = unlocked && !save.unlocked.includes(s.id);
                 // Unlocked but waiting for a pending unlock tutorial: tapping sends the player Home to it.
                 const gated = unlocked && tutorialBlocking(save, s.id) !== null;
                 const stars = save.cleared[s.id] ?? 0;
@@ -131,7 +135,7 @@ export function StageSelect({ go, play }: { go: (s: Screen) => void; play: (id: 
                     key={s.id}
                     ref={s.id === latest ? latestRef : undefined}
                     data-stage={s.id}
-                    className={`stage-card ${unlocked ? '' : 'locked'} ${gated ? 'tut-locked' : ''} ${s.isBoss ? 'boss' : ''} ${stars ? 'cleared' : ''}`}
+                    className={`stage-card ${unlocked ? '' : 'locked'} ${gated ? 'tut-locked' : ''} ${s.isBoss ? 'boss' : ''} ${stars ? 'cleared' : ''} ${testOnly ? 'test-open' : ''}`}
                     disabled={!unlocked}
                     aria-disabled={gated || undefined}
                     data-gated={gated ? '1' : undefined}

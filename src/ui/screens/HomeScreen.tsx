@@ -18,6 +18,7 @@ import { STARTER_CATS } from '../../config/cats';
 import { TEAM_TUTORIAL_ID, teamTutorialCat } from '../../tutorial/teamTutorial';
 import { pendingTutorials } from '../../tutorial/gate';
 import { TeamTutorialIntro } from '../components/TeamTutorialIntro';
+import { RedeemCode } from '../components/RedeemCode';
 
 /** Seen-id of the one-time Skin Shop introduction (Home → Replay tutorials shows it again). */
 export const SHOP_INTRO_ID = 'tut:shop';
@@ -42,6 +43,7 @@ export function HomeScreen({
   const finished = chapters.filter((c) => c.complete && c.id !== current.id);
   const [note, setNote] = useState<string | null>(null);
   const [practiceMenu, setPracticeMenu] = useState(false);
+  const [redeemOpen, setRedeemOpen] = useState(false);
   const taps = useRef<number[]>([]);
   // Feature gates (V1.6): decided only by completed stages.
   const unlocked = {
@@ -190,6 +192,9 @@ export function HomeScreen({
           <GameIcon name="tap" size={20} /> {t('practice.replay')}
         </button>
         <div className="home-links">
+          <button className="link-btn redeem-link" onClick={() => setRedeemOpen(true)}>
+            <GameIcon name="gift" size={14} /> {t('redeem.open')}
+          </button>
           <button
             className="link-btn"
             onClick={() => {
@@ -301,6 +306,7 @@ export function HomeScreen({
           </div>
         </div>
       )}
+      {redeemOpen && <RedeemCode onClose={() => setRedeemOpen(false)} />}
       {note && <div className="toast-inline">{note}</div>}
     </div>
   );

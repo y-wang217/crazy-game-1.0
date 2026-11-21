@@ -13,7 +13,8 @@ import { CatClassChips } from '../components/CatClassChips';
 import { FeatureButton } from '../components/FeatureUnlock';
 import { isFeatureUnlocked } from '../../config/unlocks';
 import { useState } from 'react';
-import { CatFilter, NO_FILTER, applyCatFilter, filterActive } from '../components/CatFilter';
+import { CatFilter, applyCatFilter, filterActive, useCatFilter } from '../components/CatFilter';
+import { useTour } from '../../tutorial/tours';
 
 /** First stage where a cat can appear (for "Meet in Stage N"). */
 export function firstStageOf(cat: CatId): number {
@@ -28,9 +29,11 @@ export function CatsScreen({ go }: { go: (s: Screen) => void }) {
   const found = CAT_ORDER.filter((id) => save.collection[id]).length;
   const [note, setNote] = useState<string | null>(null);
   // Role / skill filter: discovered cats only; undiscovered cards are hidden while it is on.
-  const [filter, setFilter] = useState(NO_FILTER);
+  const [filter, setFilter] = useCatFilter('cats');
+  // A guided tour always sees the whole collection (a remembered filter never hides its target).
+  const touring = useTour() !== null;
   const discovered = CAT_ORDER.filter((id) => save.collection[id]).map((id) => ({ id, stars: save.collection[id]!.stars }));
-  const filtering = filterActive(filter);
+  const filtering = !touring && filterActive(filter);
   const shown = filtering ? applyCatFilter(discovered, filter).map((c) => c.id) : CAT_ORDER;
   const hiddenUnknown = CAT_ORDER.length - discovered.length;
   const flash = (m: string) => {
@@ -70,7 +73,7 @@ export function CatsScreen({ go }: { go: (s: Screen) => void }) {
         />
       </div>
       {note && <div className="toast-inline">{note}</div>}
-      {discovered.length > 1 && <CatFilter pool={discovered} value={filter} onChange={setFilter} />}
+      {discovered.length > 1 && !touring && <CatFilter pool={discovered} value={filter} onChange={setFilter} />}
       {filtering && shown.length === 0 && <p className="muted center small">{t('filter.none')}</p>}
       <div className="collection-grid">
         {shown.map((id) => {

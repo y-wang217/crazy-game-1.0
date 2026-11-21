@@ -181,12 +181,6 @@ export function CatProfileScreen({ cat, go }: { cat: CatId; go: (s: Screen) => v
       {tab === 'intro' && (
         <section className="profile-card profile-pane" role="tabpanel">
           <p className="profile-intro">{t(`cat.${cat}.intro`)}</p>
-          <dl className="profile-facts">
-            <dt>{t('profile.personality')}</dt>
-            <dd>{t(`cat.${cat}.personality`)}</dd>
-            <dt>{t('profile.fightingStyle')}</dt>
-            <dd>{t(`cat.${cat}.attack`)}</dd>
-          </dl>
           <button className="link-btn" onClick={() => setTab('story')}>
             {t('profile.readStory')} ›
           </button>
@@ -271,6 +265,7 @@ export function CatProfileScreen({ cat, go }: { cat: CatId; go: (s: Screen) => v
           {/* Permanent stars (★): a visual path with the 3★ Special and 5★ Ultimate. */}
           <section className="profile-card profile-pane" role="tabpanel">
             <h3>{t('profile.permanentStars')}</h3>
+            <div className="muted small">{t('profile.starsCarry')}</div>
             <ol className="star-path">
               {Array.from({ length: STARS.max }, (_, i) => i + 1).map((s) => (
                 <li key={s} className={`${s <= own.stars ? 'on' : ''} ${s === STARS.specialAt || s === STARS.ultimateAt ? 'milestone' : ''}`}>
