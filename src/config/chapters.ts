@@ -829,6 +829,14 @@ const CH2_STAGES: StageDef[] = [
 // Unlocking is linear across ALL_STAGE_IDS, so the new chapter opens after the previous boss.
 for (const s of CH2_STAGES) s.challenge = ch2Challenge(s.id);
 
+// Chapter 1 treasure chests (V1.6.2): +40% HP and just faster than a Forest Mouse (38), so a chest
+// runs out in front of the pack where it is easy to notice, instead of crawling in behind the mice
+// and melting the moment it reaches the cats. Measured with the Beginner profile: chests opened
+// 88–100% (was 98–100%), win rates unchanged. Chapter 2 chests are already much tougher (they live
+// 30–40 s) and stay as they were: faster ones escaped far more often there.
+const CH1_CHESTS: StageDef['chestTuning'] = { hpMult: 1.4, speed: { bronze: 40, silver: 39, gold: 38 } };
+for (const s of STAGES) s.chestTuning = CH1_CHESTS;
+
 export const CHAPTERS: ChapterDef[] = [
   { id: 'ch1', number: 1, name: 'Beginner Forest', mapId: 'forest_compact', stages: STAGES },
   { id: 'ch2', number: 2, name: 'Moonlit Mushroom Forest', mapId: 'mushroom', stages: CH2_STAGES },

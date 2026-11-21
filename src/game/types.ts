@@ -302,6 +302,12 @@ export interface StageDef {
   order?: number;
   /** Flat armor added to every mouse that already has armor (later chapters). */
   armorBonus?: number;
+  /**
+   * Treasure chest tuning for this stage (V1.6.2): HP multiplier and per-tier walking speed.
+   * Chapter 1 chests are a little tougher and walk just faster than a Forest Mouse, so they run
+   * out in front of the pack where the player notices them. Coins and skills are unchanged.
+   */
+  chestTuning?: { hpMult?: number; speed?: Partial<Record<ChestTier, number>> };
   /** Extra challenge that does not change rewards (see StageChallenge). */
   challenge?: StageChallenge;
   /** Chest HP multiplier; defaults to 1 + BALANCE.chest.hpPerStage × (order − 1). */

@@ -100,15 +100,27 @@ export function RewardModal({
   );
 }
 
-/** "On field: 3 · Lv.1 ×1 / Lv.2 ×2" — from the live battle state. */
+/**
+ * "On field: 3  [2]×2 [1]" in ONE line — the same coloured level badges as on the board, strongest
+ * first, so the player sees at a glance how many cats the skill helps and how strong they are.
+ */
 export function OnField({ cats, all }: { cats: readonly Pick<CatUnit, 'level'>[]; all: boolean }) {
   const byLevel = new Map<number, number>();
   for (const c of cats) byLevel.set(c.level, (byLevel.get(c.level) ?? 0) + 1);
-  const levels = [...byLevel.entries()].sort((a, b) => a[0] - b[0]);
+  const levels = [...byLevel.entries()].sort((a, b) => b[0] - a[0]);
   return (
     <span className={`reward-field ${cats.length ? '' : 'none'}`}>
       <b>{all ? t('reward.allOnField', { n: cats.length }) : t('reward.onField', { n: cats.length })}</b>
-      {levels.length > 0 && <span className="reward-levels">{levels.map(([lv, n]) => `Lv.${lv} ×${n}`).join(' / ')}</span>}
+      {levels.length > 0 && (
+        <span className="reward-levels" aria-label={levels.map(([lv, n]) => `Lv.${lv} ×${n}`).join(', ')}>
+          {levels.map(([lv, n]) => (
+            <span key={lv} className="lv-chip-wrap">
+              <span className={`lv-chip lv-${Math.min(5, lv)}`}>{lv}</span>
+              {n > 1 && <span className="lv-chip-n">×{n}</span>}
+            </span>
+          ))}
+        </span>
+      )}
     </span>
   );
 }

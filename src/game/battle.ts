@@ -1074,7 +1074,8 @@ export class Battle {
     if ('chest' in g) {
       const def = CHESTS[g.chest];
       const chestScale = this.stage.chestHpScale ?? 1 + BALANCE.chest.hpPerStage * ((this.stage.order ?? this.stage.number) - 1);
-      const hp = Math.round(def.hp * chestScale * this.tuning.enemyHpMult);
+      const CT = this.stage.chestTuning;
+      const hp = Math.round(def.hp * chestScale * (CT?.hpMult ?? 1) * this.tuning.enemyHpMult);
       foe = {
         ...base,
         kind: 'chest',
@@ -1084,7 +1085,7 @@ export class Battle {
         shield: 0,
         maxShield: 0,
         armor: 0,
-        speed: def.speed * this.tuning.enemySpeedMult,
+        speed: (CT?.speed?.[def.tier] ?? def.speed) * this.tuning.enemySpeedMult,
         reward: 0,
         baseDamage: 0,
         radius: def.radius,
