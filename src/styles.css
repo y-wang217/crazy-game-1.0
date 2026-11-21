@@ -5312,3 +5312,106 @@ body {
   outline: 2px dashed #5a8ad8;
   outline-offset: -4px;
 }
+
+/* ---- V1.6.3 profile Intro tab: personality + combat overview + signature ---- */
+.intro-pane {
+  gap: 10px;
+}
+.intro-head {
+  font-weight: 900;
+  font-size: 0.85rem;
+  color: var(--accent-dark);
+  letter-spacing: 0.5px;
+}
+.intro-overview {
+  border-top: 1px dashed var(--line);
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.meters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.meter {
+  background: var(--surface-2);
+  border-radius: 12px;
+  padding: 6px 4px 5px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.meter-label {
+  font-weight: 800;
+  font-size: 0.78rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+.meter-pips {
+  display: flex;
+  gap: 3px;
+}
+.meter-pips span {
+  width: 13px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--star-off);
+}
+.meter-pips span.on {
+  background: var(--accent);
+  box-shadow: inset 0 -2px 0 var(--accent-dark);
+}
+.meter-utility .meter-pips span.on {
+  background: #5a8ad8;
+  box-shadow: inset 0 -2px 0 #3a64a8;
+}
+.meter-reach .meter-pips span.on {
+  background: #4ea866;
+  box-shadow: inset 0 -2px 0 #2f7a44;
+}
+.meter-level {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-soft);
+}
+.best-at {
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+.best-at b {
+  color: var(--text-soft);
+  margin-right: 4px;
+}
+.intro-signature {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface-warm);
+  border-radius: 14px;
+  padding: 8px 10px;
+  line-height: 1.4;
+}
+.intro-signature .game-icon {
+  flex: 0 0 auto;
+}
+.intro-foot {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.intro-foot .profile-more {
+  border-top: 0;
+  padding-top: 0;
+  flex: 1 1 60%;
+}
+.intro-foot .profile-more p {
+  margin: 4px 0 0;
+}

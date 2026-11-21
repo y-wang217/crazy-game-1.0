@@ -10,7 +10,7 @@ import { has as hasKey, t, useLang } from '../../i18n';
 import { saveStore, useSave } from '../../save/store';
 import type { Screen } from '../App';
 import { CatPreview } from '../components/CatPreview';
-import { GameIcon } from '../components/GameIcon';
+import { GameIcon, type IconName } from '../components/GameIcon';
 import { CoinIcon } from '../components/Icons';
 import { SimDemo } from '../components/SimDemo';
 import { StarUpgrade } from '../components/StarUpgrade';
@@ -19,10 +19,25 @@ import { Stars } from '../components/Stars';
 import { TUTORIALS, isFeatureUnlocked } from '../../config/unlocks';
 import { CatScene } from '../components/CatScene';
 import { CatClassChips } from '../components/CatClassChips';
+import { combatOverview } from '../../config/catOverview';
 
 /** Profile tabs: meet the cat first (Intro); battle data, growth and the full story on demand. */
 type ProfileTab = 'intro' | 'battle' | 'growth' | 'story';
 const TABS: ProfileTab[] = ['intro', 'battle', 'growth', 'story'];
+
+/** Existing skill icons that picture each cat's signature move (Intro tab). */
+const SIGNATURE_ICON: Record<CatId, IconName> = {
+  kitten: 'bravePaws',
+  tabby: 'quickJabs',
+  orange: 'bellySlam',
+  black: 'deadeye',
+  white: 'dazzlingGrace',
+  whiskers: 'stageMagic',
+  sable: 'keenEdge',
+  mallow: 'biggerBell',
+  pounce: 'sharpInstinct',
+  devil: 'potentBrew',
+};
 
 const fmt = (n: number, d = 1) => (Math.round(n * 10 ** d) / 10 ** d).toString();
 
@@ -43,6 +58,7 @@ export function CatProfileScreen({ cat, go }: { cat: CatId; go: (s: Screen) => v
   const [tab, setTab] = useState<ProfileTab>('intro');
   const def = CATS[cat];
   const star = own?.stars ?? 1;
+  const overview = combatOverview(cat, star);
   const st = getCatStats(def, level, undefined, star);
   const support = def.attack === 'aura' || def.attack === 'support';
   const cell = 50;
@@ -179,11 +195,52 @@ export function CatProfileScreen({ cat, go }: { cat: CatId; go: (s: Screen) => v
       </div>
 
       {tab === 'intro' && (
-        <section className="profile-card profile-pane" role="tabpanel">
+        // Who is this cat, and what is it good at? (The full biography lives in the Story tab.)
+        <section className="profile-card profile-pane intro-pane" role="tabpanel">
           <p className="profile-intro">{t(`cat.${cat}.intro`)}</p>
-          <button className="link-btn" onClick={() => setTab('story')}>
-            {t('profile.readStory')} ›
-          </button>
+          <div className="intro-overview">
+            <div className="intro-head">{t('overview.title')}</div>
+            <div className="meters">
+              {(
+                [
+                  ['damage', 'damage', overview.damage],
+                  ['utility', 'team', overview.utility],
+                  ['reach', 'range', overview.reach],
+                ] as const
+              ).map(([k, icon, v]) => (
+                <div key={k} className={`meter meter-${k}`} data-value={v}>
+                  <div className="meter-label">
+                    <GameIcon name={icon} size={15} /> {t(`overview.${k}`)}
+                  </div>
+                  <div className="meter-pips" role="img" aria-label={`${t(`overview.${k}`)} ${v}/5`}>
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <span key={i} className={i <= v ? 'on' : ''} />
+                    ))}
+                  </div>
+                  <div className="meter-level">{k === 'damage' && v === 0 ? t('overview.noDamage') : t(`overview.level.${v}`)}</div>
+                </div>
+              ))}
+            </div>
+            <div className="best-at">
+              <b>{t('overview.bestAt')}</b> {t(`cat.${cat}.bestAt`)}
+            </div>
+          </div>
+          <div className="intro-signature">
+            <GameIcon name={SIGNATURE_ICON[cat]} size={30} />
+            <div>
+              <div className="intro-head">{t('overview.signature')}</div>
+              <div className="small">{t(`cat.${cat}.sigShort`)}</div>
+            </div>
+          </div>
+          <div className="intro-foot">
+            <details className="profile-more">
+              <summary>{t('overview.how')}</summary>
+              <p className="muted tiny">{t('overview.howBody')}</p>
+            </details>
+            <button className="link-btn" onClick={() => setTab('story')}>
+              {t('profile.readStory')} ›
+            </button>
+          </div>
         </section>
       )}
 

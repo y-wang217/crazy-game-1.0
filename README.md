@@ -53,7 +53,28 @@ While dragging, tiles are tinted to show what the drop will do: green = move, go
 - **Version:** shown from `src/config/version.ts` (`APP_VERSION`, displayed as e.g. `V1.4` via `versionLabel()`), the same constant as the Home footer. Bump the version there only.
 - **No side effects:** it never touches the save. If an interrupted battle was saved, the "Resume previous battle?" prompt appears right after the notice is dismissed.
 
+## Roadmap (planned, not implemented)
+
+### Unlockable character illustrations (3★ / 5★)
+Each cat gets two collectible illustrations, supplied or approved by the game owner (no AI-generated
+replacements, no redrawing or restyling — shown as faithfully as possible):
+- **3★ illustration** — unlocks at 3 permanent stars: everyday life, cute personality moments,
+  relationships, small backstory moments.
+- **5★ illustration** — unlocks at 5 permanent stars: a memorable, richer story scene.
+
+Later: full-screen viewing, a collection view showing locked ones with their requirement, and
+"save as wallpaper" as a plain image download at original quality and aspect ratio (the browser can't
+set the device wallpaper, so the game must not claim to). Planned home: the profile's Story tab.
+Nothing of this is in the game yet — no placeholders, locked buttons or empty gallery screens.
+
 ## V1.6.2 — Character identity, Encyclopedia V2, redeem codes
+
+### Encyclopedia Intro tab: combat overview (`src/config/catOverview.ts`)
+Personality paragraph, three 0–5 meters, a "Best against" line and one signature sentence. Sources:
+**Damage** = the real engine's Lv.1 benchmark (five scripted waves, `catBenchmark.ts`), rated
+`round(3 × average ÷ Kitten)` capped at 5 (3 = Kitten); `catOverview.test.ts` re-runs it and fails if
+the stored table drifts. **Team Utility** = controller/support cats 5, +1 per *unlocked* 3★/5★ team
+effect. **Reach** = Lv.1 range in tiles, +1 when one attack affects several mice/allies.
 
 ### Redeem codes (兌換碼) — Home → bottom links → "Redeem Code"
 All codes live in `src/config/redeemCodes.ts` (`REDEEM_CODES`); the dialog never hard-codes one.

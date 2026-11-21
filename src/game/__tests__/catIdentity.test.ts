@@ -1,56 +1,7 @@
 import { CATS, CAT_ORDER, STARTER_CATS } from '../../config/cats';
-import { CHAPTERS } from '../../config/chapters';
-import { MAPS } from '../../config/maps';
-import { Battle } from '../battle';
 import { getCatStats } from '../combat';
-import type { CatId, EnemyId, StageDef } from '../types';
-
-// Lv.1 cats, no skills, alone (or paired) on the same tile against identical scripted waves.
-const map = MAPS[CHAPTERS[0].mapId];
-const TILE = '2-2'; // covers the first two road passes
-
-function scenario(enemy: EnemyId, count: number, interval: number, hpScale = 1): StageDef {
-  return {
-    ...CHAPTERS[0].stages[0],
-    id: 'test',
-    tiles: map.tiles.map((t) => t.id),
-    roster: ['kitten'],
-    hpScale,
-    waveHpGrowth: 0,
-    waves: [{ groups: [{ enemy, count, interval }] }],
-  };
-}
-
-interface Run {
-  kills: number;
-  escaped: number;
-  damage: number;
-  attacks: number;
-  slamHits: number;
-}
-
-function run(cats: CatId[], s: StageDef): Run {
-  const b = new Battle(s, map, 1);
-  b.startBattle();
-  const tiles = [TILE, '2-1', '1-2'];
-  cats.forEach((c, i) => b.placeCat(c, 1, tiles[i]));
-  let attacks = 0;
-  for (let i = 0; i < 4000 && b.status === 'playing'; i++) {
-    const before = b.cats.map((c) => c.attackAt);
-    b.update(0.05);
-    b.cats.forEach((c, k) => {
-      if (c.attackAt !== before[k]) attacks++;
-    });
-  }
-  return { kills: b.stats.kills, escaped: b.stats.escaped, damage: b.stats.damageDealt, attacks, slamHits: b.stats.slamHits };
-}
-
-const GROUP = scenario('normal', 12, 0.25, 2.5); // a tight pack of tough mice
-const SPREAD = scenario('normal', 10, 2.5, 1.5); // ordinary mice arriving one by one
-const FAST = scenario('fast', 12, 1.2, 2); // spread-out runners
-const ARMOR = scenario('armored', 8, 1.5, 1); // armored knights
-const BIG = scenario('normal', 1, 1, 15); // one very high-HP mouse
-const SPARSE = scenario('normal', 8, 10, 2.2); // mice far apart: each must die inside the cat's zone
+import type { CatId } from '../types';
+import { ARMOR, BIG, FAST, GROUP, SPARSE, SPREAD, run, type Run } from './catBenchmark';
 
 const rows: string[] = [];
 const results: Record<string, Record<string, Run>> = {};
