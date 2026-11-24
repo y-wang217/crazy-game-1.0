@@ -343,13 +343,12 @@ describe('Tactical Pause lesson', () => {
     let s = d.update(b)!;
     expect(seen.has('tut:tpause')).toBe(true);
     expect(s.id).toBe('tut:tpauseMove');
-    // Menu → Resume while the paused lesson is up: the step is still completable while playing.
+    // Menu → Resume while the paused lesson is up: a paused-only lesson can't be done any more, so
+    // it closes at once and the battle runs (audit B1 — it used to stay up with the battle frozen).
     b.resume();
-    s = d.update(b)!;
-    expect(s.id).toBe('tut:tpauseMove');
-    expect(b.frozen).toBe(true);
-    d.complete(b);
     expect(d.update(b)).toBeNull();
+    expect(b.frozen).toBe(false);
+    expect(seen.has('tut:tpauseMove')).toBe(true);
     expect(seen.has('tut:tpauseResume')).toBe(true); // already playing: marked done silently
   });
 

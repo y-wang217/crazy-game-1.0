@@ -1,4 +1,5 @@
 import { CAT_ORDER, NEW_CATS, STARTER_CATS } from '../config/cats';
+import { toCount } from '../save/validate';
 import { CHAPTERS } from '../config/chapters';
 import { CHAPTER_REWARDS, RECRUIT, STARS, TEAM_MIN, TEAM_SIZE, starCost, FRAGMENT_TOPUP } from '../config/collection';
 import type { CatId } from './types';
@@ -44,8 +45,8 @@ export function sanitizeCollection(raw: unknown): Partial<Record<CatId, OwnedCat
       if (!CAT_ORDER.includes(id as CatId) || !v || typeof v !== 'object') continue;
       const o = v as Record<string, unknown>;
       out[id as CatId] = {
-        stars: Math.max(1, Math.min(STARS.max, Math.round(Number(o.stars) || 1))),
-        fragments: Math.max(0, Math.floor(Number(o.fragments) || 0)),
+        stars: Math.max(1, Math.min(STARS.max, toCount(o.stars, 1))),
+        fragments: toCount(o.fragments),
       };
     }
   }

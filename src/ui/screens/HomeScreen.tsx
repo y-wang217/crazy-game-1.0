@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useBackHandler } from '../backNav';
 import { LANGS, chapterNumeral, setLang, t, useLang } from '../../i18n';
 import { chapterProgress, currentChapter } from '../../game/progression';
 import { THEMES, setTheme, useTheme } from '../../theme';
@@ -44,6 +45,7 @@ export function HomeScreen({
   const [note, setNote] = useState<string | null>(null);
   const [practiceMenu, setPracticeMenu] = useState(false);
   const [redeemOpen, setRedeemOpen] = useState(false);
+  useBackHandler(() => (setPracticeMenu(false), true), practiceMenu);
   const taps = useRef<number[]>([]);
   // Feature gates (V1.6): decided only by completed stages.
   const unlocked = {
@@ -56,6 +58,7 @@ export function HomeScreen({
   // by a visible Skip Tutorial (save.tutorials: done / skipped; 'legacy' = passed before V1.6, so
   // an advanced player is never interrupted — those live in the replay menu / first-visit offers).
   const [replayStory, setReplayStory] = useState(false);
+  useBackHandler(() => (setReplayStory(false), true), replayStory);
   const sableOwned = !!save.collection.sable;
   const touring = useTour() !== null;
   const free = !blocked && !touring && !replayStory;

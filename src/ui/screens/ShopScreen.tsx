@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useBackHandler } from '../backNav';
 import { CAT_ORDER } from '../../config/cats';
 import { COSMETICS, skinKind } from '../../config/cosmetics';
 import { t, useLang } from '../../i18n';
@@ -25,6 +26,8 @@ export function ShopScreen({ go }: { go: (s: Screen) => void }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [preview, setPreview] = useState<CosmeticDef | null>(null);
   const [intro, setIntro] = useState(false);
+  useBackHandler(() => (setPreview(null), true), !!preview);
+  useBackHandler(() => (setIntro(false), true), intro);
 
   const order = (c: CosmeticDef) => (c.cat ? CAT_ORDER.indexOf(c.cat) : -1);
   const items = COSMETICS.filter((c) => (tab === 'hat' ? c.slot === 'hat' : c.slot === 'skin' && skinKind(c) === tab)).sort(

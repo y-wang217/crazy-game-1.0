@@ -42,6 +42,8 @@ export interface StepView {
 
 export interface ActiveStep extends StepView {
   id: string;
+  /** A lesson that only makes sense while the battle is (Tactically) paused. */
+  whilePaused?: boolean;
   /** Unique per activation, for React keys. */
   key: number;
 }
@@ -88,6 +90,11 @@ export class TutorialDirector {
   /** Call once per frame. Returns the active step (if any). */
   update(b: Battle): ActiveStep | null {
     if (this.active?.doneWhen?.(b)) this.complete(b, true);
+    // A paused-only lesson whose pause has ended another way (☰ menu Resume, returning to the
+    // app…) can never be finished from its own button any more: close it instead of leaving the
+    // battle frozen. Resuming is exactly what "Ready? Fight on!" asks for, so that counts as done.
+    // Staying paused never triggers this — the battle is never resumed for the player.
+    if (this.active?.whilePaused && b.status === 'playing' && !b.preparing) this.complete(b, expects(this.active.expect, 'resume'));
     if (this.active) {
       b.frozen = true;
       return this.active;
@@ -197,6 +204,6 @@ export class TutorialDirector {
     if (intro) return intro;
     const view = step.build(b);
     if (!view) return null;
-    return { id: step.id, ...view };
+    return { id: step.id, whilePaused: !!step.whilePaused, ...view };
   }
 }

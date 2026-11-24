@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { BACK_PRIORITY, useBackHandler } from '../backNav';
 import { t, useLang } from '../../i18n';
 import { saveStore } from '../../save/store';
 import { TOURS, rewindStep, tourStore, useTour, type TourScreen } from '../../tutorial/tours';
@@ -25,6 +26,7 @@ export function TourCoach({ screen }: { screen: string }) {
   const tour = useTour();
   const [box, setBox] = useState<Box | null>(null);
   const [confirmSkip, setConfirmSkip] = useState(false);
+  useBackHandler(() => (setConfirmSkip((v) => !v), true), !!tour, BACK_PRIORITY.tour);
   /** Another popup (e.g. a recruit reveal) is open: the coach waits until it closes. */
   const [paused, setPaused] = useState(false);
   const step = tour ? TOURS[tour.id][tour.step] : null;

@@ -3,6 +3,7 @@ import type { ChapterGrant } from '../game/collection';
 import type { CatId } from '../game/types';
 import { recovery, type RecoveryRecord } from '../save/battleRecovery';
 import { saveStore, useSave } from '../save/store';
+import { BACK_PRIORITY, installBackNav, useBackHandler } from './backNav';
 import { RecoveryPrompt } from './components/RecoveryPrompt';
 import { EarlyAccessNotice, noticeSeenThisSession } from './components/EarlyAccessNotice';
 import { ChapterReward } from './components/ChapterReward';
@@ -48,6 +49,49 @@ export function App() {
   // after its unlock stage can start, from any button or path. The player is sent Home, where
   // the tutorial is waiting.
   const [gateNote, setGateNote] = useState<string | null>(null);
+  // Android / browser Back (ui/backNav.ts): dialogs and the battle answer first; otherwise Back
+  // goes to the previous screen, and on Home a second Back leaves the game.
+  const [exitHint, setExitHint] = useState(false);
+  useEffect(
+    () =>
+      installBackNav(() => {
+        setExitHint(true);
+        window.setTimeout(() => setExitHint(false), 2000);
+      }),
+    [],
+  );
+  useBackHandler(
+    () => {
+      switch (screen.name) {
+        case 'home':
+          return false;
+        case 'battle':
+        case 'practice':
+          return true; // the battle screen handles Back itself
+        case 'catProfile':
+          go({ name: 'cats' });
+          return true;
+        case 'team':
+          go(screen.back);
+          return true;
+        default:
+          go({ name: 'home' });
+          return true;
+      }
+    },
+    true,
+    BACK_PRIORITY.screen,
+  );
+  // Progress saved in another tab was just loaded here (see save/store.ts): say so briefly.
+  const [syncNote, setSyncNote] = useState(false);
+  useEffect(
+    () =>
+      saveStore.onExternalChange(() => {
+        setSyncNote(true);
+        window.setTimeout(() => setSyncNote(false), 3000);
+      }),
+    [],
+  );
   const play = (stageId: string) => {
     const blocking = tutorialBlocking(saveStore.get(), stageId);
     if (blocking) {
@@ -62,6 +106,9 @@ export function App() {
   const [offer, setOffer] = useState<RecoveryRecord | null>(() => recovery.load());
   // Early Access notice: before the main menu, once per browser session.
   const [notice, setNotice] = useState(() => !noticeSeenThisSession());
+  // Popups that must not be dismissed by Back (a reward reveal, the resume-battle choice) keep it.
+  useBackHandler(() => true, grants.length > 0 || (!!offer && screen.name !== 'battle' && screen.name !== 'practice'), BACK_PRIORITY.dialog);
+  useBackHandler(() => (setNotice(false), true), notice, BACK_PRIORITY.dialog);
 
   // Chapter-completion cats: granted once each — also retroactively for chapters cleared
   // before this feature existed. (Inside a battle, the victory screen presents them itself.)
@@ -122,6 +169,16 @@ export function App() {
       {gateNote && !notice && (
         <div className="toast-inline gate-notice" role="status">
           {gateNote}
+        </div>
+      )}
+      {exitHint && (
+        <div className="toast-inline exit-hint" role="status">
+          {t('nav.backAgainToExit')}
+        </div>
+      )}
+      {syncNote && !notice && (
+        <div className="toast-inline sync-notice" role="status">
+          {t('save.syncedFromTab')}
         </div>
       )}
       {!notice && <TourCoach screen={screen.name} />}

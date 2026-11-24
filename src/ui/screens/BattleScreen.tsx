@@ -10,6 +10,7 @@ import type { CatId, SkillId } from '../../game/types';
 import { has, t, useLang } from '../../i18n';
 import { Renderer } from '../../render/renderer';
 import { DragController, boardBlocked } from '../battleInput';
+import { BACK_PRIORITY, useBackHandler } from '../backNav';
 import { saveStore, useSave } from '../../save/store';
 import { TutorialDirector, type ActiveStep, type SeenStore, type TutAction } from '../../tutorial/director';
 import { teamTutorialCat } from '../../tutorial/teamTutorial';
@@ -81,18 +82,27 @@ interface Result {
 }
 
 /**
- * One planned attempt per run id (React StrictMode may build the battle twice): records the
- * attempt once and decides once whether the secret Living Cat Food Can joins it.
+ * One planned attempt per run id (React StrictMode may build the battle twice). Planning happens
+ * while the battle is built (during render) and only READS the save: it decides once whether the
+ * secret Living Cat Food Can joins. The attempt itself is written afterwards, outside rendering,
+ * by recordPlannedAttempt — exactly once per run id (audit C15).
  */
-const attemptPlans = new Map<string, { canMonster: boolean }>();
+const attemptPlans = new Map<string, { stageId: string; canMonster: boolean; recorded: boolean }>();
 function planAttempt(stageId: string, runId: string): { canMonster: boolean } {
   let p = attemptPlans.get(runId);
   if (!p) {
-    const before = saveStore.recordAttempt(stageId);
-    p = { canMonster: rollCanMonster(stageId, before) };
+    const before = saveStore.get().attempts[stageId] ?? 0;
+    p = { stageId, canMonster: rollCanMonster(stageId, before), recorded: false };
     attemptPlans.set(runId, p);
   }
   return p;
+}
+/** Save the planned attempt (once per run id; never during render). */
+function recordPlannedAttempt(runId: string): void {
+  const p = attemptPlans.get(runId);
+  if (!p || p.recorded) return;
+  p.recorded = true;
+  saveStore.recordAttempt(p.stageId);
 }
 
 function hudOf(b: Battle): Hud {
@@ -133,8 +143,6 @@ const EDGE_GUTTER = 14;
 /** Periodic checkpoint while combat (or the prep countdown) is running, in ms. */
 const CHECKPOINT_MS = 2000;
 /** Browser-history guard entries currently owned by battle screens (StrictMode-safe). */
-let guardOwners = 0;
-const isGuard = () => !!(window.history.state as { cdBattleGuard?: boolean } | null)?.cdBattleGuard;
 
 export function BattleScreen({
   stageId,
@@ -223,6 +231,8 @@ export function BattleScreen({
   };
   const battleRef = useRef<Battle>(null as unknown as Battle);
   if (!battleRef.current) battleRef.current = newBattle(true);
+  // The attempt of the battle built above is saved here, after rendering (audit C15).
+  useEffect(() => recordPlannedAttempt(attemptKeyRef.current), []);
   const directorRef = useRef<TutorialDirector>(null as unknown as TutorialDirector);
   if (!directorRef.current) directorRef.current = new TutorialDirector(stage.id, seenRef.current);
   /** Speed multiplier relative to the baseline (BALANCE.speed.baseline). */
@@ -533,7 +543,7 @@ export function BattleScreen({
           step: active,
           status: b.status,
           inspecting: inspectRef.current !== null,
-          menuOpen: keysRef.current.menuOpen,
+          menuOpen: keysRef.current.menuOpen || leaveAskRef.current,
           result: resultRef.current !== null,
           hidden: document.hidden,
         })
@@ -598,45 +608,54 @@ export function BattleScreen({
     toast(t('recover.restored'), 'good');
   }, [toast]);
 
-  // ---- Back gesture / browser Back: ask before leaving an active battle ----
-  // One guard history entry while the battle screen is open. Back consumes it and opens the
-  // "Leave battle?" sheet; "Continue" puts the single entry back. A second Back while the sheet
-  // is open leaves normally (no trap) — and the checkpoint still allows recovery.
+  // ---- Back gesture / browser Back (ui/backNav.ts): ask before leaving an active battle ----
+  // Back pauses the battle, saves a checkpoint and opens the "Leave battle?" sheet. Back again
+  // closes the sheet (like any dialog) and the battle continues; the sheet's own button leaves.
+  // After the battle has ended, Back returns to Stage Select.
   const [leaveAsk, setLeaveAsk] = useState(false);
+  const leaveAskRef = useRef(false);
+  leaveAskRef.current = leaveAsk;
   const leaveResumeRef = useRef(false);
   const resultRef = useRef<Result | null>(null);
-  useEffect(() => {
-    guardOwners++;
-    if (!isGuard()) window.history.pushState({ cdBattleGuard: true }, '');
-    const onPop = () => {
-      if (isGuard()) return;
-      if (resultRef.current) {
-        onExitRef.current(); // battle already over: Back = back to stage select
-        return;
-      }
-      const b = battleRef.current;
-      leaveResumeRef.current = b.pause();
-      checkpointRef.current();
-      setInspectUid(null);
-      setLeaveAsk(true);
-    };
-    window.addEventListener('popstate', onPop);
-    return () => {
-      window.removeEventListener('popstate', onPop);
-      guardOwners--;
-      // Leaving the battle screen through the UI: drop our guard entry (after any StrictMode remount).
-      window.setTimeout(() => {
-        if (guardOwners === 0 && isGuard()) window.history.back();
-      }, 0);
-    };
-  }, []);
   const continueBattle = () => {
     setLeaveAsk(false);
-    if (!isGuard()) window.history.pushState({ cdBattleGuard: true }, '');
+    leaveAskRef.current = false;
     if (leaveResumeRef.current) battleRef.current.resume();
     leaveResumeRef.current = false;
     dirty();
   };
+  useBackHandler(
+    () => {
+      if (resultRef.current) {
+        onExitRef.current(); // battle already over: Back = back to stage select
+        return true;
+      }
+      if (leaveAskRef.current) {
+        continueBattle();
+        return true;
+      }
+      // Back closes an open cat details panel or the pause menu first, like any dialog.
+      if (inspectRef.current !== null) {
+        setInspectUid(null);
+        return true;
+      }
+      if (keysRef.current.menuOpen) {
+        keysRef.current.menuResume();
+        return true;
+      }
+      // A cat held while Back is pressed is dropped without any action (audit C9).
+      input.cancel();
+      const b = battleRef.current;
+      leaveResumeRef.current = b.pause();
+      checkpointRef.current();
+      setInspectUid(null);
+      leaveAskRef.current = true;
+      setLeaveAsk(true);
+      return true;
+    },
+    true,
+    BACK_PRIORITY.battle,
+  );
   /** Deliberately leaving an unfinished battle: it is abandoned (no recovery offer). */
   const abandon = (then: () => void) => {
     staleRef.current = true; // no further checkpoints from this screen
@@ -660,6 +679,7 @@ export function BattleScreen({
     staleRef.current = false;
     dirtyRef.current = true;
     battleRef.current = newBattle();
+    recordPlannedAttempt(attemptKeyRef.current); // restart = a new attempt (event handler, not render)
     earnedRef.current = { cans: 0, coins: 0 };
     if (practice) seenRef.current = memorySeen(lessonPreset); // a restarted practice starts the lessons again
     lessonEndRef.current = false;

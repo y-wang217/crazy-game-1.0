@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useBackHandler } from '../backNav';
 import { CATS } from '../../config/cats';
 import { FRAGMENT_TOPUP, STARS, starCost } from '../../config/collection';
 import { getCatStats } from '../../game/combat';
@@ -18,6 +19,7 @@ const pct = (a: number, b: number) => `+${Math.round((b / a - 1) * 1000) / 10}%`
  * Nothing is spent until "Upgrade" succeeds.
  */
 export function StarUpgrade({ cat, loadout, onClose }: { cat: CatId; loadout: CosmeticLoadout; onClose: () => void }) {
+  useBackHandler(() => (onClose(), true));
   useLang();
   const save = useSave();
   const own = save.collection[cat];

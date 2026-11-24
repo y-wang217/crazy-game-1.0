@@ -1,4 +1,5 @@
 import { useRef, useState, type FormEvent } from "react";
+import { useBackHandler } from '../backNav';
 import type { CodeReward } from "../../config/redeemCodes";
 import { getLang, t, useLang } from "../../i18n";
 import { saveStore, useSave, type RedeemResult } from "../../save/store";
@@ -37,6 +38,7 @@ export function RedeemCode({ onClose }: { onClose: () => void }) {
     null,
   );
   const busy = useRef(false);
+  useBackHandler(() => (onClose(), true));
   const count = useRef(0);
 
   const submit = (e?: FormEvent) => {

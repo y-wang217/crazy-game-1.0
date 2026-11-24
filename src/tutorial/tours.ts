@@ -28,7 +28,8 @@ export const TOURS: Record<TourId, TourStep[]> = {
     { screen: 'home', target: '[data-feature="encyclopedia"]', textKey: 'tour.shopCats.openCats', action: 'tap' },
     { screen: 'cats', target: '.collection-card.met', textKey: 'tour.shopCats.pickCat', action: 'tap' },
     // Star upgrades are introduced with Recruitment (2-5), when fragments first exist.
-    { screen: 'catProfile', target: '.profile-tabs', textKey: 'tour.shopCats.levels', action: 'next', viewOnly: true },
+    // Interactive (audit C3): tapping any profile tab opens it and moves the tour on.
+    { screen: 'catProfile', target: '.profile-tabs', textKey: 'tour.shopCats.levels', action: 'tap' },
     { screen: 'catProfile', target: '.topbar .btn', textKey: 'tour.shopCats.backCats', action: 'tap' },
     { screen: 'cats', target: '.topbar .btn', textKey: 'tour.shopCats.backHome2', action: 'tap' },
     { screen: 'home', target: '.home-menu .btn-primary', textKey: 'tour.shopCats.done', action: 'finish', viewOnly: true },

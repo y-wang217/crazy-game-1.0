@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { toCount } from './validate';
 import { lookupCode, type CodeReward, type RedeemCodeDef, type TestAccess } from '../config/redeemCodes';
 import { ALL_STAGE_IDS, findStage } from '../config/chapters';
 import { findCosmetic } from '../config/cosmetics';
@@ -153,7 +154,7 @@ export function parseSave(raw: string | null): SaveData {
     }
     const seen = Array.isArray(o.seen) ? Array.from(new Set(o.seen.filter((x: unknown) => typeof x === 'string'))) as string[] : [];
     const collection = sanitizeCollection(o.collection);
-    const int = (v: unknown) => (typeof v === 'number' && v >= 0 ? Math.floor(v) : 0);
+    const int = (v: unknown) => toCount(v);
     return {
       version: 5,
       attempts: cleanAttempts(o.attempts),
@@ -185,14 +186,20 @@ const TEST_ACCESS: TestAccess[] = ['allStages'];
 function cleanCounts(raw: unknown): Record<string, number> {
   const out: Record<string, number> = {};
   if (raw && typeof raw === 'object')
-    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) if (typeof v === 'number' && v > 0) out[k] = Math.floor(v);
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      const n = toCount(v);
+      if (n > 0) out[k] = n;
+    }
   return out;
 }
 
 function cleanAttempts(raw: unknown): Record<string, number> {
   const out: Record<string, number> = {};
   if (raw && typeof raw === 'object')
-    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) if (ALL_STAGE_IDS.includes(k) && typeof v === 'number' && v > 0) out[k] = Math.floor(v);
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      const n = toCount(v);
+      if (ALL_STAGE_IDS.includes(k) && n > 0) out[k] = n;
+    }
   return out;
 }
 
@@ -222,13 +229,57 @@ function safeStorage(): Storage | null {
   }
 }
 
-let state: SaveData = parseSave(safeStorage()?.getItem(KEY) ?? null);
+// ---- One save, possibly several open tabs (audit B2) ----
+// Every tab keeps the save in memory. Without care, a tab opened earlier would write its old copy
+// over progress made in another tab. Rule: a tab never writes a save it has not seen. The exact
+// text it last read or wrote is kept; if storage holds anything else, another tab saved since, so
+// that newer save is loaded first (never merged) and the action is applied on top of it. Idle tabs
+// also pick up the other tab's save immediately through the browser's `storage` event.
+
+function readRaw(): string | null {
+  try {
+    return safeStorage()?.getItem(KEY) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** The exact save text this tab last read or wrote. */
+let knownRaw: string | null = readRaw();
+let state: SaveData = parseSave(knownRaw);
 const listeners = new Set<() => void>();
+const externalListeners = new Set<() => void>();
+
+/**
+ * Load a save that another tab wrote. Returns true if this tab's copy changed. An emptied storage
+ * (`null`) is ignored: then this tab's copy is the only one left and the next action saves it again.
+ */
+export function applyExternalSave(raw: string | null): boolean {
+  if (raw === null || raw === knownRaw) return false;
+  knownRaw = raw;
+  state = parseSave(raw);
+  listeners.forEach((l) => l());
+  externalListeners.forEach((l) => l());
+  return true;
+}
+
+/** Before any change: make sure it applies to the newest saved progress. */
+function syncFromStorage(): void {
+  if (safeStorage()) applyExternalSave(readRaw());
+}
+
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === KEY) applyExternalSave(e.newValue);
+  });
+}
 
 function commit(next: SaveData): void {
   state = next;
   try {
-    safeStorage()?.setItem(KEY, JSON.stringify(state));
+    const raw = JSON.stringify(state);
+    safeStorage()?.setItem(KEY, raw);
+    knownRaw = raw;
   } catch {
     /* storage full / private mode: keep in memory */
   }
@@ -240,6 +291,11 @@ export const saveStore = {
   subscribe(l: () => void): () => void {
     listeners.add(l);
     return () => listeners.delete(l);
+  },
+  /** Called when progress made in another tab was loaded into this one. */
+  onExternalChange(l: () => void): () => void {
+    externalListeners.add(l);
+    return () => externalListeners.delete(l);
   },
 
   addCoins(amount: number): void {
@@ -447,6 +503,17 @@ export const saveStore = {
     commit(defaultSave());
   },
 };
+
+// Every action that can change the save first loads any newer save written by another tab
+// (see syncFromStorage). Read-only members are left as they are.
+const READ_ONLY = new Set(['get', 'subscribe', 'onExternalChange', 'hasSeen']);
+for (const [name, fn] of Object.entries(saveStore)) {
+  if (typeof fn !== 'function' || READ_ONLY.has(name)) continue;
+  (saveStore as Record<string, unknown>)[name] = function (this: typeof saveStore, ...args: unknown[]) {
+    syncFromStorage();
+    return (fn as (...a: unknown[]) => unknown).apply(this, args);
+  };
+}
 
 function collectionOf(s: SaveData): CollectionState {
   return {

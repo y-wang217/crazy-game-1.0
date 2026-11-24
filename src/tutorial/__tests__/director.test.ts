@@ -265,3 +265,57 @@ describe('tutorial director', () => {
     expect(d.update(b)).toBeNull();
   });
 });
+
+// Regression (audit B1): during the Tactical Pause lesson, resuming from the ☰ pause menu used to
+// leave "Ready? Fight on!" waiting for a Resume Battle button that no longer existed — the
+// battle stayed frozen and Tactical Pause was refused, so only Skip / Restart / Home got out.
+describe('Tactical Pause lesson stays in sync with the battle', () => {
+  const basics = ['tut:welcome', 'tut:summon', 'tut:autoAttack', 'tut:target', 'tut:modes', 'tut:summonMore', 'tut:move', 'tut:swap', 'tut:merge', 'tut:mergeInfo', 'tut:ready', 'tut:speed', 'tut:tpause'];
+  function setup(seenExtra: string[] = []) {
+    const b = new Battle(stage(3), map, { seed: 3 });
+    b.startBattle();
+    b.placeCat('kitten', 1, b.emptyTiles()[0].id);
+    b.placeCat('tabby', 1, b.emptyTiles()[0].id);
+    const seen = memSeen([...basics, ...seenExtra, 'cat:kitten', 'cat:tabby', 'enemy:normal']);
+    return { b, seen, d: new TutorialDirector(stage(3).id, seen) };
+  }
+
+  it('resuming from the pause menu at "Ready? Fight on!" ends the lesson and unfreezes the battle', () => {
+    const { b, d, seen } = setup(['tut:tpauseMove']);
+    expect(b.pause(true)).toBe(true); // Tactical Pause
+    expect(d.update(b)?.id).toBe('tut:tpauseResume');
+    b.resume(); // ☰ menu → Resume (the lesson's own Resume Battle button was never pressed)
+    for (let i = 0; i < 40; i++) frame(d, b);
+    expect(d.active).toBeNull();
+    expect(seen.ids.has('tut:tpauseResume')).toBe(true);
+    expect(b.status).toBe('playing');
+    expect(b.frozen).toBe(false);
+    expect(d.allows('pause')).toBe(true); // Tactical Pause works again
+    const t0 = b.time;
+    for (let i = 0; i < 20; i++) frame(d, b);
+    expect(b.time).toBeGreaterThan(t0); // the battle really runs
+  });
+
+  it('resuming from the menu before the move step also finishes both paused lessons', () => {
+    const { b, d, seen } = setup();
+    b.pause(true);
+    expect(d.update(b)?.id).toBe('tut:tpauseMove');
+    b.resume();
+    for (let i = 0; i < 40; i++) frame(d, b);
+    expect(d.active).toBeNull();
+    expect(seen.ids.has('tut:tpauseMove') && seen.ids.has('tut:tpauseResume')).toBe(true);
+    expect(b.frozen).toBe(false);
+  });
+
+  it('staying paused keeps the lesson waiting (no automatic resume)', () => {
+    const { b, d } = setup(['tut:tpauseMove']);
+    b.pause(true);
+    for (let i = 0; i < 40; i++) frame(d, b);
+    expect(d.active?.id).toBe('tut:tpauseResume');
+    expect(b.status).toBe('paused');
+    // The lesson's own Resume Battle button still completes it normally.
+    b.resume();
+    expect(d.onAction('resume', b)).toBe(true);
+    expect(b.status).toBe('playing');
+  });
+});

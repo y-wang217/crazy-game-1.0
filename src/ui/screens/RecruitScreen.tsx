@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useBackHandler } from '../backNav';
 import { CAT_ORDER } from '../../config/cats';
 import { CHAPTER_REWARDS, RECRUIT, STARS, starCost } from '../../config/collection';
 import { CHAPTERS } from '../../config/chapters';
@@ -22,8 +23,11 @@ export function RecruitScreen({ go }: { go: (s: Screen) => void }) {
   const [last, setLast] = useState<Extract<RecruitResult, { ok: true }> | null>(null);
   const [reveal, setReveal] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  useBackHandler(() => (setReveal(false), true), reveal);
   const odds = recruitOdds({ ...save });
   const unowned = odds.pool.filter((id) => !save.collection[id]).length;
+  // Cats that exist but cannot be recruited yet (chapter rewards): counted, never named (audit C4).
+  const heldBack = CAT_ORDER.filter((id) => !save.collection[id] && !odds.pool.includes(id)).length;
   const canAfford = save.cans >= RECRUIT.costCans;
   /** Chapter number whose reward this (still held back) cat is. */
   const heldBy = (id: (typeof CAT_ORDER)[number]) => {
@@ -105,7 +109,7 @@ export function RecruitScreen({ go }: { go: (s: Screen) => void }) {
         </div>
         <div className="recruit-guarantee small">
           {unowned === 0
-            ? t('recruit.allOwned')
+            ? t(heldBack > 0 ? 'recruit.allAvailableOwned' : 'recruit.allOwned')
             : odds.guaranteedNext
               ? t(save.canDraws === 0 ? 'recruit.firstNew' : 'recruit.guaranteeNext')
               : t('recruit.guarantee', { n: odds.drawsToGuarantee })}
