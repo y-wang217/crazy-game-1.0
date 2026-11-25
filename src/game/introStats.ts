@@ -47,26 +47,26 @@ export function introStats(cat: CatId, star: number): IntroStat[] {
       ? { key: "damage", params: { v: r1(st.damage), hits: st.comboHits } }
       : { key: "damage", params: { v: r1(st.damage) } };
   switch (def.attack) {
-    // Support and control: no direct damage, but a clearly shown effect, radius and rhythm.
+    // Support and control: their defining effect first (full width), then damage (0), radius, rhythm.
     case "aura":
       return [
-        { key: "damage", params: { v: 0 } },
         {
           key: "slow",
           params: { p: pct(st.slowStrength), s: r1(st.slowDuration) },
           signature: true,
         },
+        { key: "damage", params: { v: 0 } },
         { key: "auraRadius", params: { v: tiles(st.range) } },
         { key: "every", params: { s: r1(st.interval) } },
       ];
     case "support":
       return [
-        { key: "damage", params: { v: 0 } },
         {
           key: "buff",
           params: { p: pct(st.buffSpeed), s: r1(st.buffDuration) },
           signature: true,
         },
+        { key: "damage", params: { v: 0 } },
         { key: "supportRange", params: { v: tiles(st.range) } },
         { key: "every", params: { s: r1(st.interval) } },
       ];

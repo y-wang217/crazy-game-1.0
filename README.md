@@ -70,7 +70,7 @@ While dragging, tiles are tinted to show what the drop will do: green = move, go
   and sprite (`ui/components/Storybook.tsx`). Approved illustrations can be dropped into `STORY_ART`.
 - **Final wave:** +4 s lead-in before the last wave only (`BALANCE.finalWaveExtraGap`) and a
   non-blocking "最後一波！守住魚乾小屋！" banner.
-- **1-3 bronze chests:** more HP on that stage only so they stay on the road and focusing them matters;
+- **1-3 bronze chests:** ~80% more HP on that stage only so they stay on the road a little longer (kept modest: tougher chests cost weaker players wins, since cats auto-target them);
   a wider chest HP bar everywhere. Rewards unchanged.
 - **Home:** the Fish-Dry Hut (the in-game hut art) stands behind the team.
 
