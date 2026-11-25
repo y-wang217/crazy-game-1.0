@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { TutorialSkip } from './TutorialSkip';
 import { BACK_PRIORITY, useBackHandler } from '../backNav';
 import { t, useLang } from '../../i18n';
 import { saveStore } from '../../save/store';
@@ -144,40 +145,24 @@ export function TourCoach({ screen }: { screen: string }) {
       ) : (
         <div className="tour-block" style={{ inset: 0 }} />
       )}
+      <TutorialSkip open={confirmSkip} onOpenChange={setConfirmSkip} onSkip={skip} confirmText={t('tour.skipConfirm')} />
       <div className={`tour-bubble ${place}`} style={bubbleStyle} role="dialog" aria-live="polite">
         <div className="tour-kicker">
           {t(`tour.${tour.id}.kicker`)} · {tour.step + 1}/{total}
         </div>
         <p>{t(step.textKey)}</p>
         <div className="tour-actions">
-          {confirmSkip ? (
-            <>
-              <span className="tiny">{t('tour.skipConfirm')}</span>
-              <button className="btn btn-small btn-secondary" onClick={() => setConfirmSkip(false)}>
-                {t('tour.keepGoing')}
-              </button>
-              <button className="btn btn-small" onClick={skip}>
-                {t('teamTut.skip')}
-              </button>
-            </>
-          ) : (
-            <>
-              <button className="link-btn tiny tour-skip" onClick={() => setConfirmSkip(true)}>
-                {t('teamTut.skip')}
-              </button>
-              {step.action === 'next' && (
-                <button className="btn btn-small btn-primary tour-next" onClick={() => tourStore.next()}>
-                  {t('tour.next')}
-                </button>
-              )}
-              {step.action === 'finish' && (
-                <button className="btn btn-small btn-primary tour-finish" onClick={finish}>
-                  {t('tour.finish')}
-                </button>
-              )}
-              {step.action === 'tap' && <span className="tiny muted">{t('tour.tapHint')}</span>}
-            </>
+          {step.action === 'next' && (
+            <button className="btn btn-small btn-primary tour-next" onClick={() => tourStore.next()}>
+              {t('tour.next')}
+            </button>
           )}
+          {step.action === 'finish' && (
+            <button className="btn btn-small btn-primary tour-finish" onClick={finish}>
+              {t('tour.finish')}
+            </button>
+          )}
+          {step.action === 'tap' && <span className="tiny muted">{t('tour.tapHint')}</span>}
         </div>
       </div>
     </div>

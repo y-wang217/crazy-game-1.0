@@ -1,4 +1,5 @@
 import { CATS, CAT_ORDER } from '../../config/cats';
+import { EnemyDex } from '../components/EnemyDex';
 import { CHAPTERS } from '../../config/chapters';
 import type { CatId } from '../../game/types';
 import { t, useLang } from '../../i18n';
@@ -16,6 +17,9 @@ import { useState } from 'react';
 import { CatFilter, applyCatFilter, filterActive, useCatFilter } from '../components/CatFilter';
 import { useTour } from '../../tutorial/tours';
 
+/** Remembered for this session (like the filters): coming back from a profile keeps the section. */
+let lastSection: 'cats' | 'enemies' = 'cats';
+
 /** First stage where a cat can appear (for "Meet in Stage N"). */
 export function firstStageOf(cat: CatId): number {
   for (const ch of CHAPTERS) for (const s of ch.stages) if (s.roster.includes(cat)) return s.number;
@@ -28,12 +32,20 @@ export function CatsScreen({ go }: { go: (s: Screen) => void }) {
   const save = useSave();
   const found = CAT_ORDER.filter((id) => save.collection[id]).length;
   const [note, setNote] = useState<string | null>(null);
+  // Two sections (V1.6.4): Cats (collection + profiles) and Enemies (mice already met).
+  const [section, setSectionState] = useState<'cats' | 'enemies'>(() => lastSection);
+  const setSection = (v: 'cats' | 'enemies') => {
+    lastSection = v;
+    setSectionState(v);
+  };
   // Role / skill filter: discovered cats only; undiscovered cards are hidden while it is on.
   const [filter, setFilter] = useCatFilter('cats');
   // A guided tour always sees the whole collection (a remembered filter never hides its target).
   const touring = useTour() !== null;
   const discovered = CAT_ORDER.filter((id) => save.collection[id]).map((id) => ({ id, stars: save.collection[id]!.stars }));
   const filtering = !touring && filterActive(filter);
+  // A guided tour always shows the Cats section (its steps point at cat cards).
+  const shownSection = touring ? 'cats' : section;
   const shown = filtering ? applyCatFilter(discovered, filter).map((c) => c.id) : CAT_ORDER;
   const hiddenUnknown = CAT_ORDER.length - discovered.length;
   const flash = (m: string) => {
@@ -52,6 +64,17 @@ export function CatsScreen({ go }: { go: (s: Screen) => void }) {
         </span>
       </div>
       <h2 className="center">{t('guide.collection')}</h2>
+      <div className="dex-tabs" role="tablist">
+        {(['cats', 'enemies'] as const).map((k) => (
+          <button key={k} role="tab" aria-selected={shownSection === k} className={shownSection === k ? 'on' : ''} data-dex-tab={k} onClick={() => setSection(k)}>
+            {t(`dex.tab.${k}`)}
+          </button>
+        ))}
+      </div>
+      {shownSection === 'enemies' ? (
+        <EnemyDex save={save} />
+      ) : (
+        <>
       <div className="row collection-actions">
         <FeatureButton
           feature="team"
@@ -122,6 +145,8 @@ export function CatsScreen({ go }: { go: (s: Screen) => void }) {
         })}
       </div>
       {filtering && hiddenUnknown > 0 && <p className="muted tiny center">{t('filter.undiscovered', { n: hiddenUnknown })}</p>}
+        </>
+      )}
     </div>
   );
 }

@@ -105,6 +105,12 @@ function recordPlannedAttempt(runId: string): void {
   saveStore.recordAttempt(p.stageId);
 }
 
+/**
+ * Keys for the wave banner and the pop-ups, which are siblings on the board: Date.now() could
+ * give two of them the same key when their events arrive in the same frame.
+ */
+let popSeq = 0;
+
 function hudOf(b: Battle): Hud {
   return {
     fish: b.fish,
@@ -358,7 +364,7 @@ export function BattleScreen({
       text: stage.lesson ? t('pierce.badge') : practice ? t('practice.banner') : t('battle.stageBanner', { id: stage.id, name: t(`stage.${stage.id}`) }),
       sub: practice ? t('practice.safe') : undefined,
       tone: 'stage',
-      key: Date.now(),
+      key: ++popSeq,
     });
   }, [stage.id, stage.lesson, practice]);
   useEffect(showStageBanner, [showStageBanner]);
@@ -389,14 +395,14 @@ export function BattleScreen({
             toast(t('battle.chestCoins', { n: e.amount }), 'good');
             break;
           case 'skill':
-            setSkillPop({ id: e.skillId, level: e.level, isNew: e.isNew, key: Date.now() });
+            setSkillPop({ id: e.skillId, level: e.level, isNew: e.isNew, key: ++popSeq });
             break;
           case 'wave':
             dirtyRef.current = true;
             setBanner(
               e.wave === e.total
-                ? { text: t('battle.finalWave'), tone: 'final', key: Date.now() }
-                : { text: t('battle.waveBanner', { n: e.wave }), sub: `${e.wave} / ${e.total}`, tone: 'wave', key: Date.now() },
+                ? { text: t('battle.finalWave'), sub: t('battle.finalWaveSub'), tone: 'final', key: ++popSeq }
+                : { text: t('battle.waveBanner', { n: e.wave }), sub: `${e.wave} / ${e.total}`, tone: 'wave', key: ++popSeq },
             );
             break;
           case 'waveCleared':
@@ -428,7 +434,7 @@ export function BattleScreen({
             const r = saveStore.claimCanMonster(stage.id); // 1 can the first time per stage, coins after
             earnedRef.current.cans += r.cans;
             earnedRef.current.coins += r.coins;
-            if (r.cans || r.coins) setCanPop(r.cans ? { kind: 'can', n: r.cans, key: Date.now() } : { kind: 'coins', n: r.coins, key: Date.now() });
+            if (r.cans || r.coins) setCanPop(r.cans ? { kind: 'can', n: r.cans, key: ++popSeq } : { kind: 'coins', n: r.coins, key: ++popSeq });
             checkpointRef.current();
             break;
           }
@@ -668,7 +674,7 @@ export function BattleScreen({
   // Summon cost feedback: show "+N" when the price goes up.
   const prevCost = useRef(hud.summonCost);
   useEffect(() => {
-    if (hud.summonCost > prevCost.current) setCostBump({ n: hud.summonCost - prevCost.current, key: Date.now() });
+    if (hud.summonCost > prevCost.current) setCostBump({ n: hud.summonCost - prevCost.current, key: ++popSeq });
     prevCost.current = hud.summonCost;
   }, [hud.summonCost]);
 
@@ -1011,6 +1017,7 @@ export function BattleScreen({
         {banner && !step && (
           <div key={banner.key} className={`wave-banner ${banner.tone}`}>
             <span>{banner.text}</span>
+            {banner.tone === 'final' && banner.sub && <small className="wave-banner-sub">{banner.sub}</small>}
           </div>
         )}
         {skillPop && (

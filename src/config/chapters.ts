@@ -836,6 +836,13 @@ for (const s of CH2_STAGES) s.challenge = ch2Challenge(s.id);
 // 30–40 s) and stay as they were: faster ones escaped far more often there.
 const CH1_CHESTS: StageDef['chestTuning'] = { hpMult: 1.4, speed: { bronze: 40, silver: 39, gold: 38 } };
 for (const s of STAGES) s.chestTuning = CH1_CHESTS;
+// V1.6.4 playtest: on 1-3 the three bronze chests died before players noticed them — 100% opened
+// whether or not the player focused them. Only here, chests get more HP so they stay on the road
+// longer and focusing them matters (40 seeds, normal-play bot: unfocused 100% → 85% opened,
+// focused 100% → 100%, avg life 10 → 13 game s, road covered 55% → 75%, wins 40/40 → 40/40).
+// Rewards, drop chances and every other stage are unchanged.
+const CH1_3 = STAGES.find((s) => s.id === '1-3');
+if (CH1_3) CH1_3.chestTuning = { ...CH1_CHESTS, hpMult: 5 };
 
 // Chapter 1 dried fish (V1.6.2): 1-3 and 1-4 have no Random Skill shop yet, so once the board is
 // full (around wave 4) fish piled up with nothing to buy (~300 left on a beginner win, 550 seen in

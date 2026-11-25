@@ -3,7 +3,7 @@ import { MAPS } from "../../config/maps";
 import { Battle } from "../battle";
 import type { CatId, EnemyId, StageDef } from "../types";
 
-// Shared Lv.1 benchmark (used by catIdentity.test.ts and catOverview.test.ts): each cat alone (or
+// Shared Lv.1 benchmark (used by catIdentity.test.ts and introStats.test.ts): each cat alone (or
 // paired) on the same tile against identical scripted waves, in the real battle engine.
 const map = MAPS[CHAPTERS[0].mapId];
 const TILE = "2-2"; // covers the first two road passes

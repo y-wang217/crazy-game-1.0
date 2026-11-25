@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { HutArt } from '../components/HutArt';
 import { useBackHandler } from '../backNav';
 import { LANGS, chapterNumeral, setLang, t, useLang } from '../../i18n';
 import { chapterProgress, currentChapter } from '../../game/progression';
@@ -72,7 +73,17 @@ export function HomeScreen({
   // Then his piercing lesson, then Recruitment (after 2-5).
   const showPierce = nextTut === 'pierce';
   const showRecruitIntro = nextTut === 'recruit';
-  const showShopIntro = showShopCats; // keeps the spotlight styling of the Shop/Encyclopedia buttons
+  // 1-4 unlock (playtest fix): the Shop & Encyclopedia tour starts by itself, so the button the
+  // tour spotlights is the real next step (Shop first, then Encyclopedia) — no separate Start card
+  // and never two highlighted buttons at once. It ends only by finishing or the explicit Skip;
+  // if the page is closed mid-tour it simply starts again here.
+  useEffect(() => {
+    if (!showShopCats) return;
+    const r = window.setTimeout(() => {
+      if (!tourStore.get()) tourStore.start('shopCats', 'onboarding');
+    }, 600); // a short beat so a tap carried over from the previous screen can't hit the tour
+    return () => window.clearTimeout(r);
+  }, [showShopCats]);
   // Players who already put a new cat in their team on their own don't need the lesson.
   useEffect(() => {
     if (!save.seen.includes(TEAM_TUTORIAL_ID) && save.team.some((id) => !STARTER_CATS.includes(id))) saveStore.markSeen(TEAM_TUTORIAL_ID);
@@ -135,10 +146,14 @@ export function HomeScreen({
           <span>{t('logo.2')}</span>
         </h1>
         <p className="tagline">{t('home.tagline')}</p>
-        <div className="home-cats">
-          {save.team.map((c) => (
-            <CatPreview key={c} type={c} loadout={save.equipped} size={60} />
-          ))}
+        {/* The cats' home base: the Fish-Dry Hut they defend in every battle, with the team in front. */}
+        <div className="home-base">
+          <HutArt className="home-hut" width={150} />
+          <div className="home-cats">
+            {save.team.map((c) => (
+              <CatPreview key={c} type={c} loadout={save.equipped} size={60} />
+            ))}
+          </div>
         </div>
         <FeatureButton
           feature="team"
@@ -150,7 +165,7 @@ export function HomeScreen({
           onLocked={flash}
         />
       </div>
-      <div className={`home-menu ${showShopIntro || showRecruitIntro ? 'intro-active' : ''}`}>
+      <div className={`home-menu ${showRecruitIntro ? 'intro-active' : ''}`}>
         <button className="btn btn-big btn-primary" onClick={() => go({ name: 'stages' })}>
           <GameIcon name="play" size={22} /> {t('home.play')}
         </button>
@@ -160,14 +175,18 @@ export function HomeScreen({
             unlocked={unlocked.recruit}
             label={t('home.recruit')}
             className={`btn btn-secondary ${showRecruitIntro ? 'spotlit' : ''}`}
-            onOpen={() => go({ name: 'recruit' })}
+            onOpen={() => {
+              // The highlighted button starts the Recruitment tour (same as the card's Start).
+              if (showRecruitIntro) tourStore.start('recruit', 'onboarding', 1);
+              go({ name: 'recruit' });
+            }}
             onLocked={flash}
           />
           <FeatureButton
             feature="shop"
             unlocked={unlocked.shop}
             label={t('home.shop')}
-            className={`btn btn-secondary ${showShopCats ? 'spotlit' : ''}`}
+            className="btn btn-secondary"
             onOpen={() => go({ name: 'shop' })}
             onLocked={flash}
           />
@@ -175,7 +194,7 @@ export function HomeScreen({
             feature="encyclopedia"
             unlocked={unlocked.encyclopedia}
             label={t('home.cats')}
-            className={`btn btn-secondary ${showShopCats ? 'spotlit' : ''}`}
+            className="btn btn-secondary"
             onOpen={() => go({ name: 'cats' })}
             onLocked={flash}
           />
@@ -223,9 +242,6 @@ export function HomeScreen({
           onSkip={() => setReplayStory(false)}
           replay
         />
-      )}
-      {showShopCats && (
-        <FeatureUnlockCard kind="shopCats" onStart={() => tourStore.start('shopCats', 'onboarding')} onSkip={() => saveStore.setTutorial(TUTORIALS.shopCats, 'skipped')} />
       )}
       {showSableStory && (
         <SableStory

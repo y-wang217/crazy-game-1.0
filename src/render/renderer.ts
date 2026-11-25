@@ -665,14 +665,17 @@ export class Renderer {
     }
 
     // HP / shield bar
-    const w = f.isBoss ? 40 : f.kind === 'chest' ? 20 : 20;
+    // V1.6.4: chests get a wider, thicker bar so it's clear they can be hit (and how much is left).
+    const chestBar = f.kind === 'chest';
+    const w = f.isBoss ? 40 : chestBar ? 30 : 20;
+    const bh = chestBar ? 5 : 3;
     const by = -f.radius - (f.isBoss ? 26 : 9);
     const damaged = f.hp < f.maxHp || f.shield < f.maxShield || f.isBoss || f.kind === 'chest';
     if (damaged) {
       ctx.globalAlpha = 1;
       ctx.fillStyle = 'rgba(40,30,30,0.6)';
       ctx.beginPath();
-      ctx.roundRect(-w / 2 - 1, by - 1, w + 2, 5, 2.5);
+      ctx.roundRect(-w / 2 - 1, by - 1, w + 2, bh + 2, 2.5);
       ctx.fill();
       // Fractions are always clamped to 0–1 so a bar can never be wider than its frame.
       const hpf = frac(f.hp, f.maxHp);
@@ -683,12 +686,12 @@ export class Renderer {
       if (trailV > hpf) {
         ctx.fillStyle = 'rgba(255,255,255,0.9)';
         ctx.beginPath();
-        ctx.roundRect(-w / 2, by, w * trailV, 3, 1.5);
+        ctx.roundRect(-w / 2, by, w * trailV, bh, 1.5);
         ctx.fill();
       }
       ctx.fillStyle = f.kind === 'chest' ? '#f2c230' : hpf > 0.5 ? '#6ad04a' : hpf > 0.25 ? '#f2c230' : '#ef5a4a';
       ctx.beginPath();
-      ctx.roundRect(-w / 2, by, w * hpf, 3, 1.5);
+      ctx.roundRect(-w / 2, by, w * hpf, bh, 1.5);
       ctx.fill();
       if (f.maxShield > 0 && f.shield > 0) {
         ctx.fillStyle = '#5ad0f0';
@@ -1382,7 +1385,7 @@ function drawFlowers(ctx: CanvasRenderingContext2D, x: number, y: number, rng: R
   }
 }
 
-function drawHouse(ctx: CanvasRenderingContext2D, x: number, y: number, P: BoardPalette) {
+export function drawHouse(ctx: CanvasRenderingContext2D, x: number, y: number, P: BoardPalette) {
   ctx.save();
   ctx.translate(x, y);
   if (P.moon) {

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { TutorialSkip } from '../components/TutorialSkip';
 import { CAT_ORDER } from '../../config/cats';
 import { TEAM_MIN, TEAM_SIZE } from '../../config/collection';
 import type { CatId } from '../../game/types';
@@ -34,6 +35,7 @@ export function TeamScreen({ go, back, practice = false }: { go: (s: Screen) => 
   const [tut, setTut] = useState(() => practiceCat ?? teamTutorialCat(save));
   const [draft, setDraft] = useState<CatId[] | null>(() => (tut ? [...save.team] : null));
   const [practiceDone, setPracticeDone] = useState(false);
+  const [confirmSkip, setConfirmSkip] = useState(false);
   const team = draft ?? save.team;
   const visible = owned.filter((id) => matched.includes(id) || id === tut);
   const step = tut ? teamTutorialStep(team, tut, slot) : null;
@@ -103,7 +105,6 @@ export function TeamScreen({ go, back, practice = false }: { go: (s: Screen) => 
   };
   const skip = () => {
     if (practice) return go(back);
-    if (!window.confirm(t('teamTut.skipConfirm'))) return;
     saveStore.markSeen(TEAM_TUTORIAL_ID); // the team itself stays exactly as it was (the draft is dropped)
     saveStore.setTutorial(TUTORIALS.team, 'skipped');
     setTut(null);
@@ -184,10 +185,15 @@ export function TeamScreen({ go, back, practice = false }: { go: (s: Screen) => 
             </b>
             <span>{t(`teamTut.step.${step}`, { cat: t(`cat.${tut}.name`) })}</span>
           </div>
-          <button className="link-btn tiny" onClick={skip}>
-            {t(practice ? 'practice.exit' : 'teamTut.skip')}
-          </button>
+          {practice && (
+            <button className="link-btn tiny" onClick={skip}>
+              {t('practice.exit')}
+            </button>
+          )}
         </div>
+      )}
+      {tut && step && !practice && (
+        <TutorialSkip open={confirmSkip} onOpenChange={setConfirmSkip} onSkip={skip} confirmText={t('teamTut.skipConfirm')} />
       )}
       {practiceDone && (
         <div className="overlay practice-end" role="dialog" aria-modal="true">

@@ -215,7 +215,9 @@ describe('V1.3 copy', () => {
     for (const dict of [en, zh]) {
       for (const [k, v] of Object.entries(dict)) {
         if (!k.startsWith('tut.') || !k.endsWith('.body')) continue;
-        expect(v.length, k).toBeLessThanOrEqual(dict === en ? 90 : 40);
+        // V1.6.4: the owner's exact wording for the merge lesson (it now also says when long-press works).
+        const limit = dict === en ? (k === 'tut.mergeInfo.body' ? 110 : 90) : 40;
+        expect(v.length, k).toBeLessThanOrEqual(limit);
         expect(v).not.toMatch(/1 more|多 1|cost/i);
       }
     }

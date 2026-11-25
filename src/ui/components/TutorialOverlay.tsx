@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { TutorialSkip } from './TutorialSkip';
 import { TARGET_MODES, TARGET_MODE_INFO } from '../../config/cats';
 import { CHESTS, ENEMIES } from '../../config/enemies';
 import type { Battle } from '../../game/battle';
@@ -131,22 +132,9 @@ export function TutorialOverlay({
   const focusY = rects.length ? rects.reduce((a, r) => a + r.y + r.h / 2, 0) / rects.length : 0;
   const panelAtTop = interactive && rects.length > 0 && focusY > box.h * 0.45;
 
+  // Skip lives outside the dialogue bubble, fixed top-right under the HUD (V1.6.4 playtest).
   const skip = onSkip ? (
-    confirmSkip ? (
-      <div className="tut-skip-confirm" role="group">
-        <span>{t('tut.skipConfirm')}</span>
-        <button className="btn btn-small btn-danger" onClick={onSkip}>
-          {t('tut.skipYes')}
-        </button>
-        <button className="btn btn-small btn-secondary" onClick={() => setConfirmSkip(false)}>
-          {t('tut.skipNo')}
-        </button>
-      </div>
-    ) : (
-      <button className="tut-skip" onClick={() => setConfirmSkip(true)}>
-        {t('tut.skip')}
-      </button>
-    )
+    <TutorialSkip open={confirmSkip} onOpenChange={setConfirmSkip} onSkip={onSkip} confirmText={t('tut.skipConfirm')} below=".hud" />
   ) : null;
 
   return (

@@ -1,6 +1,6 @@
 // The single source of truth for the game version shown to players (Home footer, Early Access
 // notice). Bump it here only.
-export const APP_VERSION = '1.6.3';
+export const APP_VERSION = '1.6.4';
 
-/** "V1.6.3" — how the version is displayed. */
+/** "V1.6.4" — how the version is displayed. */
 export const versionLabel = (): string => `V${APP_VERSION}`;

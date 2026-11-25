@@ -4174,7 +4174,7 @@ body {
   z-index: 31;
 }
 /* Only the team and the Edit Team button stay on screen above the card (no overlap on small phones). */
-.home-hero.team-tut-active > :not(.home-cats):not(.home-team-btn) {
+.home-hero.team-tut-active > :not(.home-cats):not(.home-base):not(.home-team-btn) {
   display: none;
 }
 .team-intro .shop-intro-btns .btn {
@@ -5323,71 +5323,6 @@ body {
   color: var(--accent-dark);
   letter-spacing: 0.5px;
 }
-.intro-overview {
-  border-top: 1px dashed var(--line);
-  padding-top: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.meters {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
-}
-.meter {
-  background: var(--surface-2);
-  border-radius: 12px;
-  padding: 6px 4px 5px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-}
-.meter-label {
-  font-weight: 800;
-  font-size: 0.78rem;
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  white-space: nowrap;
-}
-.meter-pips {
-  display: flex;
-  gap: 3px;
-}
-.meter-pips span {
-  width: 13px;
-  height: 8px;
-  border-radius: 4px;
-  background: var(--star-off);
-}
-.meter-pips span.on {
-  background: var(--accent);
-  box-shadow: inset 0 -2px 0 var(--accent-dark);
-}
-.meter-utility .meter-pips span.on {
-  background: #5a8ad8;
-  box-shadow: inset 0 -2px 0 #3a64a8;
-}
-.meter-reach .meter-pips span.on {
-  background: #4ea866;
-  box-shadow: inset 0 -2px 0 #2f7a44;
-}
-.meter-level {
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: var(--text-soft);
-}
-.best-at {
-  font-size: 0.85rem;
-  line-height: 1.4;
-}
-.best-at b {
-  color: var(--text-soft);
-  margin-right: 4px;
-}
 .intro-signature {
   display: flex;
   align-items: center;
@@ -5400,18 +5335,333 @@ body {
 .intro-signature .game-icon {
   flex: 0 0 auto;
 }
-.intro-foot {
+
+/* ---- V1.6.4 shared "Skip tutorial" control: fixed top-right, outside the dialogue bubble ---- */
+.tutorial-skip {
+  position: fixed;
+  top: max(10px, calc(env(safe-area-inset-top) + 8px));
+  right: max(10px, calc(env(safe-area-inset-right) + 8px));
+  z-index: 95;
+  max-width: min(300px, calc(100vw - 20px));
+  pointer-events: auto;
+}
+.tutorial-skip-btn {
+  border: 1px solid color-mix(in srgb, var(--text-soft) 40%, transparent);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  color: var(--text-soft);
+  font: inherit;
+  font-weight: 800;
+  font-size: 0.78rem;
+  border-radius: 999px;
+  padding: 6px 12px;
+  min-height: 32px;
+  box-shadow: 0 2px 6px var(--shadow-ink);
+  cursor: pointer;
+}
+.tutorial-skip-confirm {
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 14px;
+  padding: 10px 12px;
+  box-shadow: 0 6px 18px var(--shadow-ink);
+  font-size: 0.85rem;
+  font-weight: 700;
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
+  gap: 8px;
+}
+.tutorial-skip-btns {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* ---- V1.6.4 Encyclopedia: Cats / Enemies sections ---- */
+.dex-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  background: var(--surface-2);
+  border-radius: 14px;
+  padding: 4px;
+  margin: 2px 0 10px;
+}
+.dex-tabs button {
+  border: 0;
+  background: transparent;
+  color: var(--text-soft);
+  font: inherit;
+  font-weight: 800;
+  padding: 8px 4px;
+  border-radius: 10px;
+  min-height: 40px;
+}
+.dex-tabs button.on {
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 2px 0 var(--shadow-ink);
+}
+.dex-count {
+  margin: -4px 0 8px;
+}
+.enemy-grid {
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.enemy-grid .collection-card:last-child:nth-child(odd) {
+  grid-column: auto;
+  width: auto;
+}
+.enemy-card {
+  --cat-accent: #b08a6a;
+  padding: 8px 4px;
+}
+.enemy-card.boss {
+  --cat-accent: #e06a5a;
+}
+.enemy-card .collection-name {
+  font-size: 0.85rem;
+  text-align: center;
+}
+.enemy-portrait {
+  width: 78px;
+  height: 78px;
+  display: grid;
+  place-items: center;
+}
+.enemy-card.unknown .silhouette canvas {
+  filter: brightness(0) opacity(0.3);
+}
+.enemy-unknown {
+  font-size: 2.2rem;
+  font-weight: 900;
+  color: var(--text-soft);
+  opacity: 0.5;
+}
+.dex-badge {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  background: var(--surface-2);
+  color: var(--text);
+}
+.dex-badge.dex-boss {
+  background: #e06a5a;
+  color: #fff;
+}
+.dex-badge.dex-elite {
+  background: #d9a441;
+  color: #3a2a10;
+}
+.dex-badge.dex-secret {
+  background: #8a6ab0;
+  color: #fff;
+}
+.enemy-sheet .panel {
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+.enemy-stats {
+  width: 100%;
+}
+.enemy-stats td.mystery {
+  color: var(--text-soft);
+  letter-spacing: 2px;
+}
+
+/* ---- V1.6.4 Intro tab: real base stats (replaces the rating meters) ---- */
+.intro-stats {
+  border-top: 1px dashed var(--line);
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.intro-stat-list {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.intro-stat {
+  background: var(--surface-2);
+  border-radius: 12px;
+  padding: 6px 8px;
+  min-width: 0;
+}
+.intro-stat.signature {
+  grid-column: 1 / -1;
+  background: var(--surface-warm);
+}
+.intro-stat dt {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--text-soft);
+}
+.intro-stat dd {
+  margin: 2px 0 0;
+  font-weight: 900;
+  font-size: 0.95rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.intro-stat.signature dd {
+  font-size: 0.9rem;
+}
+
+/* ---- V1.6.4 final wave: a recognisable (non-blocking) climax banner ---- */
+.wave-banner.final {
+  animation-duration: 2.6s;
+}
+.wave-banner.final span {
+  font-size: 2rem;
+  animation: finalPulse 0.55s ease-in-out 0.35s 3 alternate;
+}
+.wave-banner-sub {
+  margin-top: 8px;
+  font-size: 1rem;
+  font-weight: 900;
+  color: #fff;
+  background: rgba(60, 25, 25, 0.72);
+  padding: 3px 14px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+@keyframes finalPulse {
+  to {
+    transform: scale(1.08);
+    box-shadow: 0 4px 0 #a02a2a, 0 0 26px rgba(255, 90, 90, 0.75);
+  }
+}
+
+/* ---- V1.6.4 Storybook (Story tab): existing art only, page by page ---- */
+.storybook {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  touch-action: pan-y;
+}
+.storybook-head {
+  display: flex;
+  align-items: baseline;
   justify-content: space-between;
   gap: 8px;
-  flex-wrap: wrap;
 }
-.intro-foot .profile-more {
-  border-top: 0;
-  padding-top: 0;
-  flex: 1 1 60%;
+.storybook-page {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: storyPage 0.35s ease-out;
 }
-.intro-foot .profile-more p {
-  margin: 4px 0 0;
+@keyframes storyPage {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+}
+.storybook-scene {
+  position: relative;
+  height: 150px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.storybook-scene > canvas:first-child {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+}
+.storybook-art {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.storybook-cat {
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.storybook-scene.side-left .storybook-cat {
+  left: 30%;
+}
+.storybook-scene.side-right .storybook-cat {
+  left: 70%;
+}
+.storybook-bubble {
+  position: absolute;
+  top: 10px;
+  max-width: 58%;
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 14px;
+  padding: 6px 10px;
+  font-weight: 800;
+  font-size: 0.85rem;
+  line-height: 1.35;
+  box-shadow: 0 2px 8px var(--shadow-ink);
+}
+.storybook-bubble.side-left {
+  right: 10px;
+}
+.storybook-bubble.side-right {
+  left: 10px;
+}
+.storybook-text {
+  margin: 0;
+  line-height: 1.65;
+  min-height: 7.5em;
+}
+.storybook-nav {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+.storybook-nav .btn:disabled {
+  opacity: 0.4;
+}
+.storybook-dots {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+}
+.storybook-dots button {
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--star-off);
+}
+.storybook-dots button.on {
+  background: var(--accent);
+}
+
+/* ---- V1.6.4 Home: the Fish-Dry Hut as the cats' home base (existing in-game hut art) ---- */
+.home-base {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.home-hut {
+  margin-bottom: -30px; /* the team stands in front of the hut, the door still showing */
+  filter: drop-shadow(0 3px 0 var(--shadow-ink));
+}
+.home-base .home-cats {
+  position: relative;
+  z-index: 1;
+}
+.home-hero.team-tut-active .home-base > :not(.home-cats) {
+  display: none;
 }

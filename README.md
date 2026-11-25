@@ -53,6 +53,27 @@ While dragging, tiles are tinted to show what the drop will do: green = move, go
 - **Version:** shown from `src/config/version.ts` (`APP_VERSION`, displayed as e.g. `V1.4` via `versionLabel()`), the same constant as the Home footer. Bump the version there only.
 - **No side effects:** it never touches the save. If an interrupted battle was saved, the "Resume previous battle?" prompt appears right after the notice is dismissed.
 
+## V1.6.4 — Chapter 1 playtest improvements
+
+- **Tutorials:** the 1-4 Shop & Encyclopedia tour starts by itself and highlights one step at a time
+  (Shop first, then the Encyclopedia). One shared "Skip tutorial" pill sits top-right (under the HUD in
+  battle) with a confirmation — outside every dialogue bubble (`ui/components/TutorialSkip.tsx`).
+  The 1-1 merge lesson no longer asks for a long-press it blocks.
+- **Encyclopedia (圖鑑):** Cats and Enemies sections. Enemies come from the real stage/enemy configs
+  (`game/enemyDex.ts`): met enemies show base HP, armor, speed, hearts taken, traits, first stage and
+  the existing tips; unmet ones are silhouettes (regular mice of reached chapters) or "?" (bosses, the
+  secret can, later chapters). The Living Cat Food Can keeps its ??? secrecy.
+- **Intro tab:** real base numbers from `getCatStats` (`game/introStats.ts`) at the cat's ★ and battle
+  Lv.1, with the cat's defining number highlighted (slow, buff, slam area, sword wave, bounce,
+  finisher, poison). The 0–5 rating meters were removed.
+- **Storybook (Story tab):** each story's existing paragraphs as 3–4 pages, using only the cat's room
+  and sprite (`ui/components/Storybook.tsx`). Approved illustrations can be dropped into `STORY_ART`.
+- **Final wave:** +4 s lead-in before the last wave only (`BALANCE.finalWaveExtraGap`) and a
+  non-blocking "最後一波！守住魚乾小屋！" banner.
+- **1-3 bronze chests:** more HP on that stage only so they stay on the road and focusing them matters;
+  a wider chest HP bar everywhere. Rewards unchanged.
+- **Home:** the Fish-Dry Hut (the in-game hut art) stands behind the team.
+
 ## Roadmap (planned, not implemented)
 
 ### Unlockable character illustrations (3★ / 5★)

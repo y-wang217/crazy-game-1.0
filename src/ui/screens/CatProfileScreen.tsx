@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Storybook } from '../components/Storybook';
 import { BALANCE } from '../../config/balance';
 import { CATS, CAT_ORDER } from '../../config/cats';
 import { STARS, ULTIMATE, abilityParams, starCost } from '../../config/collection';
@@ -19,7 +20,7 @@ import { Stars } from '../components/Stars';
 import { TUTORIALS, isFeatureUnlocked } from '../../config/unlocks';
 import { CatScene } from '../components/CatScene';
 import { CatClassChips } from '../components/CatClassChips';
-import { combatOverview } from '../../config/catOverview';
+import { introStats } from '../../game/introStats';
 
 /** Profile tabs: meet the cat first (Intro); battle data, growth and the full story on demand. */
 type ProfileTab = 'intro' | 'battle' | 'growth' | 'story';
@@ -58,7 +59,6 @@ export function CatProfileScreen({ cat, go }: { cat: CatId; go: (s: Screen) => v
   const [tab, setTab] = useState<ProfileTab>('intro');
   const def = CATS[cat];
   const star = own?.stars ?? 1;
-  const overview = combatOverview(cat, star);
   const st = getCatStats(def, level, undefined, star);
   const support = def.attack === 'aura' || def.attack === 'support';
   const cell = 50;
@@ -198,32 +198,23 @@ export function CatProfileScreen({ cat, go }: { cat: CatId; go: (s: Screen) => v
         // Who is this cat, and what is it good at? (The full biography lives in the Story tab.)
         <section className="profile-card profile-pane intro-pane" role="tabpanel">
           <p className="profile-intro">{t(`cat.${cat}.intro`)}</p>
-          <div className="intro-overview">
-            <div className="intro-head">{t('overview.title')}</div>
-            <div className="meters">
-              {(
-                [
-                  ['damage', 'damage', overview.damage],
-                  ['utility', 'team', overview.utility],
-                  ['reach', 'range', overview.reach],
-                ] as const
-              ).map(([k, icon, v]) => (
-                <div key={k} className={`meter meter-${k}`} data-value={v}>
-                  <div className="meter-label">
-                    <GameIcon name={icon} size={15} /> {t(`overview.${k}`)}
-                  </div>
-                  <div className="meter-pips" role="img" aria-label={`${t(`overview.${k}`)} ${v}/5`}>
-                    {[1, 2, 3, 4, 5].map((i) => (
-                      <span key={i} className={i <= v ? 'on' : ''} />
-                    ))}
-                  </div>
-                  <div className="meter-level">{k === 'damage' && v === 0 ? t('overview.noDamage') : t(`overview.level.${v}`)}</div>
+          <div className="intro-stats">
+            <div className="intro-head">{t('introStat.title')}</div>
+            <dl className="intro-stat-list">
+              {introStats(cat, star).map((st) => (
+                <div key={st.key} className={`intro-stat ${st.signature ? 'signature' : ''}`} data-stat={st.key}>
+                  <dt>{t(`introStat.${st.key}.label`)}</dt>
+                  <dd>
+                    {st.key === 'damage'
+                      ? st.params.v === 0
+                        ? t('introStat.damage.none')
+                        : t(st.params.hits ? 'introStat.damage.combo' : 'introStat.damage.value', st.params)
+                      : t(`introStat.${st.key}.value`, st.params)}
+                  </dd>
                 </div>
               ))}
-            </div>
-            <div className="best-at">
-              <b>{t('overview.bestAt')}</b> {t(`cat.${cat}.bestAt`)}
-            </div>
+            </dl>
+            <div className="muted tiny">{t('introStat.basis', { s: star })}</div>
           </div>
           <div className="intro-signature">
             <GameIcon name={SIGNATURE_ICON[cat]} size={30} />
@@ -232,15 +223,9 @@ export function CatProfileScreen({ cat, go }: { cat: CatId; go: (s: Screen) => v
               <div className="small">{t(`cat.${cat}.sigShort`)}</div>
             </div>
           </div>
-          <div className="intro-foot">
-            <details className="profile-more">
-              <summary>{t('overview.how')}</summary>
-              <p className="muted tiny">{t('overview.howBody')}</p>
-            </details>
-            <button className="link-btn" onClick={() => setTab('story')}>
-              {t('profile.readStory')} ›
-            </button>
-          </div>
+          <button className="link-btn" onClick={() => setTab('story')}>
+            {t('profile.readStory')} ›
+          </button>
         </section>
       )}
 
@@ -396,7 +381,7 @@ export function CatProfileScreen({ cat, go }: { cat: CatId; go: (s: Screen) => v
 
       {tab === 'story' && (
         <section className="profile-card profile-pane" role="tabpanel">
-          <p className="story">{t(`cat.${cat}.story`)}</p>
+          <Storybook key={cat} cat={cat} star={star} loadout={save.equipped} />
         </section>
       )}
 

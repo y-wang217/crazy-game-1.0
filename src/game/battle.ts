@@ -677,8 +677,12 @@ export class Battle {
     if (this.spawnPtr < this.spawnQueue.length) return null;
     // Only during the calm after a cleared field (while mice remain, the wave banner/label is enough).
     if (this.foes.some((f) => f.alive && f.kind === 'enemy')) return null;
-    const until = (BALANCE.clearedWaveGap + BALANCE.waveBreather) * this.tuning.waveIntervalMult;
+    const until = (BALANCE.clearedWaveGap + BALANCE.waveBreather + this.finalLeadIn) * this.tuning.waveIntervalMult;
     return Math.max(0, until - this.clearTimer);
+  }
+  /** Extra lead-in (game seconds) before the final wave only; 0 between earlier waves. */
+  private get finalLeadIn(): number {
+    return this.waveIndex === this.stage.waves.length - 2 ? BALANCE.finalWaveExtraGap : 0;
   }
   /** Seconds left in the preparation phase. */
   get prepRemaining(): number {
@@ -986,8 +990,9 @@ export class Battle {
         const gapMult = this.tuning.waveIntervalMult;
         this.clearTimer = hostile ? 0 : this.clearTimer + dt;
         // Cleared field: a full calm breather. Mice still alive: the usual pressure cap.
-        const calm = !hostile && this.clearTimer >= (BALANCE.clearedWaveGap + BALANCE.waveBreather) * gapMult;
-        const cap = hostile && this.gapTimer >= (BALANCE.waveGap + BALANCE.waveBreatherHostile) * gapMult;
+        const extra = this.finalLeadIn;
+        const calm = !hostile && this.clearTimer >= (BALANCE.clearedWaveGap + BALANCE.waveBreather + extra) * gapMult;
+        const cap = hostile && this.gapTimer >= (BALANCE.waveGap + BALANCE.waveBreatherHostile + extra) * gapMult;
         if (calm || cap) {
           this.startWave(this.waveIndex + 1);
         }

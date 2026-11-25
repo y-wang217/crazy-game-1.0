@@ -120,6 +120,12 @@ export const BALANCE = {
    */
   waveBreatherHostile: 1.5,
   /**
+   * V1.6.4 playtest: the final wave gets a slightly longer lead-in than normal waves (added to
+   * both the calm breather and the pressure cap above, only before the LAST wave) so the
+   * "Final wave!" moment is recognisable. Enemy counts and HP are unchanged.
+   */
+  finalWaveExtraGap: 4,
+  /**
    * Enemy HP ramp inside a stage: toughness = hpScale × (1 + growth × waveIndex^curve).
    * curve > 1 keeps early waves gentle and makes late waves demand a stronger formation.
    * `growth` defaults to waveHpGrowth; stages override it.
